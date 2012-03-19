@@ -1,0 +1,10 @@
+mixin user(user)
+  tr
+    td.avatar
+      img(src="/images/zubi/zubi#{user._id}.png")
+    td.nickName
+      span #{user.nickName}
+    td.userId
+      span #{user._id}
+    td.deviceInstallationUUID
+      span #{user.deviceInstallationUUID}

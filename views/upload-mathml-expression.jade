@@ -1,0 +1,9 @@
+extends layout
+
+append additionalScripts
+  script(src='/javascripts/upload-mathml-expression.js', type='text/javascript')
+
+append wrapper
+  form(id='upload-form', method="post", enctype="multipart/form-data")
+    p
+      input(type="file", name="expression")

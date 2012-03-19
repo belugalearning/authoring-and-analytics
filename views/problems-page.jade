@@ -1,0 +1,23 @@
+extends layout
+
+block additionalScripts
+    script(src='/javascripts/problems.js', type='text/javascript')
+
+append wrapper
+  h3 Tool
+    select#select-tool
+      option(value="0") All
+      each tool in tools
+        option(value="#{tool.id}") #{tool.key}
+  table#problems-summary
+    tr
+      th.description Problem Description
+      th.date-created Created
+      th.date-modified Last Modified
+    each problem in problems
+      tr.problem(data-id="#{problem.id}", data-tool="#{problem.doc.toolId}")
+        td
+          .divLink.problem-description= problem.doc.problemDescription
+        td.date-created= problem.doc.dateCreated
+        td.date-modified= problem.doc.dateModified
+

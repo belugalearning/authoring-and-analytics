@@ -1,0 +1,10 @@
+- var elementDisabled = moduleId && elements && elements.length ? false : 'disabled'
+- var dataKey = topicModuleElementInDataset ? 'elementId' : false
+- var dataSavedValue = topicModuleElementInDataset ? elementId || '0' : false
+select#select-element(disabled=elementDisabled, data-key=dataKey, data-saved-value=dataSavedValue)
+  if !elementId
+    option(value=0, selected='selected') Select An Element
+  if elements
+    each element in elements
+      - var elementSelected = elementId == element.id ? 'selected' : false
+      option(value="#{element.id}", selected=elementSelected) #{element.value[0]}

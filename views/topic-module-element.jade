@@ -1,0 +1,14 @@
+extends layout
+
+block wrapper
+  table#topic-module-element(cellspacing=0, cellpadding=0)
+    tr
+      td.topic
+        h3 Topic
+        include includes/select-topic.jade
+      td.module
+        h3 Module
+        include includes/select-module.jade
+      td.element
+        h3 Element
+        include includes/select-element.jade

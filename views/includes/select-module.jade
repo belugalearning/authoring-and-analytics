@@ -1,0 +1,10 @@
+- var moduleDisabled = topicId && modules && modules.length ? false : 'disabled'
+- var dataKey = topicModuleElementInDataset ? 'moduleId' : false
+- var dataSavedValue = topicModuleElementInDataset ? moduleId || '0' : false
+select#select-module(disabled=moduleDisabled, data-key=dataKey, data-saved-value=dataSavedValue)
+  if !moduleId
+    option(value=0, selected='selected') Select A Module
+  if modules
+    each module in modules
+      - var moduleSelected = moduleId == module.id ? 'selected' : false
+      option(value="#{module.id}", selected=moduleSelected) #{module.value[0]}

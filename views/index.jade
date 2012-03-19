@@ -1,0 +1,29 @@
+include mixins/user.jade
+include mixins/problemAttempt.jade
+h1 Beluga Maths Analytics
+<br/>
+h2 Users
+<br/>
+table#allUsers(cellpadding="8", cellspacing="0")
+  tr
+    th.avatar Avatar
+    th.nickName NickName
+    th.userId User Id
+    th.deviceId Device Installation Id
+  - users.forEach(function(user) {
+  mixin user(user)
+  - })
+<br/>
+<br/>
+h2 Problems Attempts
+table#problemAttempts(cellpadding="8", cellspacing="0")
+  tr
+    th.problem Problem
+    th.start Start
+    th.end End
+    th.success Success
+    th.userId User Id
+    th.deviceId Device Installation Id
+    - att.forEach(function(a) {
+    mixin problemAttempt(a)
+    - })

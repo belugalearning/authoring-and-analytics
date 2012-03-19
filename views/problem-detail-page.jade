@@ -1,0 +1,59 @@
+extends layout
+
+block additionalScripts
+  script(src='/javascripts/problem-detail.js', type='text/javascript')
+
+block append wrapper
+  table#problem-data(style='margin-top:30px')
+    tr
+      td.title PList
+      td.data 
+        a(href='/content/problem/#{problemId}/view-pdef-plist', target="_blank") View
+        |&nbsp;
+        a(href='/content/problem/#{problemId}/download-pdef-plist') Download
+        |&nbsp;
+        a(href='/content/problem/#{problemId}/replace-pdef-plist') Replace
+    tr
+      td.title MathML Expression
+      td.data 
+        if (hasExpression)
+          a(href='/content/problem/#{problemId}/view-mathml-expression', target="_blank") View
+          |&nbsp;
+          a(href='/content/problem/#{problemId}/download-mathml-expression') Download
+          |&nbsp;
+          a(href='/content/problem/#{problemId}/upload-mathml-expression') Replace
+          |&nbsp;
+          a(href='/content/problem/#{problemId}/delete-mathml-expression') Delete
+        else
+          a(href='/content/problem/#{problemId}/upload-mathml-expression') Add
+    tr
+      td.title Problem Description
+      td.data #{problemDescription}
+    tr
+      td.title Tool
+      td.data #{toolName}
+    tr
+      td.title Date Created
+      td.data #{dateCreated}
+    tr
+      td.title Last Modified
+      td.data #{dateModified}
+    tr
+      td.title Topic
+      td.data
+        include includes/select-topic.jade
+    tr
+      td.title Module
+      td.data
+        include includes/select-module.jade
+    tr
+      td.title Element
+      td.data
+        include includes/select-element.jade
+
+  h3#assessment-criteria-header(data-key="_id", data-value="#{problemId}") Element Assessment Criteria
+
+  include includes/assign-assessment-criteria-table.jade
+  p
+    #save-page-changes Save Changes
+    #cancel-page-changes Cancel Changes

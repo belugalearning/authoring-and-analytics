@@ -1,0 +1,10 @@
+extends topic-module-element
+
+block additionalScripts
+  script(src='/javascripts/problem-sequence.js', type='text/javascript')
+
+block append wrapper
+  include includes/problem-sequence-tables.jade
+  #page-buttons
+    #save-page-changes Save Changes
+    #cancel-page-changes Cancel Changes
