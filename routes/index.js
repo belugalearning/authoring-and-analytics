@@ -545,7 +545,7 @@ function decompileFormPList(req, res, callback) {
 
         exec(command, function(err, stdout, stderr) {
             if (err) {
-                res.send('error: could not process plist', 500);
+                res.send(util.format('plutil was unable to process the plist. error: "%s"', err), 500);
                 return;
             }
 
