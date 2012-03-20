@@ -415,6 +415,7 @@ function insertDoc(doc, callback) {
 }
 
 function updateDoc(doc, callback) {
+    //console.log('updateDoc:', JSON.stringify(doc,null,2));
     request({
         method:'PUT'
         , uri: databaseURI + doc._id 
@@ -562,6 +563,9 @@ function updateViews(callback) {
             }
             , 'problem-descriptions': {
                 map: (function(doc) { if (doc.type == 'problem') emit(doc._id, doc.problemDescription); }).toString()
+            }
+            , 'problem-descriptions-and-notes': {
+                map: (function(doc) { if (doc.type == 'problem') emit(doc._id, [doc.problemDescription, doc.problemNotes]); }).toString()
             }
             , 'problems-by-description': {
                 map: (function(doc) { if (doc.type == 'problem') emit(doc.problemDescription, null); }).toString()

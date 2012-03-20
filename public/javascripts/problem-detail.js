@@ -179,6 +179,7 @@
             
             switch ($el[0].tagName.toLowerCase()) {
                 case 'input':
+                case 'textarea':
                     if ($el.attr('type') == 'checkbox') val = $el.prop('checked') ? 'true' : 'false';
                     else val = $el.val();
                     break;
@@ -240,6 +241,7 @@
 
             switch(this.tagName.toLowerCase()) {
                 case 'input':
+                case 'textarea':
                     if ($el.attr('type') == 'checkbox') $el.prop('checked', savedVal === 'true');
                     else $el.val(savedVal);
                 case 'select':
@@ -283,6 +285,7 @@
 
                     switch(this.tagName.toLowerCase()) {
                         case 'input':
+                        case 'textarea':
                             if ($el.attr('type') == 'checkbox') newSavedVal = $el.prop('checked') ? 'true' : 'false';
                             else newSavedVal = $el.val();
                             break;
@@ -347,6 +350,7 @@
                         if (!val) {
                             switch($el[0].tagName.toLowerCase()) {
                                 case 'input':
+                                case 'textarea':
                                     if ($el.attr('type') == 'checkbox') val = $el.prop('checked');
                                     else val = $el.val();
                                     break;

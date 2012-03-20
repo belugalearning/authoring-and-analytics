@@ -155,8 +155,8 @@ exports.content = {
             }
 
             var element = JSON.parse(b)
-              , queryIncludedURI = encodeURI('problem-descriptions?keys=' + JSON.stringify(element.includedProblems))
-              , queryExcludedURI = encodeURI('problem-descriptions?keys=' + JSON.stringify(element.excludedProblems))
+              , queryIncludedURI = encodeURI('problem-descriptions-and-notes?keys=' + JSON.stringify(element.includedProblems))
+              , queryExcludedURI = encodeURI('problem-descriptions-and-notes?keys=' + JSON.stringify(element.excludedProblems))
             ;
 
             includedProblemIds = element.includedProblems.join(',')
@@ -321,7 +321,8 @@ exports.content = {
                                     , topicModuleElementInDataset:true                      , problemDescription:problem.problemDescription
                                     , assessmentCriteria:criteria                           , assignedCriteriaIds:assignedCriteriaIds
                                     , dateCreated:formatDateString(problem.dateCreated)     , dateModified:formatDateString(problem.dateModified)
-                                    , toolName: (tool && tool.value[0] || '')               , hasExpression:(problem._attachments['expression.mathml'] !== undefined)
+                                    , toolName: (tool && tool.value[0] || '')               , hasExpression:(problem._attachments && problem._attachments['expression.mathml'] !== undefined)
+                                    , problemNotes:(problem.problemNotes || '')
                                 });
                             });
                         });
@@ -332,19 +333,13 @@ exports.content = {
                 model.content.getDoc(req.params.problemId, function(e,r,b) {
                     var problem = JSON.parse(b);
 
-                    var next = function() {
-                        for (var key in req.body) problem[key] = req.body[key];
-                        problem.dateModified = new Date().toJSON();
+                    var removeFromElement = function() {
+                        model.content.getDoc(problem.elementId, function(e,r,b) {
+                            if (r.statusCode !== 200) {
+                                res.send(util.format('error: could not retrieve old element for problem. (statusCode:%d, error:%s)', r.statusCode, e), 500);
+                                return;
+                            }
 
-                        model.content.updateDoc(problem, function(e,r,b) {
-                            res.send(r && r.statusCode || 500);
-                        });
-                    };
-
-                    if (problem.elementId == req.body.elementId) {
-                        next();
-                    } else {
-                        getDoc(problem.elementId, function(e,r,b) {
                             var element = JSON.parse(b);
 
                             var i = element.excludedProblems.indexOf(problem._id);
@@ -353,8 +348,52 @@ exports.content = {
                             i = element.includedProblems.indexOf(problem._id);
                             if (i >= 0) element.includedProblems.splice(i, 1);
 
-                            updateDoc(element, next);
+                            model.content.updateDoc(element, function(e,r,b) {
+                                if (r.statusCode !== 201) {
+                                    res.send(util.format('error: could not remove problem for element. The problem was not updated. (statusCode:%d, error:%s)', r.statusCode, e), 500);
+                                    return;
+                                }
+                                addToElement();
+                            });
                         });
+                    }
+
+                    var addToElement = function() {
+                        model.content.getDoc(req.body.elementId, function(e,r,b) {
+                            if (r.statusCode !== 200) {
+                                res.send(util.format('error: could not retrieve new element for problem. The problem was not updated. (statusCode:%d, error:%s)', r.statusCode, e), 500);
+                                return;
+                            }
+
+                            var element = JSON.parse(b);
+                            element.excludedProblems.push(problem._id);
+
+                            model.content.updateDoc(element, function(e,r,b) {
+                                if (r.statusCode !== 201) {
+                                    res.send(util.format('error: could not add problem to new element. If the problem was previously allocated an element, it was removed from that element. The problem was not updated. (statusCode:%d, error:%s)', r.statusCode, e), 500);
+                                    return;
+                                }
+                                updateProblem();
+                            });
+                        });
+                    }
+
+                    var updateProblem = function() {
+                        for (var key in req.body) problem[key] = req.body[key];
+                        problem.dateModified = new Date().toJSON();
+
+                        model.content.updateDoc(problem, function(e,r,b) {
+                            if (r.statusCode !== 201) res.send(util.format('Error updating problem. (statusCode:$d, error:e)', r.statusCode, e), 500);
+                            else res.send(201);
+                        });
+                    };
+
+                    if (!problem.elementId) {
+                        addToElement();// add to element, then update
+                    } else if (problem.elementId != req.body.elementId) {
+                        removeFromElement(); // remove from element, then add to new element, then update
+                    } else {
+                        updateProblem(); // just update the problem (i.e. it's staying on same element)
                     }
                 });
             }

@@ -65,9 +65,10 @@ table#topic-module-element td { width:300px; }
 table#topic-module-element select { width:280px; }
 
 select#select-tool { margin-left:10px; margin-bottom:3px; }
-table#problems-summary { margin-top:10px; }
+table#problems-summary { margin-top:10px; table-layout:fixed; width:1000px; }
 table#problems-summary th, table#problems-summary td  { border: 1px solid #333; height:25px; vertical-align:middle; }
 table#problems-summary th.description { width:300px; }
+table#problems-summary th.problem-notes { width:300px; }
 table#problems-summary th.date-created, table#problems-summary th.date-modified  { text-align:center; width:150px; }
 table#problems-summary td.date-created, table#problems-summary td.date-modified  { text-align:center; width:150px; }
 
@@ -143,4 +144,6 @@ table#problem-assigned-assessment-criteria td.criterion-max-score > input { widt
 table.click-across-inner th.problem-id 
 , table.click-across-inner td.problem-id { width:230px; }
 table.click-across-inner th.problem-description 
+, table.click-across-inner td.problem-notes { width:350px; }
+table.click-across-inner th.problem-notes 
 , table.click-across-inner td.problem-description { width:350px; }

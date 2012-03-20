@@ -12,12 +12,13 @@ append wrapper
   table#problems-summary
     tr
       th.description Problem Description
+      th.problem-notes Problem Notes
       th.date-created Created
       th.date-modified Last Modified
     each problem in problems
       tr.problem(data-id="#{problem.id}", data-tool="#{problem.doc.toolId}")
-        td
-          .divLink.problem-description= problem.doc.problemDescription
+        td.divLink.problem-description= problem.doc.problemDescription
+        td.problem-notes= problem.doc.problemNotes
         td.date-created= problem.doc.dateCreated
         td.date-modified= problem.doc.dateModified
 

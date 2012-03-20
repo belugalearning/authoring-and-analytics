@@ -6,13 +6,15 @@ mixin tableProblems(lr, dataKey, tableLabel, tableId, problems, problemIds, data
       thead
         th.problem-id ID
         th.problem-description Description
+        th.problem-notes Problem Notes
       tbody
         each problem in problems
           tr.problem.ui-draggable(data-element-id='#{problem.id}', data-order-on='#{problem.orderOn}', data-value='#{problem.id}')
             td.problem-id
               a(href='/content/problem/#{problem.id}')
                 #{problem.id}
-            td.problem-description= problem.value
+            td.problem-description= problem.value[0]
+            td.problem-notes= problem.value[1]
 
 table.click-across-outer(data-key="_id", data-value="#{elementId}")
   tr
