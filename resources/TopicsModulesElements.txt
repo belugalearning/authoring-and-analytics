@@ -1,17 +1,8 @@
-Number	Basics	Numbers
-Number	Basics	Sorting
-Number	Basics	Matching
-Number	Addition	Single Digit Addition
-Number	Addition	Place Value and Ordering Whole Numbers
-Number	Addition	Two Digit Column Addition
-Number	Addition	Comparing and Grouping and Large Numbers
-Number	Addition	Three Digit Addition
-Number	Addition	Four Digit Addition
-Number	Subtraction	Single Digit Subtraction
-Number	Subtraction	Two Digit Column Subtraction
-Number	Subtraction	Plus and Minus Are Opposites
-Number	Subtraction	Three Digit Column Subtraction
-Number	Subtraction	Four Digit Subtraction
+Number	Basics	Sorting & Matching
+Number	Basics	Counting
+Number	Addition & Subtraction	Basic Addition
+Number	Addition & Subtraction	Basic Subtraction
+Number	Addition & Subtraction	Place Value
 Number	Multiplication	Simple Single Digit Multiplication
 Number	Multiplication	Single Digit Multiplication
 Number	Multiplication	Developing with Multiplication

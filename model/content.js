@@ -178,6 +178,7 @@ function insertProblem(plist, element, callback) {
                             , 'body': JSON.stringify({
                                 type: 'problem'
                                 , problemDescription: problemDescription
+                                , problemNotes: ''
                                 , elementId: element && element._id || null
                                 , moduleId: element && element.moduleId || null
                                 , topicId: element && element.topicId || null
@@ -490,6 +491,7 @@ function logResponse(message, err, res, body) {
     console.log('\tBody:', body);
 }
 
+
 // Views
 function updateViews(callback) {
     var contentViews = {
@@ -575,14 +577,55 @@ function updateViews(callback) {
     }));
 }
 
+
+
+function populateDBWithInitialContent(callback) {
+    console.log('populate database with initial content (syllabus/topics/modules/elements):');
+    addInitialTopicsModulesElements(function(syllabus) {
+        var tools = [
+            { type:'tool', name:'BlockFloating' }
+            , { type:'tool', name:'PlaceValue' }
+            , { type:'tool', name:'NLine' }
+        ];
+
+        var modules = _.flatten(_.map(syllabus.topics, function(topic) { return topic.modules; }));
+        var elements = _.flatten(_.map(modules, function(module) { return module.elements; }));
+
+        console.log('insert tools...');
+        (function insertToolsFromIndex(index) {
+            if (index === tools.length) {
+                console.log('initial population of database complete!');
+                if (typeof callback == 'function') callback();
+                return;
+            }
+
+            var tool = tools[index];
+            console.log('insert tools['+index+']:', JSON.stringify(tool));
+            insertDoc(tool, validatedResponseCallback(201, function(e,r,b) {
+                tool.id = JSON.parse(b).id;
+                insertToolsFromIndex(1+index);
+            }));
+        })(0);
+    });
+};
+
 // Populate DB With Initial Content
 function addInitialTopicsModulesElements(callback) {
     console.log('delete all docs...');
     deleteAllDocs(function(errorCount) {
-        console.log('insert views...');
+        if (errorCount) {
+            console.log('error deleting all documents. errorCount:'+errorCount);
+            if (typeof callback == 'function') callback('error deleting documenta. error count =', errorCount);
+            return;
+        }
+        console.log('all docs deleted');
+        console.log('insert/update views...');
         updateViews(function(e,r,b) {
-            console.log('insert syllabus...');
+            console.log('views inserted/updated');
+            console.log('insert "Default" syllabus...');
             insertDoc({ type:'syllabus', name:'Default', topics:[] }, validatedResponseCallback(201, function(e,r,b) {
+                console.log('"Default" syllabus inserted');
+
                 var syllabus = { id:JSON.parse(b).id, topics:[] }
                   , syllabusId = syllabus.id
                   , topics = syllabus.topics
@@ -605,8 +648,11 @@ function addInitialTopicsModulesElements(callback) {
                     module.elements.push({ id:null, name:elemData.element });
                 });
 
+                console.log('Syllabus: ' + JSON.stringify(syllabus, null, 2));
+
                 (function insertTopicsFromIndex(topicIndex) {
                     if (topicIndex == topics.length) {
+                        console.log(util.format('all %d topics inserted', topics.length));
                         if (typeof callback == 'function') callback(syllabus);
                         return;
                     }
@@ -614,11 +660,15 @@ function addInitialTopicsModulesElements(callback) {
                     var topic = topics[topicIndex]
                       , modules = topic.modules;
 
+                    console.log(util.format('insert topic %d/%d: "%s"', 1+topicIndex, topics.length, topic.name));
+
                     insertTopic(topic.name, syllabusId, function(topicData) {
+                        console.log('topic inserted, insert modules for topic...');
                         topic.id = topicData.id;
                     
                         (function insertModulesFromIndex(moduleIndex) {
                             if (moduleIndex == modules.length) {
+                                console.log(util.format('all %d modules inserted for topic:"%s"', topics.length, topic.name));
                                 insertTopicsFromIndex(1+topicIndex, callback);
                                 return;
                             }
@@ -626,11 +676,15 @@ function addInitialTopicsModulesElements(callback) {
                             var module = modules[moduleIndex]
                               , elements = module.elements;
 
+                              console.log(util.format('insert module %d/%d: "%s::%s"', 1+moduleIndex, modules.length, topic.name, module.name));
+
                             insertModule(module.name, topic.id, syllabusId, function(moduleData) {
+                                console.log('module inserted, insert elements for module...');
                                 module.id = moduleData.id;
 
                                 (function insertElementsFromIndex(elementIndex, callback) {
                                     if (elementIndex == elements.length) {
+                                        console.log(util.format('all %d elements inserted for module:"%s::%s"', elements.length, topic.name, module.name));
                                         insertModulesFromIndex(1+moduleIndex);
                                         return;
                                     }
@@ -639,6 +693,8 @@ function addInitialTopicsModulesElements(callback) {
                                     element.moduleId = module.id;
                                     element.topicId = topic.id;
                                     element.syllabusId = syllabusId;
+
+                                    console.log(util.format('insert element %d/%d: "%s::%s::%s"', 1+elementIndex, elements.length, topic.name, module.name, element.name));
                                     
                                     insertElement(element.name, module.id, topic.id, syllabusId, function(elementData) {
                                         element.id = elementData.id;
@@ -654,6 +710,7 @@ function addInitialTopicsModulesElements(callback) {
     });
 };
 
+// THIS FUNCTION NEEDS UPDATING OR DELETING (DELETION PROB BEST)
 function addInitialProblems(tools, elements, callback) {
     var s = fs.readFileSync(process.cwd() + '/resources/Problems.txt', 'UTF-8').trim()
       , problems = []
@@ -685,6 +742,7 @@ function addInitialProblems(tools, elements, callback) {
     })(0);
 }
 
+// THIS FUNCTION NEEDS UPDATING OR DELETING (DELETION PROB BEST)
 function addInitialAssessmentCriteria(callback) {
     var elementNames = ["Numbers", "Matching", "Sorting", "Recognising Fractions"];
     queryView('elements-by-moduleid-name', function(e,r,b) {
@@ -715,37 +773,3 @@ function addInitialAssessmentCriteria(callback) {
         //console.log(elements);
     });
 }
-
-function populateDBWithInitialContent(callback) {
-    console.log('insert syllabus/topics/modules/elements...');
-    addInitialTopicsModulesElements(function(syllabus) {
-        console.log('insert assessment criteria...');
-        addInitialAssessmentCriteria(function() {
-            var tools = [
-                { type:'tool', name:'BlockFloating' }
-                , { type:'tool', name:'PlaceValue' }
-            ];
-            
-            var modules = _.flatten(_.map(syllabus.topics, function(topic) { return topic.modules; }));
-            var elements = _.flatten(_.map(modules, function(module) { return module.elements; }));
-
-            console.log('insert tools...');
-            (function insertToolsFromIndex(index) {
-                if (index === tools.length) {
-                    console.log('insert problems...');
-                    addInitialProblems(tools, elements, function() {
-                        console.log('all done....');
-                    });
-                    return;
-                }
-
-                var tool = tools[index];
-                console.log('insert tools['+index+']:', JSON.stringify(tool));
-                insertDoc(tool, validatedResponseCallback(201, function(e,r,b) {
-                    tool.id = JSON.parse(b).id;
-                    insertToolsFromIndex(1+index);
-                }));
-            })(0);
-        });
-    });
-};
