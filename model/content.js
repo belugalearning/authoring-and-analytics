@@ -122,10 +122,15 @@ function getProblemInfoFromPList(plist, callback) {
             return;
         }
 
-        var matchValTOOL_KEY = plistString.match(/TOOL_KEY<\/key>\s*<string>([^<]+)/i)
+        var matchMETA_QUESTION = plistString.match(/<key>META_QUESTION<\/key>/i)
+          , matchValMETA_QUESTION_TITLE = plistString.match(/META_QUESTION_TITLE<\/key>\s*<string>([^<]+)/i)
+          , matchValTOOL_KEY = plistString.match(/TOOL_KEY<\/key>\s*<string>([^<]+)/i)
           , matchValPROBLEM_DESCRIPTION = plistString.match(/PROBLEM_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
-          , toolName = matchValTOOL_KEY && matchValTOOL_KEY.length > 1 && matchValTOOL_KEY[1]
-          , problemDescription = matchValPROBLEM_DESCRIPTION && matchValPROBLEM_DESCRIPTION.length > 1 && matchValPROBLEM_DESCRIPTION[1]
+          , isMetaQuestion = matchMETA_QUESTION && matchMETA_QUESTION.length > 0
+          , toolName = (matchValTOOL_KEY && matchValTOOL_KEY.length > 1 && matchValTOOL_KEY[1]) || (isMetaQuestion && 'NONE') // Meta Questions optionally have TOOL_KEY. Other questions must have TOOL_KEY
+          , problemDescription = (isMetaQuestion
+                                ? matchValMETA_QUESTION_TITLE && matchValMETA_QUESTION_TITLE.length > 1 && matchValMETA_QUESTION_TITLE[1]
+                                : matchValPROBLEM_DESCRIPTION && matchValPROBLEM_DESCRIPTION.length > 1 && matchValPROBLEM_DESCRIPTION[1]) // use META_QUESTION_TITLE for Meta Questions
         ;
 
         if (!toolName || !problemDescription) {
@@ -133,7 +138,8 @@ function getProblemInfoFromPList(plist, callback) {
                 'invalid plist - missing values for keys: '
                     + (toolName ? '' : ' TOOL_KEY')
                     + (toolName || problemDescription ? '' : ' and')
-                    + (problemDescription ? '' : ' PROBLEM_DESCRIPTION'));
+                    + (problemDescription ? '' : (isMetaQuestion ? ' META_QUESTION_TITLE' : ' PROBLEM_DESCRIPTION'))
+            );
             return;
         }
         queryView(encodeURI('any-by-type-name?key=' + JSON.stringify(['tool',toolName])), function(e,r,b) {
@@ -141,7 +147,7 @@ function getProblemInfoFromPList(plist, callback) {
               , toolId = rows && rows.length && rows[0].id
             ;
 
-            if (toolId) callback(null, plistString, problemDescription, toolId);
+            if (toolId || isMetaQuestion) callback(null, plistString, problemDescription, toolId);
             else callback(util.format('invalid plist. Could not retrieve tool with name %s. -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode));
         });
     });
