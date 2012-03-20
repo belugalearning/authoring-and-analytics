@@ -13,7 +13,7 @@ var contentDatabase = 'temp-blm-users/'
 module.exports = function(serverURI) {
     couchServerURI = serverURI;
     databaseURI = serverURI + contentDatabase;
-    console.log("content module: databaseURI =", databaseURI);
+    console.log("users module: databaseURI =", databaseURI);
     
     return {
         queryView: queryView
