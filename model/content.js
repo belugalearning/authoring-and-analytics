@@ -133,7 +133,7 @@ function getProblemInfoFromPList(plist, callback) {
                 'invalid plist - missing values for keys: '
                     + (toolName ? '' : ' TOOL_KEY')
                     + (toolName || problemDescription ? '' : ' and')
-                    + (problemDescripton ? '' : ' PROBLEM_DESCRIPTION'));
+                    + (problemDescription ? '' : ' PROBLEM_DESCRIPTION'));
             return;
         }
         queryView(encodeURI('any-by-type-name?key=' + JSON.stringify(['tool',toolName])), function(e,r,b) {
