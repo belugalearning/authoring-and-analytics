@@ -596,6 +596,8 @@ function populateDBWithInitialContent(callback) {
             { type:'tool', name:'BlockFloating' }
             , { type:'tool', name:'PlaceValue' }
             , { type:'tool', name:'NLine' }
+            , { type:'tool', name:'ColumnAddition' }
+            , { type:'tool', name:'ExprScene' }
         ];
 
         var modules = _.flatten(_.map(syllabus.topics, function(topic) { return topic.modules; }));
