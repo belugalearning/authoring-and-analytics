@@ -11,7 +11,7 @@ mixin tableProblems(lr, dataKey, tableLabel, tableId, problems, problemIds, data
         each problem in problems
           tr.problem.ui-draggable(data-element-id='#{problem.id}', data-order-on='#{problem.orderOn}', data-value='#{problem.id}')
             td.problem-id
-              a(href='/content/problem/#{problem.id}')
+              a(href='/content/problem/#{problem.id}', target='_blank')
                 #{problem.id}
             td.problem-description= problem.value[0]
             td.problem-notes= problem.value[1]
