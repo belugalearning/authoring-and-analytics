@@ -147,3 +147,9 @@ table.click-across-inner th.problem-description
 , table.click-across-inner td.problem-notes { width:350px; }
 table.click-across-inner th.problem-notes 
 , table.click-across-inner td.problem-description { width:350px; }
+
+
+table#user-list { margin-left:30px; }
+
+table#user-activity-feed tr { height:30px; }
+table#user-activity-feed td.date-time { width:170px; }

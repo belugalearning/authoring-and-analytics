@@ -36,11 +36,22 @@ function updateViews(callback) {
             , 'devices': {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.firstLaunchDateTime, null); }).toString()
             }
-            /*, 'users-by-device': {
+            , 'users-by-device': {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.name, null); }).toString()
-            }*/
+            }
+            , 'problem-attempts-by-start': {
+                map: (function(doc) { if (doc.type == 'problem attempt') emit(doc.startDateTime, null); }).toString()
+            }
+            , 'activity-feed-events-by-user-date': {
+                map: (function(doc) { if (doc.type == 'activity feed event') emit([doc.userId, doc.dateTime], null); }).toString()
+            }
+            , 'activity-feed-events-by-date': {
+                map: (function(doc) { if (doc.type == 'activity feed event') emit([doc.dateTime, doc.userId], null); }).toString()
+            }
         }
     };
+
+    console.log('update views: ' + databaseURI + designDoc);
 
     getDoc(contentViews._id, validatedResponseCallback([200,404], function(e,r,b) {
         var writeViews = r.statusCode === 404 ? insertDoc : updateDoc;

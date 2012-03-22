@@ -514,6 +514,53 @@ exports.content = {
     })()
 };
 
+exports.userPortal = {
+    userList: function(req, res) {
+        var queryURI = '/users-by-name?include_docs=true';
+        model.users.queryView(queryURI, function(e,r,b) {
+            if (r.statusCode != 200) {
+                res.send(util.format('error retrieving users list. (error:%s, statusCode:%d)', e, r.statusCode), 500);
+                return;
+            }
+
+            var rows = JSON.parse(b).rows;
+            res.render('user-list-page', { title:'App Users', users:rows });
+        });
+    }
+    , activityFeedPage: function(req, res) {
+        var userId = req.params.userId
+          //, queryURI = util.format('/activity-feed-events-by-user-date?startkey=%s&endkey=%s&include_docs=true&descending=true', JSON.stringify([req.params.userId]), JSON.stringify([req.params.userId,{}]));
+          , queryURI = util.format('/activity-feed-events-by-user-date?include_docs=true&descending=true&startkey=' + JSON.stringify([req.params.userId,{}]) + '&endkey=' + JSON.stringify([req.params.userId]))
+        ;
+
+        model.users.queryView(encodeURI(queryURI), function(e,r,b) {
+            if (r.statusCode != 200) {
+                res.send(util.format('error retrieving activity feed. (error:%s, statusCode:%d)', e, r.statusCode), 500);
+                return;
+            }
+
+            var rows = JSON.parse(b).rows;
+            for (var i=0; i<rows.length; i++) rows[i].doc.dateTime = formatDateString(rows[i].doc.dateTime);
+            res.render('activity-feed-page', { title:'User Activity Feed', events:rows });
+        });
+    }
+    , allActivitiesReversed: function(req, res) {
+
+        var queryURI = '/activity-feed-events-by-date?descending=true&include_docs=true';
+
+        model.users.queryView(encodeURI(queryURI), function(e,r,b) {
+            if (r.statusCode != 200) {
+                res.send(util.format('error retrieving activity feed. (error:%s, statusCode:%d)', e, r.statusCode), 500);
+                return;
+            }
+
+            var rows = JSON.parse(b).rows;
+            for (var i=0; i<rows.length; i++) rows[i].doc.dateTime = formatDateString(rows[i].doc.dateTime);
+            res.render('activity-feed-page', { title:'All Users Activity Feed', events:rows });
+        });
+    }
+}
+
 function formatDateString(jsonDate) {
     if (!jsonDate) return '';
     return jsonDate.replace(/^([0-9]{4}-[0-9]{2}-[0-9]{2})T(([0-9]{2}:){2}[0-9]{2}).+$/, "$1 $2");

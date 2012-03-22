@@ -61,6 +61,11 @@ app.post('/content/problem-sequence/update', routes.content.updateProblemSequenc
 app.get('/content/create-problem', routes.content.createProblem.page);
 app.post('/content/create-problem', routes.content.createProblem.uploadPlist);
 
+
+app.get('/user-portal', routes.userPortal.userList);
+app.get('/user-portal/:userId/activity-feed', routes.userPortal.activityFeedPage);
+app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReversed);
+
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })
     , function(arg) {
