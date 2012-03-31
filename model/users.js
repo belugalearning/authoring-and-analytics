@@ -30,11 +30,14 @@ function updateViews(callback) {
     var contentViews = {
         _id: '_design/' + designDoc
         , views: {
-            'users-by-name': {
+            'devices': {
+                map: (function(doc) { if (doc.type == 'device') emit(doc.firstLaunchDateTime, null); }).toString()
+            }
+            , 'users-by-nick-name': {
                 map: (function(doc) { if (doc.type == 'user') emit(doc.nickName, null); }).toString()
             }
-            , 'devices': {
-                map: (function(doc) { if (doc.type == 'device') emit(doc.firstLaunchDateTime, null); }).toString()
+            , 'users-by-nick-name-password': {
+                map: (function(doc) { if (doc.type == 'user') emit([doc.nickName, doc.password], null); }).toString()
             }
             , 'users-by-device': {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.name, null); }).toString()
@@ -47,6 +50,76 @@ function updateViews(callback) {
             }
             , 'activity-feed-events-by-date': {
                 map: (function(doc) { if (doc.type == 'activity feed event') emit([doc.dateTime, doc.userId], null); }).toString()
+            }
+            , 'device-users-last-session': {
+                map: (function(doc) {
+                    if (doc.type == 'device') {
+                        var len = doc.userSessions.length, i;
+                        for (i=0; i < len; i++) {
+                            var session = doc.userSessions[i];
+                            emit([doc._id, session.userId], session.startDateTime);
+                        }
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    var latest;
+                    for (var value in values) {
+                        if (!latest || value > latest) latest = value;
+                    }
+                    return latest;
+                }).toString()
+            }
+            , 'device-sessions-by-date': {
+                map: (function(doc) {
+                    if (doc.type == 'device') {
+                        var len = doc.userSessions.length, i;
+                        for (i=0; i<len; i++) {
+                            var session = doc.userSessions[i];
+                            emit([session.startDateTime, doc._id], session.userId);
+                        }
+                    }
+                }).toString()
+            }
+            // query with group level 2
+            , 'problems-completed-by-user': {
+                map: (function(doc) {
+                    if (doc.type == 'problem attempt' && doc.success) {
+                        emit([doc.userId, doc.problemId], doc.problemId);
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    return values[0];
+                }).toString()
+            }
+            // query with group level 1
+            , 'total-exp-by-user': {
+                map: (function(doc) {
+                    if (doc.type == 'problem attempt' && doc.success) {
+                        var aCP = doc.awardedAssessmentCriteriaPoints
+                          , len = aCP.length
+                          , i
+                        ;
+                        for (i=0; i<len; i++) emit(doc.userId, aCP[i].points);
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    var sum = 0, len = values.length, i;
+                    for (i=0; i<len; i++) sum += values[i];
+                    return sum;
+                }).toString()
+            }
+            // query view with group level=1 (all time in play for user), or group level=2 (time in play on per element per user)
+            , 'users-time-in-play': {
+                map: (function(doc) {
+                    if (doc.type == 'problem attempt') {
+                        emit([doc.userId, doc.elementId], doc.timeInPlay);
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    var sum = 0, len = values.length, i;
+                    for (i=0; i<len; i++) sum += values[i];
+                    return sum;
+                }).toString()
             }
         }
     };

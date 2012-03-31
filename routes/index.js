@@ -516,7 +516,7 @@ exports.content = {
 
 exports.userPortal = {
     userList: function(req, res) {
-        var queryURI = '/users-by-name?include_docs=true';
+        var queryURI = '/users-by-nick-name?include_docs=true';
         model.users.queryView(queryURI, function(e,r,b) {
             if (r.statusCode != 200) {
                 res.send(util.format('error retrieving users list. (error:%s, statusCode:%d)', e, r.statusCode), 500);
