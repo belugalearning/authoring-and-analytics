@@ -1,0 +1,24 @@
+/*div.scroll { width:100%; height:600px; overflow:scroll; border:1px solid #ccc; }
+ */
+
+/* bar chart */
+.chart rect
+{
+    stroke:white;
+    fill:steelblue;
+}
+.chart text { font:10px sans-serif; }
+.chart text.bar-label { fill:white; }
+
+/* zoom-pan */
+svg
+{
+    font: 10px sans-serif;
+    shape-rendering: crispEdges;
+}
+rect.grid { fill: #ddd; }
+.axis path, .axis line
+{
+    fill: none;
+    stroke: #fff;
+}

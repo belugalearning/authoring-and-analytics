@@ -3,46 +3,15 @@ var model = require('../model')
   , exec = require('child_process').exec
   , fs = require('fs')
   , util = require('util')
+  , kcm = exports.kcm = require('./kcm')(model)
 ;
+
+exports.index = function(req, res){
+    res.redirect('/sitemap');
+};
 
 exports.siteMap = function(req, res) {
     res.render('sitemap', { title:'Site Map' });
-};
-
-exports.index = function(req, res){
-    //***************************
-    res.redirect('/sitemap');
-    return;
-    //***************************
-
-    model.queryView('user-views', 'all-users', function(err, response, body) {
-        if (err || res.statusCode != 200) {
-            console.log("error retrieving all users.\nerr=", err,"\nbody=", body, "\nstatusCode=", (res && res.statusCode || ""));
-            res.send(500);
-            return;
-        }
-
-        var resBody = JSON.parse(body).rows;
-        var u = [];
-        for (var i = 0; i < resBody.length; i++) {
-            u.push(resBody[i].value);
-        }
-        
-        model.queryView('user-views', 'problem-attempts?descending=true', function(err, response, body) {
-            if (err || res.statusCode != 200) {
-                console.log("error retrieving all users.\nerr=", err,"\nbody=", body, "\nstatusCode=", (res && res.statusCode || ""));
-                res.send(500);
-                return;
-            }
-
-            resBody = JSON.parse(body).rows;
-            a = [];
-            for (i = 0; i < resBody.length; i++) {
-                a.push(resBody[i].value);
-            }
-            res.render('index', { title: 'Beluga Maths Web Analytics', att:a, users:u });
-        });
-    });
 };
 
 exports.zubiImage = function(req, res){

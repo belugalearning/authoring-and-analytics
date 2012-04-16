@@ -1,3 +1,7 @@
+// ******* make directory in which this file sits (application root directory) the root directory so that files in subdirectories can use paths relative to application root - i.e. they don't need to know their own path
+// ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
+process.chdir(__dirname);
+
 var express = require('express')
   , routes = require('./routes')
   , model = require('./model')
@@ -5,9 +9,7 @@ var express = require('express')
   , _ = require('underscore')
 ;
 
-var app = module.exports = express.createServer(
-    //form({ keepExtensions: true })
-);
+var app = module.exports = express.createServer();
 
 // Configuration
 app.configure(function() {
@@ -65,6 +67,8 @@ app.post('/content/create-problem', routes.content.createProblem.uploadPlist);
 app.get('/user-portal', routes.userPortal.userList);
 app.get('/user-portal/:userId/activity-feed', routes.userPortal.activityFeedPage);
 app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReversed);
+
+app.get('/kcm(/*)?', routes.kcm);
 
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })

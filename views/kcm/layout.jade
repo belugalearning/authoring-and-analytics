@@ -1,0 +1,21 @@
+!!! 5
+html
+  head
+    title= title
+
+    link(rel='stylesheet', href='/stylesheets/kcm/styles.css')
+
+    script
+      var kcm = !{JSON.stringify(map,null,2)}
+    script(src='/javascripts/jquery-1.7.1.min.js', type='text/javascript')
+    //script(src='/javascripts/kcm/ocanvas-2.1.0.min.js', type='text/javascript')
+    script(src='/javascripts/kcm/d3.v2.min.js', type='text/javascript')
+    //script(src='/javascripts/kcm/bar2.js', type='text/javascript')
+    script(src='/javascripts/kcm/kcm.js', type='text/javascript')
+    block additionalScripts
+
+  body
+    a(href="/") Home Page
+    h1= title
+    #wrapper
+      block wrapper

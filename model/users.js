@@ -33,6 +33,20 @@ function updateViews(callback) {
             'devices': {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.firstLaunchDateTime, null); }).toString()
             }
+            , 'launch-timestamps-by-date-device': {
+                map: (function(doc) {
+                    var deviceTS = doc.dbLaunchTimestamps
+                      , len = deviceTS && deviceTS.length
+                      , i, launchTS;
+
+                    if (doc.type == 'device' && len) {
+                        for (i=0; i<len; i++) {
+                            launchTS = deviceTS[i];
+                            emit([launchTS[0].timestamp, doc._id], launchTS);
+                        }
+                    }
+                }).toString()
+            }
             , 'users-by-nick-name': {
                 map: (function(doc) { if (doc.type == 'user') emit(doc.nickName, null); }).toString()
             }
