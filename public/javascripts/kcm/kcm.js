@@ -155,7 +155,6 @@
         gPrereqs = gWrapper.append("g");
         gNodes = gWrapper.append("g");
 
-        //*
         var nodes = gNodes.selectAll('g.node')
             .data(kcm.nodes)
             .enter()
@@ -183,14 +182,13 @@
                 .attr('transform', 'translate(5,5)')
         ;
         var nodeTSpans = nodesText.selectAll('tspan')
-            .data(function(d) { console.log(d.nodeDescription.split('\n')); return d.nodeDescription.split('\n');})
+            .data(function(d) { return d.nodeDescription.split('\n');})
             .enter()
             .append('tspan')
                 .attr('x', 0)
                 .attr('y', function(d, i) { console.log(d,i); return 14 * (1+i); })
                 .text(String)
         ;
-            
         
         gPrereqs.selectAll('g.link')
             .data(kcm.prerequisites)
