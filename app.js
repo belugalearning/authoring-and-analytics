@@ -90,10 +90,10 @@ var listen = function() {
 };
 
 if (getOption('createdb')) {
-    console.log('creating database');
+    console.log('creating content database');
     model.content.createDB(listen);
 } else if (getOption('initdb')) {
-    console.log('initialising database');
+    console.log('initialising content database');
     model.content.populateDBWithInitialContent(listen);
 } else {
     if (getOption('updateviews')) {
