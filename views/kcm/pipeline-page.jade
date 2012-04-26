@@ -1,0 +1,18 @@
+extends layout
+
+block additionalScripts
+  script(src='/javascripts/kcm/pipeline-sequence.js', type='text/javascript')
+
+block wrapper
+  select#select-pipeline
+    if !pipelineId
+      option(value=0, selected='selected') Select A Pipeline
+    if pipelines
+      each pipeline in pipelines
+        - var pipelineSelected = pipelineId == pipeline.id ? 'selected' : false
+        option(value="#{pipeline.id}", selected=pipelineSelected) #{pipeline.name}
+
+  include pipeline-sequence-tables.jade
+  #page-buttons
+    #save-page-changes Save Changes
+    #cancel-page-changes Cancel Changes

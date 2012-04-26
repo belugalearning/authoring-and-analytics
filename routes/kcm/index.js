@@ -7,34 +7,129 @@ var fs = require('fs')
 module.exports = function(model) {
     kcmModel = model.kcm;
 
+    return {
+        getMap: function(req, res) {
+            var map = { pipelines:{}, nodes:[], prerequisites:[] };
+            kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {
+                _.each(JSON.parse(b).rows, function(row) { map.pipelines[row.id] = row.doc; });
+                kcmModel.queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
+                    map.nodes = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
-    return function(req, res) {
-        kcmModel.queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
-            var rows = JSON.parse(b).rows
-              , map = {
-                    nodes: _.map(rows, function(row) {
-                        var doc = row.doc;
-                        return {
-                            id: doc._id
-                            , nodeDescription: doc.nodeDescription
-                            , x: doc.x
-                            , y: doc.y
-                            , width: doc.width
-                            , height: doc.height
-                        };
-                    })
-              }
-            ;
-
-            var nodematch = _.filter(map.nodes, function(n) {
-                return /Find all factor pairs/i.test(n.nodeDescription);
+                    kcmModel.queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function(e,r,b) {
+                        map.prerequisites = JSON.parse(b).rows[0].doc.members;
+                        res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
+                    });
+                });
             });
+        }
+        , addNewPipelineToConceptNode: function(req, res) {
+            var conceptNodeId = req.body.conceptNodeId
+              , pipelineName = req.body.pipelineName
+            ;
+            kcmModel.addNewPipelineToConceptNode(pipelineName, conceptNodeId, function(e,statusCode,newPipeline) {
+                if (statusCode != 201) res.send(e, statusCode || 500);
+                else res.send(newPipeline);
+            });
+        }
+        , deletePipeline: function(req, res) {
+            kcmModel.deletePipeline(req.body.id, req.body.rev, req.body.conceptNodeId, function(e,statusCode,b) {
+                if (statusCode != 200) res.send(e, statusCode || 500);
+                else res.send(200);
+            });
+        }
+        , updatePipelineSequence: function(req, res) {
+            kcmModel.updatePipelineSequence(req.body.pipelineId, req.body.problems, function(e,statusCode) {
+                res.send(e, statusCode || 500);
+            });
+        }
+        , pipelinePage: function(req, res) {
+            kcmModel.queryView('pipelines-by-name', function(e,r,b) {
+                var plId = req.params.pipelineId
+                  , pipelines
+                ;
 
-            kcmModel.queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function(e,r,b) {
-                map.prerequisites = JSON.parse(b).rows[0].doc.members;
+                if (200 != r.statusCode) {
+                    res.render(util.format('could not retrieve pipeline list: DB Error: "%s"',e) ,r.statusCode);
+                    return;
+                }
 
-                res.render('kcm/layout', { title:'Knowledge Concept Map', map:map });
+                pipelines = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, name:row.key }; });
+
+                pipelineSequenceViewData(plId, function(data) {
+                    data.title = 'Pipelines';
+                    data.pipelines = pipelines;
+                    res.render('kcm/pipeline-page', data);
+                });
+            });
+        }
+        , pipelineSequenceTables: function(req, res) {
+            var plId = req.params.pipelineId;
+            pipelineSequenceViewData(req.params.pipelineId, function(data) {
+                res.render('kcm/pipeline-sequence-tables', data);
+            });
+        }
+        , pullReplicate: function(req, res) {
+            var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
+              , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
+              , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
+              , source = (sourceMatch && sourceMatch.length > 1 && sourceMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
+              , filter = (filterMatch && filterMatch.length > 1 && filterMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
+              , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1] == 'true'
+            ;
+            
+            if (source.length > 1) {
+                console.log('PULL REPLICATION: source:%s, filter:%s, continuous:%s', source, filter, continuous?'true':'false');
+                kcmModel.pullReplicate(source, filter, continuous);
+                res.send(200);
+            } else {
+                res.send(500);
+            }
+        }
+    };
+
+    function pipelineSequenceViewData(plId, callback) {
+        var incl = []
+          , excl = []
+          , pl
+          , doCallback = function() {
+              callback({
+                  pipelineId: plId
+                  , includedProblems:incl   , includedProblemIds:pl && pl.problems || []
+                  , excludedProblems:excl   , excludedProblemIds:_.map(excl, function(p) { return p._id; })
+              });
+          }
+        ;
+
+        if (!plId) {
+            doCallback();
+            return;
+        }
+
+        kcmModel.getDoc(plId, function(e,r,b) {
+            if (r.statusCode != 200) {
+                doCallback();
+                return;
+            }
+
+            pl = JSON.parse(b);
+
+            kcmModel.queryView(encodeURI('by-type?include_docs=true&key="problem"'), function(e,r,b) {
+                var probs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
+
+                incl = _.sortBy(
+                      _.filter(probs, function(p) { return pl.problems.indexOf(p._id) > -1; })
+                      , function(p) { return pl.problems.indexOf(p._id); }
+                );
+                excl = _.sortBy(
+                      _.filter(probs, function(p) { return pl.problems.indexOf(p._id) == -1; })
+                      , function(p) { return p.problemDescription; }
+                );
+
+                _.each(incl, function(p) { p.orderOn = incl.indexOf(p); });
+                _.each(excl, function(p) { p.orderOn = excl.indexOf(p); });
+
+                doCallback();
             });
         });
-    };
+    }
 };

@@ -49,6 +49,101 @@ function createDB(callback) {
     })
 }
 
+function updateViews(callback) {
+    console.log('updating views on', databaseURI);
+
+    var contentViews = {
+        _id: '_design/' + designDoc
+        , filters: {
+            'only-problems': (function(doc, req) { return doc.type && doc.type == 'problem'; }).toString()
+        }
+        , views: {
+            'any-by-type-name': {
+                map: (function(doc) { if (doc.type && doc.name) emit([doc.type, doc.name], null); }).toString()
+            }
+            , 'by-type': {
+                map: (function(doc) { emit(doc.type, null); }).toString()
+            }
+            , 'syllabi-by-name': {
+                map: (function(doc) { if (doc.type == 'syllabus') emit(doc.name, null); }).toString()
+            }
+            , 'tools-by-name': {
+                map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
+            }
+            , 'topics-modules-elements': {
+                map: (function(doc) {
+                    switch(doc.type) {
+                        case 'syllabus':
+                            emit(doc._id, doc.topics);
+                            break;
+                        case 'topic':
+                            emit(doc._id, doc.modules);
+                            break;
+                        case 'module':
+                            emit(doc._id, doc.elements);
+                            break;
+                        default:
+                            break;
+                    }
+                }).toString()
+            }
+            , 'names-types-by-id': {
+                map: (function(doc) { emit(doc._id, [doc.name, doc.type]); }).toString()
+            }
+            , 'topics': {
+                map: (function(doc) { if (doc.type == 'topic') emit(doc._id, doc.name); }).toString()
+            }
+            , 'topics-by-name': {
+                map: (function(doc) { if (doc.type == 'topic') emit(doc.name, null); }).toString()
+            }
+            , 'modules': {
+                map: (function(doc) { if (doc.type == 'module') emit(doc._id, doc.name); }).toString()
+            }
+            , 'modules-by-topicid-name': {
+                map: (function(doc) { if (doc.type == 'module') emit([doc.topicId, doc.name], null); }).toString()
+            }
+            , 'elements': {
+                map: (function(doc) { if (doc.type == 'element') emit(doc._id, doc.name); }).toString()
+            }
+            , 'elements-by-moduleid-name': {
+                map: (function(doc) { if (doc.type == 'element') emit([doc.moduleId, doc.name], null); }).toString()
+            }
+            , 'assessment-criteria-by-element': {
+                map: (function(doc) { if (doc.type == 'assessment criterion') emit([doc.elementId, doc.name], null); }).toString()
+            }
+            , 'assessment-criteria': {
+                map: (function(doc) { if (doc.type == 'assessment criterion') emit(doc._id, doc.name); }).toString()
+            }
+            , 'assessment-criteria-problems': {
+                map: (function(doc) {
+                    if (doc.type == 'problem') {
+                        for (var i = 0; i < doc.assessmentCriteria.length; i++) {
+                            var c = doc.assessmentCriteria[i];
+                            emit([c.id, doc.problemDescription], c);
+                        }
+                    }
+                }).toString()
+            }
+            , 'problem-descriptions': {
+                map: (function(doc) { if (doc.type == 'problem') emit(doc._id, doc.problemDescription); }).toString()
+            }
+            , 'problem-descriptions-and-notes': {
+                map: (function(doc) { if (doc.type == 'problem') emit(doc._id, [doc.problemDescription, doc.problemNotes]); }).toString()
+            }
+            , 'problems-by-description': {
+                map: (function(doc) { if (doc.type == 'problem') emit(doc.problemDescription, null); }).toString()
+            }
+        }
+    };
+
+    getDoc(contentViews._id, validatedResponseCallback([200,404], function(e,r,b) {
+        var writeViews = r.statusCode === 404 ? insertDoc : updateDoc;
+        if (r.statusCode === 200) contentViews._rev = JSON.parse(b)._rev;
+        
+        writeViews(contentViews, validatedResponseCallback(201, callback));
+    }));
+}
+
 function queryView(view, callback) {
     getDoc('_design/' + designDoc + '/_view/' + view, callback);
 };
@@ -498,97 +593,7 @@ function logResponse(message, err, res, body) {
     console.log('\tBody:', body);
 }
 
-
-// Views
-function updateViews(callback) {
-    var contentViews = {
-        _id: '_design/' + designDoc
-        , views: {
-            'any-by-type-name': {
-                map: (function(doc) { if (doc.type && doc.name) emit([doc.type, doc.name], null); }).toString()
-            }
-            , 'syllabi-by-name': {
-                map: (function(doc) { if (doc.type == 'syllabus') emit(doc.name, null); }).toString()
-            }
-            , 'tools-by-name': {
-                map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
-            }
-            , 'topics-modules-elements': {
-                map: (function(doc) {
-                    switch(doc.type) {
-                        case 'syllabus':
-                            emit(doc._id, doc.topics);
-                            break;
-                        case 'topic':
-                            emit(doc._id, doc.modules);
-                            break;
-                        case 'module':
-                            emit(doc._id, doc.elements);
-                            break;
-                        default:
-                            break;
-                    }
-                }).toString()
-            }
-            , 'names-types-by-id': {
-                map: (function(doc) { emit(doc._id, [doc.name, doc.type]); }).toString()
-            }
-            , 'topics': {
-                map: (function(doc) { if (doc.type == 'topic') emit(doc._id, doc.name); }).toString()
-            }
-            , 'topics-by-name': {
-                map: (function(doc) { if (doc.type == 'topic') emit(doc.name, null); }).toString()
-            }
-            , 'modules': {
-                map: (function(doc) { if (doc.type == 'module') emit(doc._id, doc.name); }).toString()
-            }
-            , 'modules-by-topicid-name': {
-                map: (function(doc) { if (doc.type == 'module') emit([doc.topicId, doc.name], null); }).toString()
-            }
-            , 'elements': {
-                map: (function(doc) { if (doc.type == 'element') emit(doc._id, doc.name); }).toString()
-            }
-            , 'elements-by-moduleid-name': {
-                map: (function(doc) { if (doc.type == 'element') emit([doc.moduleId, doc.name], null); }).toString()
-            }
-            , 'assessment-criteria-by-element': {
-                map: (function(doc) { if (doc.type == 'assessment criterion') emit([doc.elementId, doc.name], null); }).toString()
-            }
-            , 'assessment-criteria': {
-                map: (function(doc) { if (doc.type == 'assessment criterion') emit(doc._id, doc.name); }).toString()
-            }
-            , 'assessment-criteria-problems': {
-                map: (function(doc) {
-                    if (doc.type == 'problem') {
-                        for (var i = 0; i < doc.assessmentCriteria.length; i++) {
-                            var c = doc.assessmentCriteria[i];
-                            emit([c.id, doc.problemDescription], c);
-                        }
-                    }
-                }).toString()
-            }
-            , 'problem-descriptions': {
-                map: (function(doc) { if (doc.type == 'problem') emit(doc._id, doc.problemDescription); }).toString()
-            }
-            , 'problem-descriptions-and-notes': {
-                map: (function(doc) { if (doc.type == 'problem') emit(doc._id, [doc.problemDescription, doc.problemNotes]); }).toString()
-            }
-            , 'problems-by-description': {
-                map: (function(doc) { if (doc.type == 'problem') emit(doc.problemDescription, null); }).toString()
-            }
-        }
-    };
-
-    getDoc(contentViews._id, validatedResponseCallback([200,404], function(e,r,b) {
-        var writeViews = r.statusCode === 404 ? insertDoc : updateDoc;
-        if (r.statusCode === 200) contentViews._rev = JSON.parse(b)._rev;
-        
-        writeViews(contentViews, validatedResponseCallback(201, callback));
-    }));
-}
-
-
-
+// Populate DB With Initial Content
 function populateDBWithInitialContent(callback) {
     console.log('populate database with initial content (syllabus/topics/modules/elements):');
     addInitialTopicsModulesElements(function(syllabus) {
@@ -621,7 +626,6 @@ function populateDBWithInitialContent(callback) {
     });
 };
 
-// Populate DB With Initial Content
 function addInitialTopicsModulesElements(callback) {
     console.log('delete all docs...');
     deleteAllDocs(function(errorCount) {

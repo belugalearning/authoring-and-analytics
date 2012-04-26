@@ -74,9 +74,6 @@
                 $(window).on('mousemove mouseup', drag);
             })
         ;
-
-        //TEMP!!!!!!!!!!
-        //loadProblemsForElement('c945f815a4a474143d3090b797d3da2d');
     });
 
     function populateModulesForTopic(topicId) {

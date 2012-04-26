@@ -1,0 +1,11 @@
+extends layout
+
+block additionalScripts
+
+append wrapper
+  table#node-list
+    each node in nodes
+      tr
+        td #{node._id}
+        td #{node.nodeDescription}
+        td textarea

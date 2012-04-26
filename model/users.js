@@ -27,6 +27,8 @@ function queryView(view, callback) {
 
 // Views
 function updateViews(callback) {
+    console.log('updating views on', databaseURI);
+
     var contentViews = {
         _id: '_design/' + designDoc
         , views: {

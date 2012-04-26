@@ -1,0 +1,64 @@
+GraffleId:731,,unclear exactly what this is - I think no overlap but very close
+GraffleId:208,,need to be clear that question involves giving a number
+GraffleId:207,,need to be clear that question involves user matching a given example set (i.e. not a number)
+GraffleId:294,,unclear
+GraffleId:330,GraffleId:433,identical ??
+GraffleId:171,,how test this ???
+GraffleId:172,,how test this ???
+GraffleId:169,,how test this ???
+GraffleId:170,,how test this ???
+GraffleId:425,,linked with GraffleId:144 (additive) but not overlap
+GraffleId:144,,needs extra explanation text - get from the “concept zone” oval
+GraffleId:349,,needs extra explanation text - get from the “concept zone” oval
+GraffleId:763,,!!! “unknown start box” - co-variation has no real nodes
+GraffleId:764,,!!! “unknown end box” - co-variation has no real nodes
+GraffleId:444,,paritioning - potential split into two nodes
+GraffleId:447,,should recognition be separate node?
+GraffleId:450,,"should recognition be separate node?, specify a != 1"
+GraffleId:446,GraffleId:450,overlap
+GraffleId:457,GraffleId:453,potential overlap
+GraffleId:458, GraffleId:457,overlap unless specified that GraffleId:457 does not feature integers
+GraffleId:578,,multiple potential overlaps
+GraffleId:607,GraffleId:527,possible overlap
+GraffleId:336,GraffleId:337,potential overlap
+GraffleId:332,,how we do this?
+GraffleId:312,,exclude 10 from this one to avoid overlap with prereq: GraffleId:310
+GraffleId:370,,need to set lower bound counting within 1000 to avoid conflict with earlier nodes
+GraffleId:308,,potentially a conflict with GraffleId:311 unless range set >=20
+GraffleId:311,GraffleId:391,exclude addition of multiples of 10s unless other node using diff tools
+GraffleId:386,GraffleId:379,
+GraffleId:491,,exclude rounding to nearest 10/100 to avoid conflict with GraffleId:381
+GraffleId:495,,must be at least 4 digits to avoid overlap
+GraffleId:493,,more detail required
+GraffleId:377,,specify 3 or 4 nums rather than up to 4
+GraffleId:325,GraffleId:439,set specific number ranges (i.e. we want minimums to avoid conflicts with early word problems) - should this node be split in the same way ast word problems towards bottom-right of diagram?
+!!!!! SPECIFY RANGES ON EARLY WORD PROBLEMS,,
+GraffleId:402,,Is this a node? seems v narrow
+GraffleId:439,,"split into two parts?? In first part, must be specific that two different operators are involved, one of which should be * or /"
+GraffleId:544,,potential overlap with GraffleId:439
+GraffleId:481,,multiple nodes??? Need to set min 3 stages to avoid overlap with GraffleId:439
+GraffleId:403,,how distinguish this from earlier multiplication nodes - only difference seems to be the term ‘fluently’
+GraffleId:474,GraffleId:399,"as well as conflict, should div and mult be split? Perhaps not - makes it more difficult and interesting if there’s variation & user must work out which required"
+GraffleId:399,,split division & mult? Perhaps not - makes it more difficult and interesting if there’s variation & user must work out which required
+GraffleId:499,,"potential for a split. when multiplying by single digit, must not be within 100 to avoid overlaps"
+GraffleId:560,,“Fluently” do something being done elsewhere???
+GraffleId:550,,partial overlap with GraffleId:489 - exclude whole number ‘digit represents 10 times what it represents in place to its right’
+GraffleId:703,,potential overlap with several addition / subtraction nodes - requires negative or mixture of fraction/decimal?
+ GraffleId:709,,unsure exactly what this means. overlaps????
+GraffleId:713,,"For this to be distinct, this needs to somehow differ from question that simply asks for multiplication/division of integer / fraction combo -at least one operand needs to be negative or operands need to be combination of fractions/decimals"
+GraffleId:717,,only distinct if some operands are negative / or combo of fractions and decimals (or involves powers - not yet introduced)
+GraffleId:720,,not entirely sure I understand this - sqrt(2)/sqrt(2) = 1: i.e. irrational quotient produces integer
+GraffleId:722,,how is this different from any number of preceeding multiplication/division problems
+GraffleId:724,,Should this come earlier - earlier operations on combos of decimals/fractions - require moving from decimal / fraction and vice versa.
+GraffleId:729,,Should this come earlier - can you understand a rational number without know what an irrational number is?
+GraffleId:731,,First mention of pi
+GraffleId:735,,!!!!!!!!!! Node description: “Equation stuff grade 7”
+ GraffleId:699,,!!!!!!!!!! Node description: “Equation stuff grade 6”
+GraffleId:651,!!!,this is a combination of preceding nodes for each of the 4 operations
+GraffleId:623, GraffleId:622,Identical ???
+GraffleId:628,,Nothing wrong with node but should prob have inbound link from co-variate zone nodes bottom-right of map
+ GraffleId:631,,Very close to GraffleId:629 - requires further differentiation
+GraffleId:635,GraffleId:631,"Seems just about idential, also close to GraffleId:629"
+GraffleId:637,GraffleId:635,Literally identical nodes
+GraffleId:685,GraffleId:641,Very close if not identical concepts
+GraffleId:688,!!!,Seems to be included in preceding nodes

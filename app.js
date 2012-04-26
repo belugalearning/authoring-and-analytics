@@ -68,7 +68,13 @@ app.get('/user-portal', routes.userPortal.userList);
 app.get('/user-portal/:userId/activity-feed', routes.userPortal.activityFeedPage);
 app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReversed);
 
-app.get('/kcm(/*)?', routes.kcm);
+app.get('/kcm', routes.kcm.getMap);
+app.get('/kcm/pull-replicate', routes.kcm.pullReplicate);
+app.post('/kcm/insert-pipeline', routes.kcm.addNewPipelineToConceptNode);
+app.post('/kcm/delete-pipeline', routes.kcm.deletePipeline);
+app.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
+app.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
+app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
 
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })
@@ -99,7 +105,9 @@ if (getOption('createdb')) {
     if (getOption('updateviews')) {
         console.log('updating views');
         model.content.updateViews(function() {
-            model.users.updateViews(listen);
+            model.kcm.updateViews(function() {
+                model.users.updateViews(listen);
+            });
         });
     } else {
         listen();
