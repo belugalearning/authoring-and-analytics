@@ -70,11 +70,15 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate);
+app.post('/kcm/insert-concept-node-tag', routes.kcm.insertConceptNodeTag);
+app.post('/kcm/delete-concept-node-tag', routes.kcm.deleteConceptNodeTag);
+app.post('/kcm/edit-concept-node-tag', routes.kcm.editConceptNodeTag);
 app.post('/kcm/insert-pipeline', routes.kcm.addNewPipelineToConceptNode);
 app.post('/kcm/delete-pipeline', routes.kcm.deletePipeline);
 app.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
 app.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
 app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
+app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
 
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })

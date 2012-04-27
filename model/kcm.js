@@ -27,6 +27,10 @@ module.exports = function(serverURI) {
         , updateViews: updateViews
         , queryView: queryView
         , insertConceptNode: insertConceptNode
+        , updateConceptNodePosition: updateConceptNodePosition
+        , insertConceptNodeTag: insertConceptNodeTag
+        , deleteConceptNodeTag: deleteConceptNodeTag
+        , editConceptNodeTag: editConceptNodeTag
         , insertRelation: insertRelation
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , getDoc: getDoc
@@ -354,8 +358,24 @@ function updateViews(callback) {
             , 'concept-nodes-by-graffle-id': {
                 map: (function(doc) { if (doc.type == 'concept node') emit(doc.graffleId, null); }).toString()
             }
+            , 'concept-node-pipelines': {
+                map: (function(doc) {
+                    if (doc.type == 'concept node') {
+                        var len = doc.pipelines.length;
+                        for (var i=0; i<len; i++) emit (doc._id, doc.pipelines[i]);
+                    }
+                }).toString()
+            }
             , 'pipelines-by-name': {
                 map: (function(doc) { if (doc.type == 'pipeline') emit(doc.name, null); }).toString()
+            }
+            , 'pipeline-problems': {
+                map: (function(doc) {
+                    if (doc.type == 'pipeline') {
+                        var len = doc.problems.length;
+                        for (var i=0; i<len; i++) emit (doc._id, doc.problems[i]);
+                    }
+                }).toString()
             }
             , 'relations-by-name': {
                 map: (function(doc) { if (doc.type == 'relation') emit(doc.name, null); }).toString()
@@ -410,6 +430,166 @@ function insertConceptNode(o, callback) {
             }
             if (typeof callback == 'function') callback(e,r,b);
             return;
+        });
+    });
+}
+
+function updateConceptNodePosition(id, rev, x, y, callback) {
+    getDoc(id, function(e,r,b) {
+        if (isNaN(x) || isNaN(y)) {
+            callback(util.format('BAD ARGS: numberic values required for x and y. Supplied: "%s" and "%s". The concept node position was not updated.', x, y), 500);
+            return;
+        }
+
+        if (r.statusCode != 200) {
+            callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node position was not updated.', e), r.statusCode);
+            return;
+        }
+
+        var node = JSON.parse(b);
+
+        if (node._rev != rev) {
+            callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', rev, node._rev), 500);
+            return;
+        }
+
+        node.x = x;
+        node.y = y;
+
+        updateDoc(node, function(e,r,b) {
+            if (r.statusCode != 201) e = util.format('Error updating concept node position. Database Error: "%s"', e);
+            callback(e, r.statusCode, JSON.parse(b).rev);
+        });
+    });
+}
+
+function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
+    if ('string' != typeof tag) {
+        callback('tag supplied is not a string', 500);
+        return;
+    }
+
+    getDoc(conceptNodeId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode);
+            return;
+        }
+
+        var cn = JSON.parse(b);
+
+        if (cn._rev != conceptNodeRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 500);
+            return;
+        }
+
+        if ('concept node' != cn.type) {
+            callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode);
+            return;
+        }
+
+        if (!cn.tags) cn.tags = [];
+        cn.tags.push(tag);
+
+        updateDoc(cn, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback('failed to update concept node', r.statusCode);
+                return;
+            }
+            callback(null, 201, JSON.parse(b).rev);
+        });
+    });
+}
+
+function deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
+    if ('string' != typeof tagText) {
+        callback('tag supplied is not a string', 500);
+        return;
+    }
+    if (tagIndex != parseInt(tagIndex)) {
+        callback('tagIndex is not an integer', 500);
+        return;
+    }
+
+    getDoc(conceptNodeId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode);
+            return;
+        }
+
+        var cn = JSON.parse(b);
+
+        if (cn._rev != conceptNodeRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 500);
+            return;
+        }
+
+        if ('concept node' != cn.type) {
+            callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode);
+            return;
+        }
+
+        if (!cn.tags || tagText != cn.tags[tagIndex]) {
+            callback(util.format('supplied text:"%s" does not match tag at supplied index:"%s".', tagText, tagIndex), 500);
+            return;
+        }
+
+        cn.tags.splice(tagIndex, 1);
+
+        updateDoc(cn, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback('failed to update concept node', r.statusCode);
+                return;
+            }
+            callback(null, 201, JSON.parse(b).rev);
+        });
+    });
+}
+
+function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText, newText, callback) {
+    if ('string' != typeof currentText) {
+        callback('current text supplied for tag is not a string', 500);
+        return;
+    }
+    if ('string' != typeof newText) {
+        callback('new text supplied for tag is not a string', 500);
+        return;
+    }
+    if (tagIndex != parseInt(tagIndex)) {
+        callback('tagIndex is not an integer', 500);
+        return;
+    }
+
+    getDoc(conceptNodeId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode);
+            return;
+        }
+
+        var cn = JSON.parse(b);
+
+        if (cn._rev != conceptNodeRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 500);
+            return;
+        }
+
+        if ('concept node' != cn.type) {
+            callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode);
+            return;
+        }
+
+        if (!cn.tags || currentText != cn.tags[tagIndex]) {
+            callback(util.format('supplied text:"%s" does not match tag at supplied index:"%s".', currentText, tagIndex), 500);
+            return;
+        }
+
+        cn.tags.splice(tagIndex, 1, newText);
+
+        updateDoc(cn, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback('failed to update concept node', r.statusCode);
+                return;
+            }
+            callback(null, 201, JSON.parse(b).rev);
         });
     });
 }
@@ -501,7 +681,7 @@ function addOrderedPairToBinaryRelation(relationId, el1Id, el2Id, callback) {
     });
 }
 
-function addNewPipelineToConceptNode(pipelineName, conceptNodeId, callback) {
+function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev, callback) {
     if (typeof pipelineName != 'string' || !pipelineName.length) {
         if (typeof callback == 'function') callback('BAD ARGS - pipelineName requires string', 500);
         return;
@@ -512,92 +692,110 @@ function addNewPipelineToConceptNode(pipelineName, conceptNodeId, callback) {
     }
 
     getDoc(conceptNodeId, function(e,r,b) {
-        if (r.statusCode != 200) {
+        if (200 != r.statusCode) {
             callback(util.format('could not retrieve concept node. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode);
             return;
         }
 
         var conceptNode = JSON.parse(b);
+
+        if (conceptNode._rev != conceptNodeRev) {
+            callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', conceptNodeRev, conceptNode._rev), 500);
+            return;
+        }
+
         if (!conceptNode.pipelines) conceptNode.pipelines = [];
 
         insertDoc({ type:'pipeline', name:pipelineName, problems:[] }, function(e,r,b) {
-            if (r.statusCode != 201) {
+            if (201 != r.statusCode) {
                 callback(util.format('Failed to create pipeline. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode);
                 return;
             }
 
-            var newPipelineId = JSON.parse(b).id; 
-            conceptNode.pipelines.push(newPipelineId);
+            var plData = JSON.parse(b);
+            conceptNode.pipelines.push(plData.id);
 
             updateDoc(conceptNode, function(e,r,b) {
-                if (r.statusCode != 201) {
-                    callback(util.format('Error adding new pipeline to concept node. (Database Error:"%s"). The pipeline was created with id="%s".', e, newPipelineId), r.statusCode, newPipelineId);
+                if (201 != r.statusCode) {
+                    callback(util.format('Error adding new pipeline to concept node. (Database Error:"%s"). The pipeline was created with id="%s".', e, plData.id), r.statusCode, plData);
                     return;
                 }
 
-                getDoc(newPipelineId, function(e,r,b) { callback(null,201,b); }); //TODO: Check for r.statusCode == 200 here
+                var nodeRevision = JSON.parse(b).rev;
+
+                getDoc(plData.id, function(e,r,b) {
+                    if (200 != r.statusCode) {
+                        callback(util.format('Error retrieving new pipeline. Database Error:"%s". The pipeline was created with id="%s" and the concept node was updated to revision="%s".'
+                                             , e, plData.id, nodeRevision), r.statusCode || 500);
+                    } else {
+                        callback(null, 201, JSON.parse(b), nodeRevision);
+                    }
+                });
             });
         });
     });
 }
 
-function deletePipeline(id, rev, conceptNodeId, callback) {
-    if (typeof id != 'string' || !id.length) {
-        if (typeof callback == 'function') callback('BAD ARGS - id requires string', 500);
-        return;
-    }
-    if (typeof rev != 'string' || !rev.length) {
-        if (typeof callback == 'function') callback('BAD ARGS - rev requires string', 500);
-        return;
-    }
-    if (typeof conceptNodeId != 'string' || !conceptNodeId.length) {
-        if (typeof callback == 'function') callback('BAD ARGS - conceptNodeId requires string', 500);
-        return;
-    }
-
-    getDoc(id, function(e,r,b) {
+function deletePipeline(plId, plRev, cnId, cnRev, callback) {
+    getDoc(plId, function(e,r,b) {
         if (r.statusCode != 200) {
             callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline was not deleted.',e), r.statusCode);
             return;
         }
-        if ('pipeline' != JSON.parse(b).type) {
-            callback(util.format('Error: Document with id="%s" is not a pipeline. The document was not deleted.',id), 500);
+        var pl = JSON.parse(b);
+
+        if (pl._rev != plRev) {
+            callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline was not deleted', plRev, pl._rev), 500);
             return;
         }
 
-        getDoc(conceptNodeId, function(e,r,b) {
-            var conceptNode, pipelineIndex;
+        if ('pipeline' != pl.type) {
+            callback(util.format('Error: Document with id="%s" is not a pipeline. The document was not deleted.',plId), 500);
+            return;
+        }
+
+        getDoc(cnId, function(e,r,b) {
+            var cn, plIx;
 
             if (r.statusCode != 200) {
                 callback(util.format('Error: could not retrieve concept node. (Database Error:"%s"). The pipeline was not deleted.',e), r.statusCode);
                 return;
             }
 
-            conceptNode = JSON.parse(b);
-            if ('concept node' != conceptNode.type) {
-                callback(util.format('Error: Document with id="%s" is not a concept node. The pipeline was not deleted.',conceptNodeId), 500);
+            cn = JSON.parse(b);
+
+            if ('concept node' != cn.type) {
+                callback(util.format('Error: Document with id="%s" is not a concept node. The pipeline was not deleted.',cnId), 500);
+                return;
+            }
+            if (cnRev != cn._rev) {
+                callback(util.format('Error: concept node revisions do not correspond. Supplied:"%s", Database:"%s", The pipeline was not deleted', cnRev, cn._rev), 500);
                 return;
             }
 
-            pipelineIndex = conceptNode.pipelines.indexOf(id);
-            if (-1 == pipelineIndex) {
-                callback(util.format('Error: Concept node with id="%s" is not associated with pipeline id="%s". The pipeline was not deleted.',conceptNodeId,id), 500);
+            plIx = cn.pipelines.indexOf(plId);
+
+            if (-1 == plIx) {
+                callback(util.format('Error: Pipeline with id="%s" not found on concept node with id="%s". The pipeline was not deleted.', plId, cnId), 500);
                 return;
             }
 
-            conceptNode.pipelines.splice(pipelineIndex, 1);
-            updateDoc(conceptNode, function(e,r,b) {
+            cn.pipelines.splice(plIx, 1);
+
+            updateDoc(cn, function(e,r,b) {
                 if (r.statusCode != 201) {
-                    callback('Error: Failed to update concept node. Database Error:"%s". The pipeline was not deleted.', r.statusCode);
+                    callback('Error: Failed to remove pipeline from concept node. Database Error:"%s". The pipeline was not deleted.', r.statusCode);
                     return;
                 }
 
-                deleteDoc(id, rev, function(e,r,b) {
+                var cnUpdatedRev = JSON.parse(b).rev;
+
+                deleteDoc(plId, plRev, function(e,r,b) {
                     if (r.statusCode != 200) {
-                        callback(util.format('Error: Failed to delete pipeline. Database Error:"%s". The pipeline was removed from the given node but was not deleted.',e), r.statusCode);
+                        callback(util.format('Error: Failed to delete pipeline. Database Error:"%s". The pipeline was removed from its concept node but not deleted.', e), r.statusCode);
                         return;
                     }
-                    callback(e,r.statusCode,b);
+                    callback(null, 200, cnUpdatedRev);
                 });
             });
         });
@@ -684,3 +882,4 @@ function validatedResponseCallback(validStatusCodes, callback) {
         process.exit(1);
     }
 }
+

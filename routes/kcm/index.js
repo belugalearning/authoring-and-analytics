@@ -22,19 +22,34 @@ module.exports = function(model) {
                 });
             });
         }
+        , insertConceptNodeTag: function(req, res) {
+            kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tag, function(e, statusCode, conceptNodeRevision) {
+                console.log('got here', arguments, res.send);
+                res.send(e || conceptNodeRevision, statusCode || 500);
+            });
+        }
+        , deleteConceptNodeTag: function(req, res) {
+            kcmModel.deleteConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode, conceptNodeRevision) {
+                res.send(e || conceptNodeRevision, statusCode || 500);
+            });
+        }
+        , editConceptNodeTag: function(req, res) {
+            kcmModel.editConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.currentText, req.body.newText, function(e, statusCode, conceptNodeRevision) {
+                res.send(e || conceptNodeRevision, statusCode || 500);
+            });
+        }
         , addNewPipelineToConceptNode: function(req, res) {
-            var conceptNodeId = req.body.conceptNodeId
-              , pipelineName = req.body.pipelineName
+            var cnId = req.body.conceptNodeId
+              , cnRev = req.body.conceptNodeRev
+              , plName = req.body.pipelineName
             ;
-            kcmModel.addNewPipelineToConceptNode(pipelineName, conceptNodeId, function(e,statusCode,newPipeline) {
-                if (statusCode != 201) res.send(e, statusCode || 500);
-                else res.send(newPipeline);
+            kcmModel.addNewPipelineToConceptNode(plName, cnId, cnRev, function(e, statusCode, newPipeline, conceptNodeRev) {
+                res.send(e || { pipeline:newPipeline, conceptNodeRev:conceptNodeRev }, statusCode || 500);
             });
         }
         , deletePipeline: function(req, res) {
-            kcmModel.deletePipeline(req.body.id, req.body.rev, req.body.conceptNodeId, function(e,statusCode,b) {
-                if (statusCode != 200) res.send(e, statusCode || 500);
-                else res.send(200);
+            kcmModel.deletePipeline(req.body.pipelineId, req.body.pipelineRev, req.body.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode, conceptNodeRev) {
+                res.send(e || conceptNodeRev, statusCode || 500);
             });
         }
         , updatePipelineSequence: function(req, res) {
@@ -66,6 +81,11 @@ module.exports = function(model) {
             var plId = req.params.pipelineId;
             pipelineSequenceViewData(req.params.pipelineId, function(data) {
                 res.render('kcm/pipeline-sequence-tables', data);
+            });
+        }
+        , updateConceptNodePosition: function(req,res) {
+            kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
+                res.send(e || nodeRevision, statusCode || 500);
             });
         }
         , pullReplicate: function(req, res) {

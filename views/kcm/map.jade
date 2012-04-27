@@ -11,7 +11,7 @@ block wrapper
   #right-panel
     table#concept-node-data.none-selected
       tr.field
-        td.field-label Database Id:
+        td.field-label Db Id:
         td.field-data
           span#concept-db-id
       tr.field
@@ -28,10 +28,11 @@ block wrapper
           textarea#concept-notes(disabled='disabled')
       tr.field
         td.field-label Tags:
+          div#insert-tag-btn.add-btn
         td.field-data
-          span#concept-tags
+          div#concept-tags
       tr.field
         td(colspan='2')
           | Pipelines:
-          div#insert-pipeline-btn
+          div#insert-pipeline-btn.add-btn
           table#pipelines
