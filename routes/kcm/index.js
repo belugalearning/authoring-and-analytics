@@ -24,7 +24,6 @@ module.exports = function(model) {
         }
         , insertConceptNodeTag: function(req, res) {
             kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tag, function(e, statusCode, conceptNodeRevision) {
-                console.log('got here', arguments, res.send);
                 res.send(e || conceptNodeRevision, statusCode || 500);
             });
         }
