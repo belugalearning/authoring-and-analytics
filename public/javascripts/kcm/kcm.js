@@ -449,7 +449,7 @@
         $input
             .focus()
             .on('focusout', function() {
-                $editTag.replaceWith(tag);
+                $editTag.replaceWith($tag);
             })
             .keydown(function(e) {
                 switch(e.keyCode) {
