@@ -1,4 +1,4 @@
-// ******* make directory in which this file sits (application root directory) the root directory so that files in subdirectories can use paths relative to application root - i.e. they don't need to know their own path
+// ******* make directory in which this file sits (application root directory) the working directory so that files in subdirectories can use paths relative to application root - i.e. they don't need to know their own path
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
@@ -70,6 +70,7 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate);
+app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
 app.post('/kcm/insert-concept-node-tag', routes.kcm.insertConceptNodeTag);
 app.post('/kcm/delete-concept-node-tag', routes.kcm.deleteConceptNodeTag);
 app.post('/kcm/edit-concept-node-tag', routes.kcm.editConceptNodeTag);

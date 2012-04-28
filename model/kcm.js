@@ -5,7 +5,7 @@ var fs = require('fs')
   , libxmljs = require('libxmljs')
 ;
 
-var kcmDatabaseName = 'tmp-blm-kcm23/'
+var kcmDatabaseName = 'tmp-blm-kcm23'
   , designDoc = 'kcm-views'
   , couchServerURI
   , databaseURI
@@ -14,14 +14,16 @@ var kcmDatabaseName = 'tmp-blm-kcm23/'
 var relationTypes = ['binary'];
 
 module.exports = function(serverURI) {
-    couchServerURI = serverURI;
-    databaseURI = serverURI + kcmDatabaseName;
+    couchServerURI = serverURI.replace(/([^/])$/, '$1');
+    databaseURI = serverURI + kcmDatabaseName.replace(/([^/])$/, '$1') + '/';
     console.log("knowledge concept map model: databaseURI =", databaseURI);
     
     //importGraffleMapIntoNewDB(2, 0, false);
     
     return {
-        importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
+        databaseName: kcmDatabaseName
+        , generateUUID: generateUUID
+        , importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
         , createDB: createDB
         , pullReplicate: pullReplicate
         , updateViews: updateViews
@@ -63,6 +65,16 @@ module.exports = function(serverURI) {
 //        fs.writeFileSync(file, notes, 'UTF8');
 //    });
 //}
+
+function generateUUID(callback) {
+    console.log(couchServerURI);
+    request({
+        uri: couchServerURI + '_uuids'
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+    }, function(e,r,b) {
+        callback(JSON.parse(b).uuids[0]);
+    });
+}
 
 function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
     // files from which to import

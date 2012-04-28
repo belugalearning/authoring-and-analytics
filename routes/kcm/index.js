@@ -1,6 +1,7 @@
 var fs = require('fs')
   , _ = require('underscore')
   , util = require('util')
+  , exec = require('child_process').exec
   , kcmModel
 ;
 
@@ -8,7 +9,40 @@ module.exports = function(model) {
     kcmModel = model.kcm;
 
     return {
-        getMap: function(req, res) {
+        pullReplicate: function(req, res) {
+            var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
+              , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
+              , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
+              , source = (sourceMatch && sourceMatch.length > 1 && sourceMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
+              , filter = (filterMatch && filterMatch.length > 1 && filterMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
+              , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1] == 'true'
+            ;
+            
+            if (source.length > 1) {
+                console.log('PULL REPLICATION: source:%s, filter:%s, continuous:%s', source, filter, continuous?'true':'false');
+                kcmModel.pullReplicate(source, filter, continuous);
+                res.send(200);
+            } else {
+                res.send(500);
+            }
+        }
+        , cannedDatabase: function(req, res) {
+            kcmModel.generateUUID(function(uuid) {
+                var config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
+                  , dbPath = config.databasePath
+                  , dbName = kcmModel.databaseName
+                  , zipFile = util.format('/tmp/canned-db-%s.zip', uuid);
+                ;
+                exec(util.format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:config.couchdbPath }, function(e,stdout,stderr) {
+                    if (e) {
+                        res.send(e, 500);
+                        return;
+                    }
+                    res.download(zipFile, 'canned-db.zip');
+                });
+            });
+        }
+        , getMap: function(req, res) {
             var map = { pipelines:{}, nodes:[], prerequisites:[] };
             kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {
                 _.each(JSON.parse(b).rows, function(row) { map.pipelines[row.id] = row.doc; });
@@ -86,23 +120,6 @@ module.exports = function(model) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
                 res.send(e || nodeRevision, statusCode || 500);
             });
-        }
-        , pullReplicate: function(req, res) {
-            var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
-              , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
-              , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
-              , source = (sourceMatch && sourceMatch.length > 1 && sourceMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
-              , filter = (filterMatch && filterMatch.length > 1 && filterMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
-              , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1] == 'true'
-            ;
-            
-            if (source.length > 1) {
-                console.log('PULL REPLICATION: source:%s, filter:%s, continuous:%s', source, filter, continuous?'true':'false');
-                kcmModel.pullReplicate(source, filter, continuous);
-                res.send(200);
-            } else {
-                res.send(500);
-            }
         }
     };
 
