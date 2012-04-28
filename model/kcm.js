@@ -5,7 +5,7 @@ var fs = require('fs')
   , libxmljs = require('libxmljs')
 ;
 
-var kcmDatabaseName = 'tmp-blm-kcm23'
+var kcmDatabaseName = 'tmp-blm-kcm3'
   , designDoc = 'kcm-views'
   , couchServerURI
   , databaseURI

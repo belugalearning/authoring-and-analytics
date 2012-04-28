@@ -1,4 +1,4 @@
 {
-    "couchdbPath": "/usr/local/var/lib/couchdb"
+    "couchdbPath": "/home/nick/dev/build-couchdb/build/var/lib/couchdb/"
 }
 
