@@ -4,6 +4,7 @@ var fs = require('fs')
   , util = require('util')
 ;
 
+//var contentDatabase = 'tmp-blm-kcm3'
 var contentDatabase = 'temp-blm-content/'
   , designDoc = 'content-views'
   , couchServerURI
@@ -56,6 +57,7 @@ function updateViews(callback) {
         _id: '_design/' + designDoc
         , filters: {
             'only-problems': (function(doc, req) { return doc.type && doc.type == 'problem'; }).toString()
+            , 'only-tools': (function(doc, req) { return doc.type && doc.type == 'tool'; }).toString()
         }
         , views: {
             'any-by-type-name': {
