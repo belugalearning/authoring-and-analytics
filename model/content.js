@@ -4,8 +4,8 @@ var fs = require('fs')
   , util = require('util')
 ;
 
-//var contentDatabase = 'tmp-blm-kcm3'
-var contentDatabase = 'temp-blm-content/'
+var contentDatabase = 'tmp-blm-kcm3/'
+//var contentDatabase = 'temp-blm-content/'
   , designDoc = 'content-views'
   , couchServerURI
   , databaseURI
