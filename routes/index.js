@@ -93,7 +93,9 @@ exports.content = {
 
     , problemSequence: function(req, res) {
         model.content.queryView(encodeURI('syllabi-by-name?key="Default"&include_docs=true'), function(e,r,b) {
-            var topicIds = JSON.parse(b).rows[0].doc.topics;
+            var syllabi = JSON.parse(b).rows
+              , topicIds = syllabi && syllabi.length ? syllabi[0].doc.topics : []
+            ;
             model.content.queryView(encodeURI('names-types-by-id?keys=' + JSON.stringify(topicIds)), function(e,r,b) {
                 var topics = _.filter(JSON.parse(b).rows, function(nameType) { return nameType.value[1] == 'topic'; });
                 res.render('problem-sequence-page', {
@@ -160,7 +162,9 @@ exports.content = {
 
     , elementAssessmentCriteriaPage: function(req, res) {
         model.content.queryView(encodeURI('syllabi-by-name?key="Default"&include_docs=true'), function(e,r,b) {
-            var topicIds = JSON.parse(b).rows[0].doc.topics;
+            var syllabi = JSON.parse(b).rows
+              , topicIds = syllabi && syllabi.length ? syllabi[0].doc.topics : []
+            ;
             model.content.queryView(encodeURI('names-types-by-id?keys=' + JSON.stringify(topicIds)), function(e,r,b) {
                 var topics = _.filter(JSON.parse(b).rows, function(nameType) { return nameType.value[1] == 'topic'; });
                 res.render('element-assessment-criteria-page', {
