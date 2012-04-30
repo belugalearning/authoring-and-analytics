@@ -5,8 +5,9 @@ var fs = require('fs')
 ;
 
 var contentDatabase = 'tmp-blm-kcm3/'
+  , designDoc = 'kcm-views'
 //var contentDatabase = 'temp-blm-content/'
-  , designDoc = 'content-views'
+//  , designDoc = 'content-views'
   , couchServerURI
   , databaseURI
 ;
@@ -51,6 +52,11 @@ function createDB(callback) {
 }
 
 function updateViews(callback) {
+    console.log('>>> NOT UPDATING VIEWS FOR model.content. Content moulde now uses kcm database');
+    callback();
+    return;
+
+
     console.log('updating views on', databaseURI);
 
     var contentViews = {
@@ -267,7 +273,7 @@ function insertProblem(plist, element, callback) {
 
         request({ method:'GET', uri:couchServerURI+'_uuids' }, function(e,r,b) {
             if (r.statusCode != 200) {
-                callback(util.format('could not retrieve uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b));
+                callback(util.format('could not generate uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b));
                 return;
             }
 
@@ -324,19 +330,21 @@ function insertProblem(plist, element, callback) {
                     }
                 });
             };
-
-            if (element) {
-                performInsert(e.element.syllabusId);
-            } else {
-                queryView(encodeURI('syllabi-by-name?key="Default"'), function(e,r,b) {
-                    var rows = r.statusCode == 200 && b && JSON.parse(b).rows || null;
-                    if (!rows || !rows.length) {
-                        callback(util.format('could not retrieve default syllabus. Database callback: (statusCode:%d, error:%s, body:%s)', r.statusCode, e, b));
-                        return;
-                    }
-                    performInsert(rows[0].id);
-                });
-            }
+            
+            performInsert(null);
+            // TODO: The following block (as with much of this module) is no longer relevant now that we're not using syllabus->topic->module->element hierarchy, line above used instead.
+//            if (element) {
+//                performInsert(e.element.syllabusId);
+//            } else {
+//                queryView(encodeURI('syllabi-by-name?key="Default"'), function(e,r,b) {
+//                    var rows = r.statusCode == 200 && b && JSON.parse(b).rows || null;
+//                    if (!rows || !rows.length) {
+//                        callback(util.format('could not retrieve default syllabus. Database callback: (statusCode:%d, error:%s, body:%s)', r.statusCode, e, b));
+//                        return;
+//                    }
+//                    performInsert(rows[0].id);
+//                });
+//            }
 
         });
     });
