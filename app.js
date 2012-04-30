@@ -2,21 +2,27 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var express = require('express')
+var noAuthenticationPathnames = ['/login', '/logout']
+  , express = require('express')
   , routes = require('./routes')
   , model = require('./model')
   , fs = require('fs')
   , _ = require('underscore')
+  , urlParser = require('url')
+  , app = module.exports = express.createServer();
 ;
-
-var app = module.exports = express.createServer();
 
 // Configuration
 app.configure(function() {
     app.set('views', __dirname + '/views');
     app.set('view engine', 'jade');
     app.set('view options', { layout: false });
+    
+    app.use(express.favicon());
     app.use(express.bodyParser());
+    app.use(express.cookieParser());
+    app.use(express.session({ cookie:{ maxAge:600000 }, secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87' }));
+    app.use(checkAuthentication);
     app.use(express.methodOverride());
     app.use(app.router);
     app.use(express.static(__dirname + '/public'));
@@ -30,7 +36,35 @@ app.configure('production', function(){
     app.use(express.errorHandler()); 
 });
 
+function checkAuthentication(req, res, next) {
+    var url = urlParser.parse(req.url);
+    if (~noAuthenticationPathnames.indexOf(url.pathname) || req.session.isAuthenticated) {
+        next();
+        return;
+    }
+    res.redirect('/login?redir=' + req.url);
+}
+
+
 // Routes
+app.get('/login', function(req,res) {
+    res.render('sessions/login', { redir: req.query.redir || req.body.redir });
+});
+app.post('/login', function(req,res) {
+   if ('blauthors' == req.body.user && '1935-Bourbaki' == req.body.password) { 
+       req.session.isAuthenticated = true;
+       res.redirect(req.body.redir || '/');
+   } else {
+       if (req.session) req.session.destroy();
+       res.render('sessions/login', { redir:req.body.redir });
+   }
+});
+app.get('/logout', function(req,res) {
+    if (req.session) req.session.destroy();
+    res.redirect('/login');
+});
+
+
 app.get('/', routes.index);
 //app.get('/images/zubi/:id', routes.zubiImage);
 

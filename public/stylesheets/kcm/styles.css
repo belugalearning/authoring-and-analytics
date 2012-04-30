@@ -8,6 +8,7 @@ table { border-collapse:collapse; padding:0; }
 th, td { text-align:left; vertical-align:top; }
 
 #wrapper { position:relative; margin:0; padding:0; }
+#warn { background-color:#fdd; padding:1em; border:1px solid red; }
 
 svg { overflow:hidden; border:1px solid #ccc; }
 svg.emphasis { border:2px solid #999; }
