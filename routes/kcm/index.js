@@ -22,7 +22,7 @@ module.exports = function(model) {
             
             if (source.length > 1) {
                 kcmModel.pullReplicate(source, filter, continuous, cancel);
-                res.send(200);
+                res.send('Replication request received OK. Check stdout for further details');
             } else {
                 res.send(500);
             }
