@@ -13,8 +13,8 @@ module.exports = function(model) {
             var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
               , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
               , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
-              , source = (sourceMatch && sourceMatch.length > 1 && sourceMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
-              , filter = (filterMatch && filterMatch.length > 1 && filterMatch[1]).replace(/^%22/, '').replace(/%22$/, '')
+              , source = sourceMatch && sourceMatch.length > 1 && sourceMatch[1].replace(/^%22/, '').replace(/%22$/, '')
+              , filter = filterMatch && filterMatch.length > 1 && filterMatch[1].replace(/^%22/, '').replace(/%22$/, '')
               , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1] == 'true'
             ;
             
