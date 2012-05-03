@@ -13,8 +13,11 @@ th, td { text-align:left; vertical-align:top; }
 svg { overflow:hidden; border:1px solid #ccc; }
 svg.emphasis { border:2px solid #999; }
 
+g.node { cursor:pointer; }
 g.node rect.node-bg { fill:steelblue; stroke-width:0; }
 g.node.in-focus rect.node-bg { stroke-width:2px; stroke:#333; }
+g.node.link-target rect.node-bg { stroke-width:5px; stroke:#f00; fill:#f50; }
+g.link-create rect { fill:#f50; }
 text.node-description { font:12px Helvetica; }
 
 div.add-btn { cursor:pointer; background-image:url('/images/add.png'); background-size:contain; background-repeat:no-repeat; width:17px; height:17px; }
@@ -32,7 +35,7 @@ table#concept-node-data table#pipelines { margin-top:5px; width:100%; }
 table#concept-node-data table#pipelines td.del-pipeline { width:22px; vertical-align:top; padding: 20px 0 0 2px; }
 table#concept-node-data table#pipelines td.txt { padding-right:2px; }
 table#concept-node-data table#pipelines td.txt > a { line-height:10px; font-size:9px; }
-table#concept-node-data table#pipelines td.txt > input { width:100%; }
+table#concept-node-data table#pipelines td.txt > input[type="text"] { width:100%; }
 table#concept-node-data div#insert-pipeline-btn { margin:4px 0 2px 2px; }
 table#concept-node-data div#insert-tag-btn { margin:4px 0 2px 2px; }
 table#concept-node-data div#concept-tags { margin-left:-1px; }
@@ -48,7 +51,29 @@ div#modal-dialog h1 { margin:2px; font-weight:800; font-size:14px; }
 div#modal-dialog h2 { margin:2px; font-weight:600; font-size:12px; }
 div#modal-dialog.warning-no-buttons { width:400px; height:50px; }
 div#modal-dialog.single-input-no-buttons { width:400px; height:70px; }
-div#modal-dialog.single-input-no-buttons input { margin-top:5px; width:394px; }
+div#modal-dialog.single-input-no-buttons input[type="text"] { margin-top:5px; width:394px; }
+
+div#modal-dialog.new-link-details { width:800px; height:320px; padding:5px; }
+div#modal-dialog.new-link-details div.warning { display:none; width:500px; text-align:center; position:absolute; top:5px; right:5px; padding:5px; color:#f33; border:1px solid #f33; }
+div#modal-dialog.new-link-details div.show-warning div.warning { display:block; }
+div#modal-dialog.new-link-details input[name="mode"] { margin:15px 5px 5px; }
+div#modal-dialog.new-link-details span.radio-label { display:inline-block; margin-right:15px; }
+div#modal-dialog.new-link-details div.relation-name { margin:5px 5px 10px 5px; }
+div#modal-dialog.new-link-details select#binary-relations { width:230px; }
+div#modal-dialog.new-link-details input#new-binary-relation-name { display:none; width:230px; }
+div#modal-dialog.new-link-details div.new-relation select#binary-relations { display:none; }
+div#modal-dialog.new-link-details div.new-relation input#new-binary-relation-name { display:inline }
+div#modal-dialog.new-link-details div.new-link-node { margin:5px; padding:8px; border:1px solid #ccc; }
+div#modal-dialog.new-link-details div.new-link-node > h3 { margin:0 0 5px 0; }
+div#modal-dialog.new-link-details div.new-link-node-l { float:left; }
+div#modal-dialog.new-link-details div.new-link-node-r { float:right; }
+div#modal-dialog.new-link-details div.new-link-node > div { width:250px; height:160px; overflow-x:hidden;  overflow-y:auto; }
+div#modal-dialog.new-link-details div.relation-desc { margin-top:80px; text-align:center; font-weight:bold; font-style:italic; }
+div#modal-dialog.new-link-details input#new-binary-relation-desc { display:none; width:230px; }
+div#modal-dialog.new-link-details div.new-relation input#new-binary-relation-desc { display:inline; }
+div#modal-dialog.new-link-details div.new-relation span#binary-relation-desc { display: none; }
+div#modal-dialog.new-link-details div.reverse-btn { margin-top:50px; text-align:center; }
+
 
 .button
 , #cancel-page-changes

@@ -49,8 +49,8 @@ module.exports = function(model) {
                 kcmModel.queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
                     map.nodes = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
-                    kcmModel.queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function(e,r,b) {
-                        map.prerequisites = JSON.parse(b).rows[0].doc.members;
+                    kcmModel.queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
+                        map.binaryRelations = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
                         res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
                     });
                 });
@@ -120,6 +120,51 @@ module.exports = function(model) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
                 res.send(e || nodeRevision, statusCode || 500);
             });
+        }
+        , addPairToBinaryRelation: function(req,res) {
+            var argErrors = []
+              , relation = req.body.relation
+              , pair = req.body.pair
+            ;
+            if (!relation) argErrors.push('"relation"');
+            if (!pair) argErrors.push('"pair"');
+            if (argErrors.length) {
+                res.send('Bad Arguments - ' + argErrors.join(' and ') + ' required and missing', 400);
+                return;
+            }
+
+            if (relation.type != 'new' && relation.type != 'existing') {
+                res.send('Bad Arguments - either "new" or "existing" required for relation.type', 400);
+                return;
+            }
+
+            if (relation.type == 'existing') {
+                addPair();
+            } else {
+                if ('string' != typeof relation.name) argErrors.push('"relation.name"');
+                if ('string' != typeof relation.description) argErrors.push('"relation.description"');
+                if (argErrors.length) {
+                    res.send('Bad Arguments - strings required for ' + argErrors.join(' and '), 400);
+                    return;
+                }
+
+                kcmModel.insertBinaryRelation(relation.name, relation.description, function(e,statusCode,b) {
+                    var row = JSON.parse(b);
+                    if (201 != statusCode) {
+                        res.send(e, statusCode)
+                        return;
+                    }
+                    relation.id = row.id;
+                    relation.rev = row.rev;
+                    addPair();
+                });
+            }
+
+            function addPair() {
+                kcmModel.addOrderedPairToBinaryRelation(relation.id, relation.rev, pair[0], pair[1], function(e,statusCode,rev) {
+                    res.send(e || { id:relation.id, rev:rev }, statusCode || 500);
+                });
+            }
         }
     };
 

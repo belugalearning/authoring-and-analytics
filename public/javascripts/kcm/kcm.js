@@ -1,13 +1,14 @@
 //(function($) {
-    var svg, gZoom, gWrapper, gPrereqs, gNodes
+    var svg, gZoom, gWrapper, gLinks, gPrereqs, gNodes
       , inFocus = null
       , l = 400
       , nodeTextPadding = 5
       , rControlsWidth = 350
-      , dragMouseStart = { x:null, y:null }
+      , cnInteractionModifiers = ''
+      , cnInteractionInProgress = false;
     ;
 
-     $.template("cnTagDIV",
+    $.template("cnTagDIV",
         '<div class="cn-tag">\
             <div class="del-btn del-tag"/>\
             {{html tag}}\
@@ -29,6 +30,34 @@
                 <input type="text", value="{{html name}}"/>\
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
+
+    $.template("newLinkConfigDIV",
+        '<div>\
+            <div class="warning"/>\
+            <input type="radio" name="mode" value="existing" checked="checked" /><span class="radio-label">Existing Relation</span>\
+            <input type="radio" name="mode" value="new" /><span class="radio-label">New Relation</span><br/>\
+            <div class = "relation-name">\
+                <select id="binary-relations">\
+                    {{each relations}}\
+                        <option value="${$value._id}">${$value.name}</option>\
+                    {{/each}}\
+                </select>\
+                <input type="text" id="new-binary-relation-name"/>\
+            </div>\
+            <div class="new-link-node new-link-node-l">\
+                <h3>Concept Node with description:</h3>\
+                <div data-id="{{html cn1Data._id}}">{{html cn1Data.nodeDescription}}</div>\
+            </div>\
+            <div class="new-link-node new-link-node-r">\
+                <h3>Concept Node with description:</h3>\
+                <div data-id="{{html cn2Data._id}}">{{html cn2Data.nodeDescription}}</div>\
+            </div>\
+            <div class="relation-desc">\
+                <span id="binary-relation-desc">{{html relations[0].relationDescription}}</span>\
+                <input type="text" id="new-binary-relation-desc"/>\
+            </div>\
+            <div class="reverse-btn"><input type="button" value="<- reverse relationship ->"/> </div>\
+        </div>'.replace(/(>|}})\s+/g, '$1'));
 
     $.fn.arrowRedraw = function() {
         $.each(this, function() {
@@ -90,8 +119,173 @@
                 .call(d3.behavior.zoom()/*.scaleExtent([1, 8])*/.on("zoom", zoom))
         ;
 
-        $(window).resize(layoutControls).resize();
+        var keyListener = function(e) {
+            switch(String.fromCharCode(e.keyCode).toLowerCase()) {
+                case 'r':
+                    if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
+                    else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
+                    break;
+            }
+        };
 
+        $(window)
+            .on('keydown keyup', keyListener)
+            // mouse interactions with concept nodes
+            .on('mousedown', '[data-type="concept-node"]', function(e) {
+                var n = d3.select(e.currentTarget)
+                  , data = n.data()[0]
+                  , mouseStart = { x:e.pageX, y:e.pageY }
+                  , mapTransform
+                  , zoomMultiplier
+                  , x, y
+                  , startInteraction = arguments.callee
+                  , mousemoveNext, endInteractionNext
+                  , event = e
+                ;
+                var endInteractionEventType = ~cnInteractionModifiers.indexOf('(drawlink)') ? 'mousedown' : 'mouseup';
+                var mousemove = function(e) {
+                    var dx, dy;
+
+                    mapTransform = d3.transform(gZoom.attr('transform'));
+                    event = e;
+
+                    zoomMultiplier = 1 / mapTransform.scale[0];
+                    dx = zoomMultiplier * (e.pageX - mouseStart.x);
+                    dy = zoomMultiplier * (e.pageY - mouseStart.y)
+                    x = parseInt(data.x + dx)
+                    y = parseInt(data.y + dy)
+
+                    if (typeof mousemoveNext == 'function') mousemoveNext();
+                };
+                var endInteraction = function(e) {
+                    event = e;
+
+                    $(window)
+                        .on('keydown keyup', keyListener)
+                        .on('mousedown', '[data-type="concept-node"]', startInteraction)
+                        .off('mousemove', mousemove)
+                        .off(endInteractionEventType, arguments.callee)
+                    ;
+                    if (typeof endInteractionNext == 'function') endInteractionNext();
+                    cnInteractionInProgress = false;
+                };
+
+                cnInteractionInProgress = true;
+                $(window)
+                    .off('keydown keyup', keyListener)
+                    .off('mousedown', '[data-type="concept-node"]', startInteraction)
+                    .on('mousemove', mousemove)
+                    .on(endInteractionEventType, endInteraction)
+                ;
+
+                if (~cnInteractionModifiers.indexOf('(drawlink)')) {
+                    // LINK DRAWING
+                    var linkTarget
+                      , link
+                    ;
+                    function setLinkTarget(cn) {
+                        var classes = cn.attr('class');
+                        cn.attr('class', (classes + ' link-target').replace(/^\s+/, ''));
+                        linkTarget = cn;
+                    }
+                    function unsetLinkTarget() {
+                        if (!linkTarget) return;
+                        var classes = linkTarget.attr('class');
+                        linkTarget.attr('class', classes.replace(/\s*link-target/, ''));
+                        linkTarget = null;
+                    }
+                    function mouseoverCN (e) {
+                        var cn = d3.select(e.currentTarget)
+                        if (cn.node() == n.node()) return;
+                        if (linkTarget) unsetLinkTarget(linkTarget);
+                        setLinkTarget(cn);
+
+                        var ltData = linkTarget.data()[0];
+                        drawLinkTo(ltData.x, ltData.y);
+                    }
+                    function mouseoutCN (e) {
+                        var cn = d3.select(e.currentTarget);
+                        if (!linkTarget || cn.node() != linkTarget.node()) return;
+                        unsetLinkTarget(linkTarget);
+                    }
+                    function drawLinkTo(x,y) {
+                        var dx = x - data.x
+                          , dy = y - data.y
+                          , len = parseInt(Math.sqrt(dx*dx + dy*dy))
+                          , theta = dx == 0
+                                    ? (dy<0 ? 1.5 : 0.5) * Math.PI
+                                    : Math.atan(dy/dx) + (dx<0 ? Math.PI : 0)
+                        ;
+                        link.attr('transform', 'translate('+data.x+','+data.y+')rotate('+(theta*180/Math.PI)+')');
+                        link.select('rect').attr('transform', 'scale('+len+',1)');
+                    }
+                    $(window)
+                        .on('mouseover', '[data-type="concept-node"]', mouseoverCN)
+                        .on('mouseout', '[data-type="concept-node"]', mouseoutCN)
+                    ;
+
+                    link = gLinks.append('g')
+                        .attr('class', 'link-create')
+                    ;
+                    link.append('rect')
+                        .attr('class', 'arrow-stem')
+                        .attr('x', 0)
+                        .attr('y', -2)
+                        .attr('width', 1)
+                        .attr('height', 4)
+                    ;
+
+                    mousemoveNext = function() {
+                        if (!linkTarget) {
+                            // #wrapper has zero padding, thus its offset is that of its child: the svg map
+                            var mx = (event.pageX - $('#wrapper').offset().left - mapTransform.translate[0]) / mapTransform.scale[0]
+                              , my = (event.pageY - $('#wrapper').offset().top - mapTransform.translate[1]) / mapTransform.scale[0]
+                            ;
+                            drawLinkTo(mx,my);
+                        }
+                    };
+                    endInteractionNext = function() {
+                        $(window)
+                            .off('mouseover', '[data-type="concept-node"]', mouseoverCN)
+                            .off('mouseout', '[data-type="concept-node"]', mouseoutCN)
+                        ;
+
+                        if (linkTarget) {
+                            showNewLinkDetailsModal(data, linkTarget.data()[0], function() {
+                            });
+                            unsetLinkTarget();
+                        }
+                        link.remove();
+                    };
+                } else {
+                    // NODE DRAGGING
+                    mousemoveNext = function() {
+                        n.attr("transform", "translate("+x+","+y+")");
+                        $('g.link[data-head-node='+data._id+'], g.link[data-tail-node='+data._id+']').arrowRedraw();
+                    };
+                    endInteractionNext = function() {
+                        var pos = d3.transform(n.attr('transform')).translate;
+                        if (data.x == pos[0] && data.y == pos[1]) return;
+
+                        data.x = pos[0];
+                        data.y = pos[1];
+
+                        $.ajax({
+                            url: '/kcm/update-concept-node-position'
+                            , type: 'POST'
+                            , contentType: 'application/json'
+                            , data: JSON.stringify({ id:data._id, rev:data._rev, x:data.x, y:data.y })
+                            , success: function(rev) {
+                                data._rev = rev;
+                            }
+                            , error: ajaxErrorAlerter('Error saving updated concept node position')
+                        });
+                    };
+                }
+                cnInteractionModifiers = '';
+            })
+            .resize(layoutControls).resize()
+        ;
         gZoom = svg.append("g");
             
         gWrapper = gZoom
@@ -101,7 +295,8 @@
             .on("mousedown", gainFocus)
         ;
 
-        gPrereqs = gWrapper.append("g");
+        gLinks = gWrapper.append("g");
+        gPrereqs = gLinks.append("g");
         gNodes = gWrapper.append("g");
 
         var nodes = gNodes.selectAll('g.node')
@@ -116,11 +311,6 @@
                 .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
                 .attr("data-focusable", "true")
                 .on("mousedown", gainFocus)
-                .call(d3.behavior.drag()
-                      .on("dragstart", nodeDragStart)
-                      .on("drag", nodeDrag)
-                      .on("dragend", nodeDragEnd)
-                )
                 .each(function(d,i) {
                     d3.select(this).append('rect')
                         .attr('class', 'node-bg')
@@ -154,36 +344,42 @@
                 })
         ;
 
-        gPrereqs.selectAll('g.link')
-            .data(kcm.prerequisites)
-            .enter()
-            .append('g')
-                .attr('id', function(d) { return d.id; })
-                .attr('class', 'link')
-                .attr("data-focusable", "true")
-                .attr("data-head-node", function(d) { return d[1]; })
-                .attr("data-tail-node", function(d) { return d[0]; })                
-        ;
-        gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
-            .data(function(d) { return [d]; })
-            .enter()
-            .append("rect")
-                .attr("class", "arrow-stem")
-                .attr("x", 0)
-                .attr("y", -0.5)
-                .attr("width", 1)
-                .attr("height", 1)
-                .attr("style", "fill:#000;")
-        ;
-        gPrereqs.selectAll('g.link').selectAll('path.arrow-head')
-            .data(function(d) { return [d]; })
-            .enter()
-            .append('path') 
-                .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
-                .attr("class", "arrow-head")
-                .attr('style', 'fill:#222; stroke-width:0;')
-        ;
-        $('g.link').arrowRedraw();
+        var prereqs = $.grep(kcm.binaryRelations, function(rel) {
+            return rel.name == 'Prerequisite';
+        });
+        
+        if (prereqs.length) {
+            gPrereqs.selectAll('g.link')
+                .data(prereqs[0].members)
+                .enter()
+                .append('g')
+                    .attr('id', function(d) { return d.id; })
+                    .attr('class', 'link')
+                    .attr("data-focusable", "true")
+                    .attr("data-head-node", function(d) { return d[1]; })
+                    .attr("data-tail-node", function(d) { return d[0]; })                
+            ;
+            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
+                .data(function(d) { return [d]; })
+                .enter()
+                .append("rect")
+                    .attr("class", "arrow-stem")
+                    .attr("x", 0)
+                    .attr("y", -0.5)
+                    .attr("width", 1)
+                    .attr("height", 1)
+                    .attr("style", "fill:#000;")
+            ;
+            gPrereqs.selectAll('g.link').selectAll('path.arrow-head')
+                .data(function(d) { return [d]; })
+                .enter()
+                .append('path') 
+                    .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
+                    .attr("class", "arrow-head")
+                    .attr('style', 'fill:#222; stroke-width:0;')
+            ;
+            $('g.link').arrowRedraw();
+        }
 
         // scale map to fit screen and translate to centre it
         var w = $('svg').width()
@@ -240,6 +436,8 @@
     }
 
     function gainFocus(event) {
+        if (cnInteractionInProgress) return;
+
         var e = d3.event || event
           , focusTarget = $(e.target).closest('[data-focusable="true"]')[0]
           , newType = $(this).attr('data-type')
@@ -291,62 +489,27 @@
         }
     }
 
-    function nodeDragStart() {
-        var e = d3.event.sourceEvent;
-        dragMouseStart = { x:e.pageX, y:e.pageY };
-    }
-
-    function nodeDrag() {
-        var e = d3.event.sourceEvent
-          , n = d3.select(this)
-          , zoomMultiplier = 1 / d3.transform(gZoom.attr('transform')).scale[0]
-          , dx = zoomMultiplier * (e.pageX - dragMouseStart.x)
-          , dy = zoomMultiplier * (e.pageY - dragMouseStart.y)
-          , data = n.data()[0]
-          , x = parseInt(data.x + dx)
-          , y = parseInt(data.y + dy)
+    function showModalDialog(dialogClasses, h1Text, appendToDialog, initialFocusEl, confirmDialogTest, callback) {
+        var $bg = $('<div id="modal-bg"/>').appendTo('body')
+          , $dialog = $('<div id="modal-dialog"><h1/><h2>(hit return/escape to confirm/cancel)</h2></div>').appendTo('body')
+          , $body = $('body')
         ;
-        n.attr("transform", "translate("+x+","+y+")");
-        $('g.link[data-head-node='+data._id+'], g.link[data-tail-node='+data._id+']').arrowRedraw();
-    }
-
-    function nodeDragEnd() {
-        var n = d3.select(this)
-          , data = n.data()[0]
-          , pos = d3.transform(n.attr('transform')).translate
+        $dialog
+            .addClass(dialogClasses)
+            .append(appendToDialog)
+            .children('h1')
+                .text(h1Text)
         ;
-
-        if (data.x == pos[0] && data.y == pos[1]) return;
-
-        data.x = pos[0];
-        data.y = pos[1];
-
-        $.ajax({
-            url: '/kcm/update-concept-node-position'
-            , type: 'POST'
-            , contentType: 'application/json'
-            , data: JSON.stringify({ id:data._id, rev:data._rev, x:data.x, y:data.y })
-            , success: function(rev) {
-                data._rev = rev;
-            }
-            , error: ajaxErrorAlerter('Error saving updated concept node position')
-        });
-    }
-
-    function showSingleInputModal(instruction, callback) {
-        var modalBG = $('<div id="modal-bg"/>').appendTo('body')
-          , modalDialog = $('<div id="modal-dialog" class="single-input-no-buttons"><h1/><h2>(hit return/escape to confirm/cancel)</h2></div>').appendTo('body')
-          , input = $('<input type="text"/>').appendTo(modalDialog).focus()
-        ;
-
-        modalDialog.children('h1').text(instruction);
-        $('body').css('overflow', 'hidden');
+        if (initialFocusEl) {
+            setTimeout(function() { $(initialFocusEl).focus(); }, 0);
+        }
+        $body.css('overflow', 'hidden');
 
         $(window).on('keydown', function(e) {
             switch (e.keyCode) {
                 case 13:
-                    if (!input.val().length) return;
-                    callback(input.val());
+                    if ('function' == typeof confirmDialogTest && !confirmDialogTest()) return;
+                    callback(true);
                     break;
                 case 27:
                     callback(false);
@@ -354,30 +517,132 @@
                 default:
                     return;
             }
-            modalBG.remove();
-            modalDialog.remove();
+            $bg.remove();
+            $dialog.remove();
+            $body.css('overflow', 'auto');
             $(window).off('keydown', arguments.callee);
-            $('body').css('overflow', 'auto');
         });
     }
-
+    function showSingleInputModal(instruction, callback) {
+        var $input = $('<input type="text"/>');
+        showModalDialog('single-input-no-buttons'
+                        , instruction
+                        , $input
+                        , $input
+                        , function() { return $input.val().length; }
+                        , function(ok) { callback(ok ? $input.val() : false); }
+        );
+    }
     function showConfirmCancelModal(warning, callback) {
-        var modalBG = $('<div id="modal-bg"/>').appendTo('body')
-          , modalDialog = $('<div id="modal-dialog" class="warning-no-buttons"><h1/><h2>(hit return/escape to confirm/cancel)</h2></div>').appendTo('body')
+        showModalDialog('warning-no-buttons'
+                        , warning
+                        , null
+                        , null
+                        , null
+                        , callback
+        );
+    }
+    function showNewLinkDetailsModal(cn1Data, cn2Data, callback) {
+        var br = kcm.binaryRelations
+          , $div = $.tmpl('newLinkConfigDIV', { cn1Data:cn1Data, cn2Data:cn2Data, relations:kcm.binaryRelations })
         ;
+        $div
+            .on('change', 'input[type="radio"][name="mode"]', function() {
+                var newRel = $div.find('input[type="radio"][name="mode"]:checked').val() == 'new';
+                if (newRel) {
+                    $div.addClass('new-relation');
+                    $div.find('input#new-binary-relation-name').focus();
+                    setWarning(true, true);
+                } else {
+                    $div.removeClass('new-relation');
+                    $div.find('select#binary-relations').focus();
+                    setWarning();
+                }
+            })
+            .on('change', 'select#binary-relations', function() {
+                var br = binaryRelationWithId($(this).val());
+                $div.find('#binary-relation-desc').text(br.relationDescription);
+            })
+            .on('click', 'div.reverse-btn > input[type="button"]', function() {
+                var $l = $div.find('.new-link-node-l')
+                  , $r = $div.find('.new-link-node-r')
+                  , $toR = $l.children('div').remove()
+                  , $toL = $r.children('div').remove()
+                ;
+                $toL.appendTo($l);
+                $toR.appendTo($r);
+                setWarning();
+            })
+            .on('focusout', 'input[type="text"]', function(e) {
+                setWarning(false, 'new-binary-relation-name' == $(e.currentTarget).prop('id'));
+            })
+        ;
+        showModalDialog('new-link-details'
+            , 'New Link Details:'
+            , $div
+            , $div.find('select#binary-relations')
+            , function() {
+                setWarning();
+                // TODO: see alert below
+                if ($div.find('input[type="radio"][name="mode"]:checked').val() == 'new') {
+                    alert('Creation of new relations disabled until map can display relations other than prerequisites. New relation functionalty tested and passed.');
+                    return false;
+                }
+                return $div.find('.warning').text().length == 0;
+            }
+            , function(doAdd) { 
+                if (!doAdd) return;
 
-        modalDialog.children('h1').text(warning);
-        $('body').css('overflow', 'hidden');
+                var newRel = $div.find('input[name="mode"]:checked').val() == 'new'
+                  , pair = [ $div.find('.new-link-node-l').children('div').attr('data-id'), $div.find('.new-link-node-r').children('div').attr('data-id') ]
+                  , rel = !newRel && binaryRelationWithId($('select#binary-relations').val())
+                  , relData
+                ;
 
-        $(window).on('keydown', function(e) {
-            var kc = e.keyCode;
-            if (kc == 13 || kc == 27) callback(kc == 13);
-            else return;
-            modalBG.remove();
-            modalDialog.remove();
-            $(window).off('keydown', arguments.callee);
-            $('body').css('overflow', 'auto');
-        });
+                if (newRel) {
+                    relData = { type:'new', name:$div.find('input#new-binary-relation-name').val(), description:$div.find('input#new-binary-relation-desc').val() };
+                } else {
+                    relData = { type:'existing', id:rel._id, rev:rel._rev }
+                }
+
+                $.ajax({
+                    url:'/kcm/add-pair-to-binary-relation'
+                    , type:'POST'
+                    , contentType:'application/json'
+                    , data:JSON.stringify({ relation:relData, pair:pair })
+                    , success:function(relation) {
+                        console.log(relation);
+                        if (newRel) {
+                        } else {
+                        }
+
+                    }
+                    , error: ajaxErrorAlerter('Error adding new pair to binary relation')
+                });
+            }
+        );
+
+        setWarning();
+        function setWarning(exemptNewRelName, exemptNewRelDesc) {
+            var s = '';
+
+            if ($div.find('input[name="mode"]:checked').val() == 'new') {
+                if (!exemptNewRelName && !$div.find('input#new-binary-relation-name').val().length) s = 'New relation requires a name';
+                if (!exemptNewRelDesc && !$div.find('input#new-binary-relation-desc').val().length) s += s.length ? ' and a description' : 'New relation requires a description'; 
+            } else {
+                var cnId0 = $div.find('.new-link-node-l').children('div').attr('data-id')
+                  , cnId1 = $div.find('.new-link-node-r').children('div').attr('data-id')
+                  , relId = $('select#binary-relations').val()
+                  , rel = binaryRelationWithId(relId)
+                  , matches = $.grep(rel.members, function(pair) { return pair[0] == cnId0 && pair[1] == cnId1; })
+                ;
+                if (matches.length) {
+                    s = 'Ordered pair is already a member of the selected binary relation.';
+                }
+            }
+            $div.find('.warning').text(s);
+            s.length ? $div.addClass('show-warning') : $div.removeClass('show-warning');
+        }
     }
 
     function ajaxErrorAlerter(firstline) {
@@ -395,9 +660,9 @@
         showSingleInputModal('Enter Tag:', function(tag) {
             if (tag) {
                 $.ajax({
-                    url: '/kcm/insert-concept-node-tag'
-                    , type: 'POST'
-                    , contentType: 'application/json'
+                    url:'/kcm/insert-concept-node-tag'
+                    , type:'POST'
+                    , contentType:'application/json'
                     , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
                     , success: function(cnRev) {
                         cn.tags.push(tag);
@@ -501,11 +766,11 @@
         showSingleInputModal('Enter name for new pipeline:', function(name) {
             if (name) {
                 $.ajax({
-                    url: '/kcm/insert-pipeline'
-                    , type: 'POST'
-                    , contentType: 'application/json'
-                    , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, pipelineName:name })
-                    , success: function(d) {
+                    url:'/kcm/insert-pipeline'
+                    , type:'POST'
+                    , contentType:'application/json'
+                    , data:JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, pipelineName:name })
+                    , success:function(d) {
                         var pl = d.pipeline
                           , cnRev = d.conceptNodeRev
                         ;
@@ -514,7 +779,7 @@
                         cn._rev = cnRev;
                         selectConceptNode(cn);
                     }
-                    , error: ajaxErrorAlerter('Error adding new pipeline')
+                    , error:ajaxErrorAlerter('Error adding new pipeline')
                 });
             }
         });
@@ -534,17 +799,21 @@
 
             $.ajax({
                 url: '/kcm/delete-pipeline'
-                , type: 'POST'
-                , contentType: 'application/json'
-                , data: JSON.stringify({ pipelineId:plId, pipelineRev:pl._rev, conceptNodeId:cn._id, conceptNodeRev:cn._rev })
-                , success: function(cnRev) {
+                , type:'POST'
+                , contentType:'application/json'
+                , data:JSON.stringify({ pipelineId:plId, pipelineRev:pl._rev, conceptNodeId:cn._id, conceptNodeRev:cn._rev })
+                , success:function(cnRev) {
                     cn._rev = cnRev;
                     cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
                     delete kcm.pipelines[plId];
                     selectConceptNode(cn);
                 }
-                , error: ajaxErrorAlerter('error deleting pipeline')
+                , error:ajaxErrorAlerter('error deleting pipeline')
             });
         });
+    }
+
+    function binaryRelationWithId(id) {
+        return $.grep(kcm.binaryRelations, function(br) { return id == br._id; })[0];
     }
 //})(jQuery);

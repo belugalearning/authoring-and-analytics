@@ -114,6 +114,7 @@ app.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
 app.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
 app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
+app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })

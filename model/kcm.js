@@ -33,7 +33,7 @@ module.exports = function(serverURI) {
         , insertConceptNodeTag: insertConceptNodeTag
         , deleteConceptNodeTag: deleteConceptNodeTag
         , editConceptNodeTag: editConceptNodeTag
-        , insertRelation: insertRelation
+        , insertBinaryRelation: insertBinaryRelation
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , getDoc: getDoc
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
@@ -236,17 +236,19 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
     if (dummyRun === true) return;
 
     //insert into db
-    createDB(function(e,r,b) {
-        if (e || r.statusCode != 201) {
-            console.log('Error creating database. error="%s", statusCode="%d"', e, r.statusCode);
+    createDB(function(e,statusCode,b) {
+        if (e || statusCode != 201) {
+            console.log('Error creating database. error="%s", statusCode="%s"', e, statusCode);
             return;
         }
 
         if (map.nodes.length) {
             queryView(encodeURI('relations-by-name?key="Prerequisite"'), function(e,r,b) {
-                var rows = r.statusCode == 200 && JSON.parse(b).rows;
-                var prerequisiteRelationId = rows && rows.length && rows[0].id;
-                if (!prerequisiteRelationId) {
+                var rows = r.statusCode == 200 && JSON.parse(b).rows
+                  , prereqId = rows && rows.length && rows[0].id
+                  , prereqRev = rows && rows.length && rows[0].rev
+                ;
+                if (!prereqId) {
                     console.log('error - could not retrieve prerequisite relation. \ne:"%s", \nstatusCode:%d, \nb:"%s"', e, r.statusCode, b);
                     return;
                 }
@@ -278,12 +280,13 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
                                 console.log('inserting prerequisite pair at index:%d of array length:%d', pairIndex, prerequisitePairs.length);
 
                                 var pair = prerequisitePairs[pairIndex];
-                                addOrderedPairToBinaryRelation(prerequisiteRelationId, pair[0], pair[1], function(e,r,b) {
-                                    if (r.statusCode != 201) {
-                                        console.log('error inserting prerequisite relation member: (e:"%s", statusCode:%d)', e, r.statusCode);
+                                addOrderedPairToBinaryRelation(prereqId, prereqRev, pair[0], pair[1], function(e,statusCode,rev) {
+                                    if (201 != statusCode) {
+                                        console.log('error inserting prerequisite relation member: (e:"%s", statusCode:%d)', e, statusCode);
                                         var nodes = _.filter(map.nodes, function(n) { return n.id == pair[0] || n.id == pair[1]; });
                                         return;
                                     }
+                                    prereqRev = rev;
                                     if (++pairIndex < prerequisitePairs.length) {
                                         insertPrerequisitePair(pairIndex);
                                     } else {
@@ -318,21 +321,17 @@ function createDB(callback) {
             updateViews(callback);
         } else if (r.statusCode != 201) {
             if (!e) e = 'error creating database';
-            if (typeof callback == 'function') callback(e,r,b);
+            if ('function' == typeof callback) callback(e,r,b);
             else console.log('%s with uri "%s". StatusCode=%d', e, databaseURI, r.statusCode);
             return;
         } else {
             console.log('created database at uri:\nupdate views...', databaseURI);
             updateViews(function(e,r,b) {
                 console.log('insert "Prerequisite" binary relation...');
-                insertRelation({
-                    relationType: 'binary'
-                    , name: 'Prerequisite'
-                    , relationDescription: 'first element is a prerequisite of second element'
-                }, function(e,r,b) {
-                    if (typeof callback == 'function') {
-                        if (r.statusCode == 201) callback.apply(null, insertDBCallbackArgs);
-                        else callback('eror inserting prerequisite relation', r.statusCode);
+                insertBinaryRelation('Prerequisite', 'is a prerequisite of', function(e,statusCode,b) {
+                    if ('function' == typeof callback) {
+                        if (statusCode == 201) callback.apply(null, insertDBCallbackArgs);
+                        else callback('eror inserting prerequisite relation', statusCode);
                     }
                 });
             });
@@ -492,7 +491,7 @@ function insertConceptNode(o, callback) {
     if (isNaN(o.y)) errors += 'Float value required for "y". ';
 
     if (errors.length) {
-        if (typeof callback == 'function') callback('Error. Could not create concept node. Bad argument. ' + errors, 500);
+        if ('function' == typeof callback) callback('Error. Could not create concept node. Bad argument. ' + errors, 500);
         return;
     }
 
@@ -502,7 +501,7 @@ function insertConceptNode(o, callback) {
     insertDoc(o, function(e,r,b) {
         if (r.statusCode != 201) {
             if (!e) e = 'Error inserting concept node';
-            if (typeof callback == 'function') callback(e,r,b);
+            if ('function' == typeof callback) callback(e,r,b);
             return;
         }
 
@@ -512,7 +511,7 @@ function insertConceptNode(o, callback) {
             } else {
                 r.statusCode = 201;
             }
-            if (typeof callback == 'function') callback(e,r,b);
+            if ('function' == typeof callback) callback(e,r,b);
             return;
         });
     });
@@ -678,69 +677,54 @@ function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText
     });
 }
 
-function insertRelation(o, callback) {
-    console.log('inserting relation');
-
-    if (!o.relationType || relationTypes.indexOf(o.relationType) == -1) {
-        if (typeof callback == 'function') callback(util.format('could not insert relation - relation type "%s" not recognised', o.relationType), 500);
+function insertBinaryRelation(name, description, callback) {
+    if ('string' != typeof name) {
+        if ('function' == typeof callback) callback('could not insert relation - name required', 500);
         return;
     }
-
-    if (typeof o.name != 'string') {
-        if (typeof callback == 'function') callback('could not insert relation - name required', 500);
+    if ('string' != typeof description) {
+        if ('function' == typeof callback) callback('could not insert relation - description required', 500);
         return;
     }
 
     queryView(util.format('relations-by-name?key="%s"', o.name), function(e,r,b) {
-        if (r.statusCode == 200) {
-            r.statusCode = 409;
-            if (typeof callback == 'function') callback(util.format('could not insert relation - a relation with name "%s" already exists', r, b));
+        if (200 == r.statusCode) {
+            if ('function' == typeof callback) callback(util.format('could not insert relation - a relation with name "%s" already exists', 409));
             return;
         }
         insertDoc({
             type:'relation'
-            , relationType: o.relationType
-            , name: o.name
-            , relationDescription: o.relationDescription || ""
+            , relationType: 'binary'
+            , name: name
+            , relationDescription: description
             , members: []
         }, function(e,r,b) {
-            if (r.statusCode != 201) {
-                if (!e) e = 'Error inserting relation';
-                if (typeof callback == 'function') callback(e,r,b);
+            if (201 != r.statusCode) {
+                if ('function' == typeof callback) callback(util.format('Error inserting binary relation. Database Error: "%s"', e), r.statusCode);
                 return;
             }
-
-            getDoc(JSON.parse(b).id, function(e,r,b) {
-                if (r.statusCode != 200)  {
-                    if (!e) e = 'Error retrieving newly created relation';
-                    if (typeof callback == 'function') callback(e,r,b);
-                    return;
-                }
-
-                r.statusCode = 201;
-                if (typeof callback == 'function') callback(e,r,b);
-                return;
-            });
+            callback(null,201,b);
         });
     });
 }
 
-function addOrderedPairToBinaryRelation(relationId, el1Id, el2Id, callback) {
+function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, callback) {
     getDoc(relationId, function(e,r,b) {
         if (r.statusCode != 200)  {
-            if (typeof callback == 'function') callback('Error retrieving relation',r,b);
+            if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not added the relation', e),r.statusCode);
             return;
         }
+
         var relation = JSON.parse(b);
 
-        if (!relation.relationType || relationTypes.indexOf(relation.relationType) == -1) {
-            if (typeof callback == 'function') callback(util.format('could not insert relation - relation type "%s" not recognised', relation.relationType));
-            return
+        if (relation._rev != relationRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', relationRev, relation.rev), 500);
+            return;
         }
-    
+
         if (relation.type != 'relation' || relation.relationType != 'binary') {
             r.statusCode = 500;
-            if (typeof callback == 'function') callback(util.format('document with id "%s" does not represent a binary relation', relationId), r, b);
+            if ('function' == typeof callback) callback(util.format('document with id "%s" does not represent a binary relation - pair not added to relation', relationId), r.statusCode);
             return;
         }
 
@@ -750,28 +734,29 @@ function addOrderedPairToBinaryRelation(relationId, el1Id, el2Id, callback) {
             }
         });
         if (duplicate) {
-            r.statusCode = 500;
-            if (typeof callback == 'function') callback(util.format('ordered pair ["%s", "%s"] is already a member of binary relation id="%s"', el1Id, el2Id, relationId), r, b);
+            if ('function' == typeof callback) callback(util.format('ordered pair ["%s", "%s"] is already a member of binary relation id="%s"', el1Id, el2Id, relationId), 500);
             return;
         }
 
         relation.members.push([el1Id, el2Id]);
+
         updateDoc(relation, function(e,r,b) {
-            if (r.statusCode != 201) {
-                e = 'unable to update relation';
+            if (201 != r.statusCode) {
+                if ('function' == typeof callback) callback(util.format('Error updating relation. Database reported error:"%s". The pair was not added to the relation', e), r.statusCode);
+                return;
             }
-            if (typeof callback == 'function') callback(e, r, b);
+            if ('function' == typeof callback) callback(null, 201, JSON.parse(b).rev);
         });
     });
 }
 
 function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev, callback) {
     if (typeof pipelineName != 'string' || !pipelineName.length) {
-        if (typeof callback == 'function') callback('BAD ARGS - pipelineName requires string', 500);
+        if ('function' == typeof callback) callback('BAD ARGS - pipelineName requires string', 500);
         return;
     }
     if (typeof conceptNodeId != 'string' || !conceptNodeId.length) {
-        if (typeof callback == 'function') callback('BAD ARGS - conceptNodeId requires string', 500);
+        if ('function' == typeof callback) callback('BAD ARGS - conceptNodeId requires string', 500);
         return;
     }
 
@@ -929,7 +914,7 @@ function insertDoc(doc, callback) {
         , uri: databaseURI
         , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
         , body: JSON.stringify(doc)
-    }, (typeof callback == 'function' && callback || function(){}));
+    }, ('function' == typeof callback && callback || function(){}));
 }
 
 function updateDoc(doc, callback) {
@@ -939,7 +924,7 @@ function updateDoc(doc, callback) {
         , uri: databaseURI + doc._id 
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify(doc)
-    }, (typeof callback == 'function' && callback || function(){}));
+    }, ('function' == typeof callback && callback || function(){}));
 }
 
 function deleteDoc(id, rev, callback) {
@@ -955,7 +940,7 @@ function validatedResponseCallback(validStatusCodes, callback) {
     if (typeof validStatusCodes == 'number') validStatusCodes = [ validStatusCodes ];
     return function(e, r, b) {
         if (!e && r && validStatusCodes.indexOf(r.statusCode) > -1) {
-            if (typeof callback == 'function') callback(e,r,b);
+            if ('function' == typeof callback) callback(e,r,b);
             return;
         }
         console.log('\nHTTP RESPONSE ERROR');
