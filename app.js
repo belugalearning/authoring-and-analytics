@@ -139,7 +139,9 @@ var listen = function() {
 
 if (getOption('createdb')) {
     console.log('creating content database');
-    model.content.createDB(listen);
+    model.content.createDB(function() {
+        model.kcm.createDB(listen);
+    });
 } else if (getOption('initdb')) {
     console.log('initialising content database');
     model.content.populateDBWithInitialContent(listen);

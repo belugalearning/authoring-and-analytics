@@ -40,6 +40,10 @@ module.exports = function(serverURI) {
 };
 
 function createDB(callback) {
+    console.log('>>> NOT CREATING DATABASE for model.content. Content module now uses kcm database');
+    callback();
+    return;
+
     request({
         method: 'PUT'
         , uri: databaseURI
