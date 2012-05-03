@@ -316,6 +316,12 @@ function createDB(callback) {
         , uri: databaseURI
         , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
     }, function(e,r,b) {
+// ********
+// Don't do anything more - get everything else from pull replication
+        callback(e,r,b);
+        return;
+// ********
+        
         var insertDBCallbackArgs = [e,r,b];
 
         if (r.statusCode == 412) {
