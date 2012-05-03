@@ -52,7 +52,7 @@ function createDB(callback) {
 }
 
 function updateViews(callback) {
-    console.log('>>> NOT UPDATING VIEWS FOR model.content. Content moulde now uses kcm database');
+    console.log('>>> NOT UPDATING VIEWS FOR model.content. Content module now uses kcm database');
     callback();
     return;
 

@@ -110,6 +110,7 @@ app.post('/kcm/delete-concept-node-tag', routes.kcm.deleteConceptNodeTag);
 app.post('/kcm/edit-concept-node-tag', routes.kcm.editConceptNodeTag);
 app.post('/kcm/insert-pipeline', routes.kcm.addNewPipelineToConceptNode);
 app.post('/kcm/delete-pipeline', routes.kcm.deletePipeline);
+app.post('/kcm/remove-problem-from-pipeline', routes.kcm.removeProblemFromPipeline);
 app.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
 app.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
 app.post('/kcm/pipeline-problem-details', routes.kcm.pipelineProblemDetails);

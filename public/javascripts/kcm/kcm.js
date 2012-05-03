@@ -317,36 +317,8 @@
                 cnInteractionModifiers = '';
             })
             .resize(layoutControls).resize()
-            .on('click', 'table#pipelines tr.pipeline > td.expand-collapse > div', function() {
-                var trPL = $(this).closest('tr.pipeline')
-                  , trPLProbs = trPL.next()
-                ;
-
-                if (trPL.hasClass('expanded')) {
-                    trPL.add(trPLProbs).removeClass('expanded');
-                } else {
-                    trPL.add(trPLProbs).addClass('expanded');
-
-                    if (trPLProbs.hasClass('not-loaded')) {
-                        var pl = kcm.pipelines[trPL.attr('data-id')];
-
-                        $.ajax({
-                            url:'/kcm/pipeline-problem-details'
-                            , type:'POST'
-                            , contentType:'application/json'
-                            , data:JSON.stringify({ id:pl._id, rev:pl._rev })
-                            , success:function(problemDetails) {
-                                console.log(problemDetails);
-                                trPLProbs
-                                    .removeClass('not-loaded')
-                                    .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
-                                ;
-                            }
-                            , error: ajaxErrorAlerter('Error retrieving pipeline problems')
-                        });
-                    }
-                }
-            })
+            .on('click', '#concept-node-data table#pipelines tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
+            .on('click', '#concept-node-data table#pipelines td.remove-problem > div.del-btn', removeProblemFromPipeline)
         ;
         gZoom = svg.append("g");
             
@@ -871,6 +843,62 @@
                     selectConceptNode(cn);
                 }
                 , error:ajaxErrorAlerter('error deleting pipeline')
+            });
+        });
+    }
+
+    function expandCollapsePipeline(e) {
+        var trPL = $(this).closest('tr.pipeline')
+          , trPLProbs = trPL.next()
+        ;
+
+        if (trPL.hasClass('expanded')) {
+            trPL.add(trPLProbs).removeClass('expanded');
+        } else {
+            trPL.add(trPLProbs).addClass('expanded');
+
+            if (trPLProbs.hasClass('not-loaded')) {
+                var pl = kcm.pipelines[trPL.attr('data-id')];
+
+                $.ajax({
+                    url:'/kcm/pipeline-problem-details'
+                    , type:'POST'
+                    , contentType:'application/json'
+                    , data:JSON.stringify({ id:pl._id, rev:pl._rev })
+                    , success:function(problemDetails) {
+                        console.log(problemDetails);
+                        trPLProbs
+                        .removeClass('not-loaded')
+                        .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
+                        ;
+                    }
+                    , error: ajaxErrorAlerter('Error retrieving pipeline problems')
+                });
+            }
+        }
+    }
+
+    function removeProblemFromPipeline(e) {
+        showConfirmCancelModal('You are about to remove a problem from a pipeline. Are you sure?', function(confirmation) {
+            if (!confirmation) return;
+
+            var $trProblem = $(e.currentTarget).closest('tr.problem')
+              , problemId = $trProblem.attr('data-id')
+              , pl = kcm.pipelines[$(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')]
+            ;
+
+            $.ajax({
+                url: '/kcm/remove-problem-from-pipeline'
+                , type:'POST'
+                , contentType:'application/json'
+                , data:JSON.stringify({ pipelineId:pl._id, pipelineRev:pl._rev, problemId:problemId })
+                , success:function(plRev) {
+                    var probIx = pl.problems.indexOf(problemId);
+                    pl.problems.splice(probIx, 1);
+                    pl._rev = plRev;
+                    $trProblem.remove();
+                }
+                , error:ajaxErrorAlerter('error removing problem from pipeline')
             });
         });
     }
