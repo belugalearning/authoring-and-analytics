@@ -13,14 +13,15 @@ module.exports = function(model) {
             var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
               , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
               , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
+              , cancelMatch = req.url.match(/(?:\?|\&)cancel\=([^&]+)/)
               , source = sourceMatch && sourceMatch.length > 1 && sourceMatch[1].replace(/^%22/, '').replace(/%22$/, '')
               , filter = filterMatch && filterMatch.length > 1 && filterMatch[1].replace(/^%22/, '').replace(/%22$/, '')
-              , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1] == 'true'
+              , continuous = continuousMatch && continuousMatch.length > 1 && continuousMatch[1].replace(/['"]/g, '') == 'true'
+              , cancel = cancelMatch && cancelMatch.length > 1 && cancelMatch[1].replace(/['"]/g, '') == 'true'
             ;
             
             if (source.length > 1) {
-                console.log('PULL REPLICATION: source:%s, filter:%s, continuous:%s', source, filter, continuous?'true':'false');
-                kcmModel.pullReplicate(source, filter, continuous);
+                kcmModel.pullReplicate(source, filter, continuous, cancel);
                 res.send(200);
             } else {
                 res.send(500);

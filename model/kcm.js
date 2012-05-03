@@ -5,7 +5,7 @@ var fs = require('fs')
   , libxmljs = require('libxmljs')
 ;
 
-var kcmDatabaseName = 'tmp-blm-kcm3'
+var kcmDatabaseName = 'tmp-blm-kcm-t1'
   , designDoc = 'kcm-views'
   , couchServerURI
   , databaseURI
@@ -347,15 +347,20 @@ function createDB(callback) {
     })
 }
 
-function pullReplicate(source, filter, continuous) {
-    var target = kcmDatabaseName.replace(/\/$/,'')
-    console.log('target:',target);
+function pullReplicate(source, filter, continuous, cancel) {
+    var target = kcmDatabaseName.replace(/\/$/,'');
+
+    filter = filter || undefined;
+    continuous = continuous === true;
+    cancel = cancel === true;
+    
+    console.log('-----\nPULL REPLICATION\nsource: %s\ntarget: %s\nfilter: %s\ncontinuous: %s\ncancel: %s\n-----', source, target, filter, continuous, cancel);
 
     request({
         method:'POST'
         , uri: couchServerURI + '_replicate'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
-        , body: JSON.stringify({ source:source, target:target, filter:filter, continuous:continuous===true })
+        , body: JSON.stringify({ source:source, target:target, filter:filter, continuous:continuous===true, cancel:cancel===true })
     }, function() {
         console.log(arguments, '\n\n\n');
     });
