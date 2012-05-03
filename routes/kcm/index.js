@@ -116,6 +116,11 @@ module.exports = function(model) {
                 res.render('kcm/pipeline-sequence-tables', data);
             });
         }
+        , pipelineProblemDetails: function(req, res) {
+            kcmModel.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
+                res.send(e || problemDetails, statusCode);
+            });
+        }
         , updateConceptNodePosition: function(req,res) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
                 res.send(e || nodeRevision, statusCode || 500);

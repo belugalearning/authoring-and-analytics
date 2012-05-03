@@ -20,14 +20,40 @@
         </div>'.replace(/(>|}})\s+/g, '$1'));
 
     $.template("cnPipelineTR",
-        '<tr data-id="{{html _id}}">\
-            <td class="del-pipeline">\
-                <div class="del-btn"/>\
+        '<tr class="pipeline" data-id="{{html _id}}">\
+            <td class="expand-collapse">\
+                <div/>\
             </td>\
             <td class="txt">\
                 <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
+            </td>\
+            <td class="del-pipeline">\
+                <div class="del-btn"/>\
+            </td>\
+        </tr>\
+        <tr class="pipeline-problems not-loaded" data-id="{{html _id}}">\
+            <td colspan="3">\
+                <table>\
+                    <tbody>\
+                        <tr class="loading-message">\
+                            <td>[Loading Problems]</td>\
+                        </tr>\
+                    </tbody>\
+                </table>\
+            </td>\
+        </tr>'.replace(/(>|}})\s+/g, '$1'));
+
+    $.template("plProblemTR",
+        '<tr class="problem" data-id="{{html id}}" title="last modified: {{html lastModified}}">\
+            <td class="remove-problem">\
+                <div class="del-btn"/>\
+            </td>\
+            <td class="txt">\
+                <div class="last-modified">Mod: {{html lastModified}}</div>\
+                <a href="/kcm/problem/{{html id}}">{{html id}}</a>\
+                <div class="problem-desc">{{html desc}}</div>\
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
 
@@ -104,6 +130,12 @@
     }
 
     $(function() {
+
+        $('#myForm').ajaxForm(function() { 
+            alert(arguments[0], arguments[1], arguments[2]);
+            console.log(arguments);
+        });
+
         $('#insert-pipeline-btn').click(addNewPipelineToConceptNode);
         $('#concept-node-data').on('click', 'td.del-pipeline > div.del-btn', deleteConceptNodePipeline);
 
@@ -121,7 +153,7 @@
 
         var keyListener = function(e) {
             switch(String.fromCharCode(e.keyCode).toLowerCase()) {
-                case 'r':
+                case 'b':
                     if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
                     else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
                     break;
@@ -285,6 +317,36 @@
                 cnInteractionModifiers = '';
             })
             .resize(layoutControls).resize()
+            .on('click', 'table#pipelines tr.pipeline > td.expand-collapse > div', function() {
+                var trPL = $(this).closest('tr.pipeline')
+                  , trPLProbs = trPL.next()
+                ;
+
+                if (trPL.hasClass('expanded')) {
+                    trPL.add(trPLProbs).removeClass('expanded');
+                } else {
+                    trPL.add(trPLProbs).addClass('expanded');
+
+                    if (trPLProbs.hasClass('not-loaded')) {
+                        var pl = kcm.pipelines[trPL.attr('data-id')];
+
+                        $.ajax({
+                            url:'/kcm/pipeline-problem-details'
+                            , type:'POST'
+                            , contentType:'application/json'
+                            , data:JSON.stringify({ id:pl._id, rev:pl._rev })
+                            , success:function(problemDetails) {
+                                console.log(problemDetails);
+                                trPLProbs
+                                    .removeClass('not-loaded')
+                                    .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
+                                ;
+                            }
+                            , error: ajaxErrorAlerter('Error retrieving pipeline problems')
+                        });
+                    }
+                }
+            })
         ;
         gZoom = svg.append("g");
             

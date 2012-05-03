@@ -39,6 +39,7 @@ module.exports = function(serverURI) {
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
         , updatePipelineSequence: updatePipelineSequence
+        , pipelineProblemDetails: pipelineProblemDetails
         , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
     };
 };
@@ -896,6 +897,55 @@ function updatePipelineSequence(pipelineId, problemSequence, callback) {
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) callback(util.format('The pipeline problem sequence failed to update. Database Error: "%s"', e), r.statusCode);
             else callback(null,201);
+        });
+    });
+}
+
+function pipelineProblemDetails(id, rev, callback) {
+    var errors = [];
+    if (typeof id != 'string' || !id.length) errors.push('BAD ARG: String value required for "id"');
+    if (typeof rev != 'string' || !id.length) errors.push('BAD ARG: String value required for "rev"');
+    if (errors.length) {
+        callback('Error. Could not update pipeline sequence.\n' + errors.join('\n'), 500);
+        return;
+    }
+
+    getDoc(id, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('Error could not retrieve document with id="%s". Database reported error:"%s"',id,e), r.statusCode);
+            return;
+        }
+        
+        var pl = JSON.parse(b);
+
+        if (pl._rev != rev) {
+            callback(util.format('pipeline revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', rev, pl._rev), 500);
+            return;
+        }
+
+        if ('pipeline' != pl.type) {
+            callback(util.format('Document with id="%s" does not have type "pipeline"', id), 500);
+            return;
+        }
+
+        request({
+            uri: encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify(pl.problems)))
+            , headers: { 'content-type':'application/json', accepts:'application/json' }
+        }, function(e,r,b) {
+            if (200 != r.statusCode) {
+                callback(util.format('Error retrieving pipeline problems. Database reported error:"%s"', e), r.statusCode);
+                return;
+            }
+
+            var problems = _.map(JSON.parse(b).rows, function(p) {
+                return {
+                    id: p.id
+                    , desc: typeof p.doc.internalDescription == 'string' ? p.doc.internalDescription : p.doc.problemDescription
+                    , lastModified: typeof p.doc.dateModified == 'string' ? p.doc.dateModified.replace(/.{8}$/, '').replace(/[a-z]/gi, ' ') : ''
+                };
+            });
+
+            callback(null, 200, problems);
         });
     });
 }

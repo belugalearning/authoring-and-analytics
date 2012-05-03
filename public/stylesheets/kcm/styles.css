@@ -31,11 +31,24 @@ table#concept-node-data tr.field td.field-label { width:74px; padding-left:3px; 
 table#concept-node-data tr.field td.field-data { padding-right:10px; }
 table#concept-node-data tr.field textarea { resize:vertical; width:100%; overflow-x:hidden; }
 
-table#concept-node-data table#pipelines { margin-top:5px; width:100%; }
-table#concept-node-data table#pipelines td.del-pipeline { width:22px; vertical-align:top; padding: 20px 0 0 2px; }
-table#concept-node-data table#pipelines td.txt { padding-right:2px; }
+table#concept-node-data table#pipelines { margin:5px; width:100%; border-collapse:collapse; border:1px solid #ccc; }
 table#concept-node-data table#pipelines td.txt > a { line-height:10px; font-size:9px; }
-table#concept-node-data table#pipelines td.txt > input[type="text"] { width:100%; }
+table#concept-node-data table#pipelines > tbody > tr.pipeline { border-top:1px solid #ccc; }
+table#concept-node-data table#pipelines tr.pipeline > td.expand-collapse { width:16px; padding:20px 0 9px 2px; }
+table#concept-node-data table#pipelines tr.pipeline > td.expand-collapse > div { background-image:url('/images/expand_button.jpg'); width:16px; height:16px; cursor:pointer; }
+table#concept-node-data table#pipelines tr.pipeline.expanded > td.expand-collapse > div { background-image:url('/images/collapse_button.jpg'); }
+table#concept-node-data table#pipelines tr.pipeline > td.txt { padding-right:2px; }
+table#concept-node-data table#pipelines tr.pipeline > td.txt > input[type="text"] { width:100%; }
+table#concept-node-data table#pipelines tr.pipeline > td.del-pipeline { width:22px; vertical-align:top; padding:20px 0 9px 6px; }
+table#concept-node-data table#pipelines tr.pipeline-problems { display:none; }
+table#concept-node-data table#pipelines tr.pipeline-problems.expanded { display:table-row; }
+table#concept-node-data table#pipelines tr.pipeline-problems.expanded > td { padding:10px 7px 15px 17px; }
+table#concept-node-data table#pipelines tr.pipeline-problems table { width:100%; border-collapse:collapse; border:1px solid #ccc; }
+table#concept-node-data table#pipelines tr.pipeline-problems.not-loaded table tr.loading-message > td { text-align:center; color:#ccc;  }
+table#concept-node-data table#pipelines tr.pipeline-problems table tr { border-top:1px solid #ccc; }
+table#concept-node-data table#pipelines tr.pipeline-problems table td.remove-problem { width:22px; vertical-align:top; padding:13px 1px 0 2px; }
+table#concept-node-data table#pipelines tr.pipeline-problems table td.txt > div.last-modified { float:right; margin:4px 2px 0 0; font-size:9px; color:#aaa; }
+table#concept-node-data table#pipelines tr.pipeline-problems table td.txt > div.problem-desc { padding:3px 0; }
 table#concept-node-data div#insert-pipeline-btn { margin:4px 0 2px 2px; }
 table#concept-node-data div#insert-tag-btn { margin:4px 0 2px 2px; }
 table#concept-node-data div#concept-tags { margin-left:-1px; }

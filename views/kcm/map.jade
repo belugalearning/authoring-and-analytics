@@ -5,6 +5,7 @@ block additionalScripts
     var kcm = !{JSON.stringify(map,null,2)}
   script(src='/javascripts/kcm/jquery.tmpl.js', type='text/javascript')
   script(src='/javascripts/kcm/d3.v2.NC-BRANCH.min.js', type='text/javascript')
+  script(src='/javascripts/kcm/jquery.form.js', type='text/javascript')
   script(src='/javascripts/kcm/kcm.js', type='text/javascript')
 
 block wrapper
@@ -36,3 +37,8 @@ block wrapper
           | Pipelines:
           div#insert-pipeline-btn.add-btn
           table#pipelines
+    form(id="myForm", action="/kcm/testpost", method="post")
+      | Name:
+      input(type="text", name="name")
+      input(type="button", onclick="$('#filesToUpload').click();")
+      input(name="filesToUpload[]", id="filesToUpload", type="file", multiple="multiple", onchange="console.log(this.files);", style="width:0; overflow:hidden;")
