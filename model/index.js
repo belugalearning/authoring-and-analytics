@@ -1,7 +1,7 @@
 // CONSTANT
 //var serverURI = 'http://localhost:5984/'
-var serverURI = 'http://localhost:5984/'
-//var serverURI = 'http://sofaraslant.com:5984/'
+//var serverURI = 'http://localhost:5984/'
+var serverURI = 'http://sofaraslant.com:5984/'
 var databaseURI = serverURI + 'blm-users/';
 
 // module dependencies
