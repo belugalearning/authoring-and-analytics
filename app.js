@@ -118,6 +118,7 @@ app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
 app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
+app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
 
 var options = _.map(
     _.filter(process.argv, function(arg) { return /^-/.test(arg); })
