@@ -1109,7 +1109,7 @@ function pipelineProblemDetails(id, rev, callback) {
             var problems = _.map(JSON.parse(b).rows, function(p) {
                 return {
                     id: p.id
-                    , desc: typeof p.doc.internalDescription == 'string' ? p.doc.internalDescription : p.doc.problemDescription
+                    , desc: typeof p.doc.internalDescription == 'string' && p.doc.internalDescription.length ? p.doc.internalDescription : p.doc.problemDescription
                     , lastModified: typeof p.doc.dateModified == 'string' ? p.doc.dateModified.replace(/.{8}$/, '').replace(/[a-z]/gi, ' ') : ''
                 };
             });
