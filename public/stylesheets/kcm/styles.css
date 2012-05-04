@@ -24,6 +24,7 @@ div.add-btn { cursor:pointer; background-image:url('/images/add.png'); backgroun
 div.del-btn { cursor:pointer; background-image:url('/images/remove.png'); background-size:contain; background-repeat:no-repeat; width:17px; height:17px; }
 
 #right-panel { position:absolute; padding:0px; border:1px solid #ccc; overflow-y:auto; }
+form#upload-plists { visibility:hidden; }
 table#concept-node-data { width:100%; }
 table#concept-node-data tr.field > td { vertical-align:top; padding:5px 0 1px 0; border-bottom:1px solid #ccc; }
 table#concept-node-data tr.field > td[colspan="2"] { padding-left:3px; padding-right:10px; }
@@ -46,7 +47,6 @@ table#concept-node-data table#pipelines tr.pipeline-problems.expanded > td { pad
 table#concept-node-data table#pipelines tr.pipeline-problems table { width:100%; border-collapse:collapse; border:1px solid #ccc; }
 table#concept-node-data table#pipelines tr.pipeline-problems.not-loaded table tr.loading-message > td { text-align:center; color:#ccc; }
 table#concept-node-data table#pipelines tr.pipeline-problems.not-loaded table tr.add-problems { display:none; }
-table#concept-node-data table#pipelines tr.pipeline-problems table tr.add-problems input.hidden-file-input { width:0; overflow:hidden; }
 table#concept-node-data table#pipelines tr.pipeline-problems table tr.add-problems > td { padding:6px 1px 5px 2px; }
 table#concept-node-data table#pipelines tr.pipeline-problems table tr.add-problems > td.txt { padding-top:8px; }
 table#concept-node-data table#pipelines tr.pipeline-problems table tr { border-top:1px solid #ccc; }

@@ -321,7 +321,15 @@
             .resize(layoutControls).resize()
             .on('click', '#concept-node-data table#pipelines tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
             .on('click', '#concept-node-data table#pipelines td.remove-problem > div.del-btn', removeProblemFromPipeline)
-            .on('click', 'tr.add-problems div.add-btn', function() { $('#filesToUpload').click(); })
+            .on('click', 'tr.add-problems div.add-btn', function(e) {
+                var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id');
+                $('input[name="pipeline-id"]').val(plId);
+                $('#plists').click();
+            })
+            .on('change', 'input[type="file"][name="plists"]', function() {
+                alert('error uploading plists');
+                console.log($(this).closest('form'));
+            })
         ;
         gZoom = svg.append("g");
             
