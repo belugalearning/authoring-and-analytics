@@ -129,58 +129,67 @@ module.exports = function(model) {
         }
         , uploadProblems: function(req, res) {
             var files = req.files.pdefs
+              , numFiles
               , decompiledPDefs = []
               , problems = []
               , plId = req.body['pipeline-id']
+              , plRev = req.body['pipeline-rev']
             ;
 
-            console.log('pipelineId:', plId);
+            if (typeof files == 'undefined') {
+                res.send('no files found on form', 500);
+                return;
+            }
 
             if (typeof files.slice == 'undefined') files = [files]; // single pdefs not put in array
+            numFiles = files.length;
 
-            (function decompileNext(i) {
-                var file = files[i];
-                if (!file) {
-                    // all pdefs decompiled fine. use them to create problems
-                    
-                    (function createProblem(i) {
-                        kcmModel.insertProblem(decompiledPDefs[i], function(e,statusCode,newProblem) {
-                            if (statusCode != 201) {
-                                res.send('error creating problem', statusCode);
-                                return;
-                            }
-
-                            problems.push(newProblem);
-
-                            if (++i == decompiledPDefs.length) {
-                                console.log('successfully created all %s problems', i);
-                                console.log(problems);
-                                kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e,statusCode,plRev) {
-                                    res.send(plRev);
-                                    return;
-                                });
-                            } else {
-                                createProblem(i);
-                            }
-                        });
-                    })(0);
-
-                    //res.send('test fail', 500);
-                    //res.send('route success', 200);
-                    //return;
-                }
+            (function decompileNext(file) {
+                var numDecompiled;
 
                 decompileFormPList(file, function(e, decompiledPDef) {
                     if (e) {
                         res.send(e, 500);
                         return;
                     }
-                    decompiledPDefs.push(decompiledPDef);
-                    decompileNext(i+1);
-                });
-            })(0);
 
-            //res.redirect('/content/problem/'+newProblem.id);
+                    decompiledPDefs.push(decompiledPDef);
+                    numDecompiled = decompiledPDefs.length;
+
+                    if (numDecompiled < numFiles) {
+                        decompileNext(files[numDecompiled]);
+                    } else {
+                        // all pdefs decompiled fine. use them to create problems
+                        (function createProblem(pdef) {
+                            var numProblems;
+
+                            kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
+                                if (201 != statusCode) {
+                                    res.send('error creating problem', statusCode);
+                                    return;
+                                }
+
+                                problems.push(newProblem);
+                                numProblems = problems.length;
+                                if (numProblems < numFiles) {
+                                    createProblem(decompiledPDefs[numProblems]);
+                                } else {
+                                    kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e, statusCode, plUpdate) {
+                                        if (201 != statusCode) {
+                                            res.send(e, statusCode || 500);
+                                            return;
+                                        }
+
+                                        kcmModel.pipelineProblemDetails(plId, plUpdate.rev, function(e, statusCode, problemDetails) {
+                                            res.send(e || { problemDetails:problemDetails, pipelineId:plUpdate.id, pipelineRev:plUpdate.rev }, statusCode || 500);
+                                        });
+                                    });
+                                }
+                            });
+                        })(decompiledPDefs[0]);
+                    }
+                });
+            })(files[0]);
         }
         , updateConceptNodePosition: function(req,res) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
@@ -284,8 +293,8 @@ function pipelineSequenceViewData(plId, callback) {
 function decompileFormPList(plist, callback) {
     var path = plist && plist.path || undefined;
 
-    if (!plist) {
-        callback(util.format('plist not found at path "%s".', path));
+    if (!path) {
+        callback(util.format('plist not found at path "%s".\n\tplist:\n', path, plist));
         return;
     }
 

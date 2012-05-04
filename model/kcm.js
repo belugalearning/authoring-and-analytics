@@ -873,7 +873,7 @@ function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev
         var conceptNode = JSON.parse(b);
 
         if (conceptNode._rev != conceptNodeRev) {
-            callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', conceptNodeRev, conceptNode._rev), 500);
+            callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The pipeline was not created.', conceptNodeRev, conceptNode._rev), 500);
             return;
         }
 
@@ -1036,7 +1036,7 @@ function appendProblemsToPipeline(plId, problemIds, callback) {
                 callback(util.format('could not add problems to pipeline. DB error: "%s"', e), r.statusCode);
                 return;
             }
-            callback(null, 201, JSON.parse(b).rev);
+            callback(null, 201, JSON.parse(b));
         });
     });
 }
@@ -1088,7 +1088,7 @@ function pipelineProblemDetails(id, rev, callback) {
         var pl = JSON.parse(b);
 
         if (pl._rev != rev) {
-            callback(util.format('pipeline revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', rev, pl._rev), 500);
+            callback(util.format('pipeline revisions do not correspond. supplied:"%s", database:"%s". The pipeline problems could not be retrieved.', rev, pl._rev), 500);
             return;
         }
 
