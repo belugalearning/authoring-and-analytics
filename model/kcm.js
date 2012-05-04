@@ -500,7 +500,7 @@ function queryView(view, callback) {
 };
 
 function insertProblem(plist, callback) {
-    getProblemInfoFromPList(plist, function(e, plistString, problemDescription, toolId) {
+    getProblemInfoFromPList(plist, function(e, plistString, problemDescription, toolId, internalDescription) {
         if (e) {
             callback(e);
             return;
@@ -520,6 +520,7 @@ function insertProblem(plist, callback) {
                         , 'body': JSON.stringify({
                             type: 'problem'
                             , problemDescription: problemDescription
+                            , internalDescription: internalDescription
                             , problemNotes: ''
                             , toolId: toolId
                             , dateCreated: now
@@ -558,11 +559,13 @@ function getProblemInfoFromPList(plist, callback) {
           , matchValMETA_QUESTION_TITLE = plistString.match(/META_QUESTION_TITLE<\/key>\s*<string>([^<]+)/i)
           , matchValTOOL_KEY = plistString.match(/TOOL_KEY<\/key>\s*<string>([^<]+)/i)
           , matchValPROBLEM_DESCRIPTION = plistString.match(/PROBLEM_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
+          , matchValINTERNAL_DESCRIPTION = plistString.match(/INTERNAL_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
           , isMetaQuestion = matchMETA_QUESTION && matchMETA_QUESTION.length > 0
           , toolName = (matchValTOOL_KEY && matchValTOOL_KEY.length > 1 && matchValTOOL_KEY[1]) || (isMetaQuestion && 'NONE') // Meta Questions optionally have TOOL_KEY. Other questions must have TOOL_KEY
           , problemDescription = (isMetaQuestion
                                 ? matchValMETA_QUESTION_TITLE && matchValMETA_QUESTION_TITLE.length > 1 && matchValMETA_QUESTION_TITLE[1]
                                 : matchValPROBLEM_DESCRIPTION && matchValPROBLEM_DESCRIPTION.length > 1 && matchValPROBLEM_DESCRIPTION[1]) // use META_QUESTION_TITLE for Meta Questions
+          , internalDescription = matchValINTERNAL_DESCRIPTION && matchValINTERNAL_DESCRIPTION.length > 1 && matchValINTERNAL_DESCRIPTION[1] || ''
         ;
 
         if (!toolName || !problemDescription) {
@@ -579,7 +582,7 @@ function getProblemInfoFromPList(plist, callback) {
               , toolId = rows && rows.length && rows[0].id
             ;
 
-            if (toolId || isMetaQuestion) callback(null, plistString, problemDescription, toolId);
+            if (toolId || isMetaQuestion) callback(null, plistString, problemDescription, toolId, internalDescription);
             else callback(util.format('invalid plist. Could not retrieve tool with name %s. -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode));
         });
     });

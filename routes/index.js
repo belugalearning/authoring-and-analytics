@@ -295,7 +295,7 @@ exports.content = {
                                     , assessmentCriteria:criteria                           , assignedCriteriaIds:assignedCriteriaIds
                                     , dateCreated:formatDateString(problem.dateCreated)     , dateModified:formatDateString(problem.dateModified)
                                     , toolName: (tool && tool.value[0] || '')               , hasExpression:(problem._attachments && problem._attachments['expression.mathml'] !== undefined)
-                                    , problemNotes:(problem.problemNotes || '')
+                                    , problemNotes:(problem.problemNotes || '')             , internalDescription:problem.internalDescription
                                 });
                             });
                         });
