@@ -144,6 +144,14 @@
         $('#insert-tag-btn').click(addNewTagToConceptNode);
         $('#concept-node-data').on('click', '.del-tag', deleteConceptNodeTag);
         $('#concept-node-data').on('dblclick', '.cn-tag', editConceptNodeTag);
+        $('form#upload-pdefs').ajaxForm({
+            success: function() { 
+                console.log('ajaxForm callback', arguments);
+            }
+            , error: function() {
+                console.log('ERROR cb', arguments);
+            }
+        });
 
         svg = d3.select("#wrapper")
             .append("svg")
@@ -324,11 +332,13 @@
             .on('click', 'tr.add-problems div.add-btn', function(e) {
                 var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id');
                 $('input[name="pipeline-id"]').val(plId);
-                $('#plists').click();
+                $('input[type="file"][name="pdefs"]').click();
             })
-            .on('change', 'input[type="file"][name="plists"]', function() {
-                alert('error uploading plists');
-                console.log($(this).closest('form'));
+            .on('change', 'input[type="file"][name="pdefs"]', function() {
+                $('form#upload-pdefs').ajaxSubmit(function() {
+                    console.log('ajaxSubmit callback', arguments);
+                    $('form#upload-pdefs').clearForm();
+                });
             })
         ;
         gZoom = svg.append("g");

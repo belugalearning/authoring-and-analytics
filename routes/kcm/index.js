@@ -127,6 +127,61 @@ module.exports = function(model) {
                 res.send(e || problemDetails, statusCode);
             });
         }
+        , uploadProblems: function(req, res) {
+            var files = req.files.pdefs
+              , decompiledPDefs = []
+              , problems = []
+              , plId = req.body['pipeline-id']
+            ;
+
+            console.log('pipelineId:', plId);
+
+            if (typeof files.slice == 'undefined') files = [files]; // single pdefs not put in array
+
+            (function decompileNext(i) {
+                var file = files[i];
+                if (!file) {
+                    // all pdefs decompiled fine. use them to create problems
+                    
+                    (function createProblem(i) {
+                        kcmModel.insertProblem(decompiledPDefs[i], function(e,statusCode,newProblem) {
+                            if (statusCode != 201) {
+                                res.send('error creating problem', statusCode);
+                                return;
+                            }
+
+                            problems.push(newProblem);
+
+                            if (++i == decompiledPDefs.length) {
+                                console.log('successfully created all %s problems', i);
+                                console.log(problems);
+                                kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e,statusCode,plRev) {
+                                    res.send(plRev);
+                                    return;
+                                });
+                            } else {
+                                createProblem(i);
+                            }
+                        });
+                    })(0);
+
+                    //res.send('test fail', 500);
+                    //res.send('route success', 200);
+                    //return;
+                }
+
+                decompileFormPList(file, function(e, decompiledPDef) {
+                    if (e) {
+                        res.send(e, 500);
+                        return;
+                    }
+                    decompiledPDefs.push(decompiledPDef);
+                    decompileNext(i+1);
+                });
+            })(0);
+
+            //res.redirect('/content/problem/'+newProblem.id);
+        }
         , updateConceptNodePosition: function(req,res) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
                 res.send(e || nodeRevision, statusCode || 500);
@@ -178,50 +233,93 @@ module.exports = function(model) {
             }
         }
     };
+};
 
-    function pipelineSequenceViewData(plId, callback) {
-        var incl = []
-          , excl = []
-          , pl
-          , doCallback = function() {
-              callback({
-                  pipelineId: plId
-                  , includedProblems:incl   , includedProblemIds:pl && pl.problems || []
-                  , excludedProblems:excl   , excludedProblemIds:_.map(excl, function(p) { return p._id; })
-              });
-          }
-        ;
+function pipelineSequenceViewData(plId, callback) {
+    var incl = []
+      , excl = []
+      , pl
+      , doCallback = function() {
+          callback({
+              pipelineId: plId
+              , includedProblems:incl   , includedProblemIds:pl && pl.problems || []
+              , excludedProblems:excl   , excludedProblemIds:_.map(excl, function(p) { return p._id; })
+          });
+      }
+    ;
 
-        if (!plId) {
+    if (!plId) {
+        doCallback();
+        return;
+    }
+
+    kcmModel.getDoc(plId, function(e,r,b) {
+        if (r.statusCode != 200) {
             doCallback();
             return;
         }
 
-        kcmModel.getDoc(plId, function(e,r,b) {
-            if (r.statusCode != 200) {
-                doCallback();
+        pl = JSON.parse(b);
+
+        kcmModel.queryView(encodeURI('by-type?include_docs=true&key="problem"'), function(e,r,b) {
+            var probs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
+
+            incl = _.sortBy(
+                  _.filter(probs, function(p) { return pl.problems.indexOf(p._id) > -1; })
+                  , function(p) { return pl.problems.indexOf(p._id); }
+            );
+            excl = _.sortBy(
+                  _.filter(probs, function(p) { return pl.problems.indexOf(p._id) == -1; })
+                  , function(p) { return p.problemDescription; }
+            );
+
+            _.each(incl, function(p) { p.orderOn = incl.indexOf(p); });
+            _.each(excl, function(p) { p.orderOn = excl.indexOf(p); });
+
+            doCallback();
+        });
+    });
+}
+
+function decompileFormPList(plist, callback) {
+    var path = plist && plist.path || undefined;
+
+    if (!plist) {
+        callback(util.format('plist not found at path "%s".', path));
+        return;
+    }
+
+    // plist MAY be compiled. If so we want to decompile it using plutil.
+    // The linux implementation taken from: http://scw.us/iPhone/plutil/ (v1.5) does not have an option to test which it is without performing a conversion.
+    // The convertsion converts binary -> text or text -> binary depending on the source file format.
+    // Need to append .plist to the filename first otherwise the conversion will overwrite the original file, which may be the version that we want.
+    // If the original was compiled and named /tmp/foo.plist, the conversion will be named /tmp/foo.text.plist
+
+    fs.rename(path, path + '.plist', function(e) {
+        if (e) {
+            callback(util.format('error renaming file: "%s"',e));
+            return;
+        }
+
+        var command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path);
+
+        exec(command, function(err, stdout, stderr) {
+            if (err) {
+                callback(util.format('plutil was unable to process the plist. error: "%s"', err));
                 return;
             }
 
-            pl = JSON.parse(b);
+            var xmlToBinary = /XMLToBinary/.test(stdout)
+              , binaryToXml = /BinaryToXML/.test(stdout)
+              , xml = path + (binaryToXml ? '.text.plist' : '.plist')
+            ;
 
-            kcmModel.queryView(encodeURI('by-type?include_docs=true&key="problem"'), function(e,r,b) {
-                var probs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
+            if (!xmlToBinary && !binaryToXml) {
+                callback('error decompiling plist: plutil output format unrecognised');
+                return;
+            }
 
-                incl = _.sortBy(
-                      _.filter(probs, function(p) { return pl.problems.indexOf(p._id) > -1; })
-                      , function(p) { return pl.problems.indexOf(p._id); }
-                );
-                excl = _.sortBy(
-                      _.filter(probs, function(p) { return pl.problems.indexOf(p._id) == -1; })
-                      , function(p) { return p.problemDescription; }
-                );
-
-                _.each(incl, function(p) { p.orderOn = incl.indexOf(p); });
-                _.each(excl, function(p) { p.orderOn = excl.indexOf(p); });
-
-                doCallback();
-            });
+            callback(null, xml);
         });
-    }
-};
+    });
+}

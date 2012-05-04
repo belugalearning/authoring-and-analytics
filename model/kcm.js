@@ -28,6 +28,7 @@ module.exports = function(serverURI) {
         , pullReplicate: pullReplicate
         , updateViews: updateViews
         , queryView: queryView
+        , insertProblem: insertProblem
         , insertConceptNode: insertConceptNode
         , updateConceptNodePosition: updateConceptNodePosition
         , insertConceptNodeTag: insertConceptNodeTag
@@ -38,6 +39,7 @@ module.exports = function(serverURI) {
         , getDoc: getDoc
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
+        , appendProblemsToPipeline: appendProblemsToPipeline
         , removeProblemFromPipeline: removeProblemFromPipeline
         , updatePipelineSequence: updatePipelineSequence
         , pipelineProblemDetails: pipelineProblemDetails
@@ -497,6 +499,92 @@ function queryView(view, callback) {
     getDoc('_design/' + designDoc + '/_view/' + view, callback);
 };
 
+function insertProblem(plist, callback) {
+    getProblemInfoFromPList(plist, function(e, plistString, problemDescription, toolId) {
+        if (e) {
+            callback(e);
+            return;
+        }
+        request({ method:'GET', uri:couchServerURI+'_uuids' }, function(e,r,b) {
+            if (r.statusCode != 200) {
+                callback(util.format('could not generate uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b));
+                return;
+            }
+            var now = (new Date()).toJSON();
+
+            request({
+                method: 'PUT'
+                , uri: databaseURI + JSON.parse(b).uuids[0]
+                , multipart: [
+                    { 'Content-Type': 'application/json'
+                        , 'body': JSON.stringify({
+                            type: 'problem'
+                            , problemDescription: problemDescription
+                            , problemNotes: ''
+                            , toolId: toolId
+                            , dateCreated: now
+                            , dateModified: now
+                            , assessmentCriteria: []
+                            , _attachments: {
+                                'pdef.plist': {
+                                    follows: true
+                                    , length: plistString.length
+                                    , 'Content-Type': 'application/xml'
+                                }
+                            }
+                        })
+                }
+                , { 'body': plistString }
+                ]
+            }, function(e,r,b) {
+                if (r.statusCode != 201) {
+                    if (typeof callback == 'function') callback(util.format('Error creating problem -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b), r.statusCode);
+                    return;
+                }
+                callback(null, 201, JSON.parse(b));
+            });
+        });
+    });
+}
+
+function getProblemInfoFromPList(plist, callback) {
+    fs.readFile(plist, 'utf8', function(e, plistString) {
+        if (e) {
+            if (typeof callback == 'function') callback('could not load plist. error: ' + e);
+            return;
+        }
+
+        var matchMETA_QUESTION = plistString.match(/<key>META_QUESTION<\/key>/i)
+          , matchValMETA_QUESTION_TITLE = plistString.match(/META_QUESTION_TITLE<\/key>\s*<string>([^<]+)/i)
+          , matchValTOOL_KEY = plistString.match(/TOOL_KEY<\/key>\s*<string>([^<]+)/i)
+          , matchValPROBLEM_DESCRIPTION = plistString.match(/PROBLEM_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
+          , isMetaQuestion = matchMETA_QUESTION && matchMETA_QUESTION.length > 0
+          , toolName = (matchValTOOL_KEY && matchValTOOL_KEY.length > 1 && matchValTOOL_KEY[1]) || (isMetaQuestion && 'NONE') // Meta Questions optionally have TOOL_KEY. Other questions must have TOOL_KEY
+          , problemDescription = (isMetaQuestion
+                                ? matchValMETA_QUESTION_TITLE && matchValMETA_QUESTION_TITLE.length > 1 && matchValMETA_QUESTION_TITLE[1]
+                                : matchValPROBLEM_DESCRIPTION && matchValPROBLEM_DESCRIPTION.length > 1 && matchValPROBLEM_DESCRIPTION[1]) // use META_QUESTION_TITLE for Meta Questions
+        ;
+
+        if (!toolName || !problemDescription) {
+            if (typeof callback == 'function') callback(
+                'invalid plist - missing values for keys: '
+                    + (toolName ? '' : ' TOOL_KEY')
+                    + (toolName || problemDescription ? '' : ' and')
+                    + (problemDescription ? '' : (isMetaQuestion ? ' META_QUESTION_TITLE' : ' PROBLEM_DESCRIPTION'))
+            );
+            return;
+        }
+        queryView(encodeURI('any-by-type-name?key=' + JSON.stringify(['tool',toolName])), function(e,r,b) {
+            var rows = !e && r && r.statusCode == 200 && JSON.parse(b).rows
+              , toolId = rows && rows.length && rows[0].id
+            ;
+
+            if (toolId || isMetaQuestion) callback(null, plistString, problemDescription, toolId);
+            else callback(util.format('invalid plist. Could not retrieve tool with name %s. -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode));
+        });
+    });
+}
+
 function insertConceptNode(o, callback) {
     var errors = '';
     if (typeof o.nodeDescription != 'string' || !o.nodeDescription.length) errors += 'String value required for "nodeDescription". "';
@@ -926,6 +1014,26 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
                 return;
             }
             callback(null,201,JSON.parse(b).rev);
+        });
+    });
+}
+
+function appendProblemsToPipeline(plId, problemIds, callback) {
+    getDoc(plId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback('could not retrieve pipeline. Problems not added to pipeline.', r.statusCode);
+            return;
+        }
+
+        var pl = JSON.parse(b);
+        pl.problems = pl.problems.concat(problemIds);
+
+        updateDoc(pl, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback(util.format('could not add problems to pipeline. DB error: "%s"', e), r.statusCode);
+                return;
+            }
+            callback(null, 201, JSON.parse(b).rev);
         });
     });
 }

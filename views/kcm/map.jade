@@ -37,6 +37,6 @@ block wrapper
           | Pipelines:
           div#insert-pipeline-btn.add-btn
           table#pipelines
-    form(id="upload-plists", action="/kcm/testpost", method="post")
+    form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
-      input(type="file", multiple="multiple", name="plists", id="plists")
+      input(type="file", multiple="multiple", name="pdefs", id="pdefs")
