@@ -40,11 +40,19 @@
                         <tr class="loading-message">\
                             <td>[Loading Problems]</td>\
                         </tr>\
+                        <tr class="add-problems">\
+                            <td>\
+                                <div class="add-btn"/>\
+                            </td>\
+                            <td class="txt">\
+                                Upload problems to pipeline\
+                            </td>\
+                        </tr>\
                     </tbody>\
                 </table>\
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
-
+//<input name="filesToUpload[]" type="file" multiple="multiple" class="hidden-file-input"/>\
     $.template("plProblemTR",
         '<tr class="problem" data-id="{{html id}}" title="last modified: {{html lastModified}}">\
             <td class="remove-problem">\
@@ -130,12 +138,6 @@
     }
 
     $(function() {
-
-        $('#myForm').ajaxForm(function() { 
-            alert(arguments[0], arguments[1], arguments[2]);
-            console.log(arguments);
-        });
-
         $('#insert-pipeline-btn').click(addNewPipelineToConceptNode);
         $('#concept-node-data').on('click', 'td.del-pipeline > div.del-btn', deleteConceptNodePipeline);
 
@@ -319,6 +321,7 @@
             .resize(layoutControls).resize()
             .on('click', '#concept-node-data table#pipelines tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
             .on('click', '#concept-node-data table#pipelines td.remove-problem > div.del-btn', removeProblemFromPipeline)
+            .on('click', 'tr.add-problems div.add-btn', function() { $('#filesToUpload').click(); })
         ;
         gZoom = svg.append("g");
             
@@ -866,11 +869,9 @@
                     , contentType:'application/json'
                     , data:JSON.stringify({ id:pl._id, rev:pl._rev })
                     , success:function(problemDetails) {
-                        console.log(problemDetails);
                         trPLProbs
-                        .removeClass('not-loaded')
-                        .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
-                        ;
+                          .removeClass('not-loaded')
+                          .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
                     }
                     , error: ajaxErrorAlerter('Error retrieving pipeline problems')
                 });

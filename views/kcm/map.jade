@@ -38,7 +38,4 @@ block wrapper
           div#insert-pipeline-btn.add-btn
           table#pipelines
     form(id="myForm", action="/kcm/testpost", method="post")
-      | Name:
-      input(type="text", name="name")
-      input(type="button", onclick="$('#filesToUpload').click();")
       input(name="filesToUpload[]", id="filesToUpload", type="file", multiple="multiple", onchange="console.log(this.files);", style="width:0; overflow:hidden;")
