@@ -42,7 +42,12 @@ function checkAuthentication(req, res, next) {
         next();
         return;
     }
-    res.redirect('/login?redir=' + req.url);
+
+    if (req.isXMLHttpRequest) {
+        res.send('You have been logged out', 401);
+    } else {
+        res.redirect('/login?redir=' + req.url);
+    }
 }
 
 

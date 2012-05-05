@@ -313,7 +313,7 @@
                             , success: function(rev) {
                                 data._rev = rev;
                             }
-                            , error: ajaxErrorAlerter('Error saving updated concept node position')
+                            , error: ajaxErrorHandler('Error saving updated concept node position')
                         });
                     };
                 }
@@ -347,7 +347,7 @@
                         }
 
                     }
-                    , error: ajaxErrorAlerter('Error uploading problems to pipeline.')
+                    , error: ajaxErrorHandler('Error uploading problems to pipeline.')
  
                 });
                 $('form#upload-pdefs').clearForm();
@@ -684,7 +684,7 @@
                         }
 
                     }
-                    , error: ajaxErrorAlerter('Error adding new pair to binary relation')
+                    , error: ajaxErrorHandler('Error adding new pair to binary relation')
                 });
             }
         );
@@ -712,9 +712,13 @@
         }
     }
 
-    function ajaxErrorAlerter(firstline) {
+    function ajaxErrorHandler(firstline) {
         return function(e) {
-            alert(firstline + '\n' + e.responseText + '\n' + [].slice.call(arguments, 1).join('\n'));
+            if (401 == e.status) {
+                self.location = '/login?redir=' + self.location.pathname + self.location.search
+            } else {
+                alert(firstline + '\n' + e.responseText + '\n' + [].slice.call(arguments, 1).join('\n'));
+            }
         }
     }
 
@@ -736,7 +740,7 @@
                         cn._rev = cnRev;
                         selectConceptNode(cn);
                     }
-                    , error: ajaxErrorAlerter('Error adding new tag to concept node')
+                    , error: ajaxErrorHandler('Error adding new tag to concept node')
                 });
             }
         });
@@ -763,7 +767,7 @@
                     cn.tags.splice(tag.index(), 1);
                     selectConceptNode(cn);
                 }
-                , error: ajaxErrorAlerter('error deleting concept node tag')
+                , error: ajaxErrorHandler('error deleting concept node tag')
             });
         });
     }
@@ -815,7 +819,7 @@
                 , error: function() {
                     if (tagIx == 0) $('#concept-tags').prepend($tag);
                     else $('#concept-tags').children().eq(tagIx-1).after($tag);
-                    ajaxErrorAlerter('error editing concept node tag').apply(null, [].slice.call(arguments));
+                    ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments));
                 }
             });
         }
@@ -846,7 +850,7 @@
                         cn._rev = cnRev;
                         selectConceptNode(cn);
                     }
-                    , error:ajaxErrorAlerter('Error adding new pipeline')
+                    , error:ajaxErrorHandler('Error adding new pipeline')
                 });
             }
         });
@@ -875,7 +879,7 @@
                     delete kcm.pipelines[plId];
                     selectConceptNode(cn);
                 }
-                , error:ajaxErrorAlerter('error deleting pipeline')
+                , error:ajaxErrorHandler('error deleting pipeline')
             });
         });
     }
@@ -903,7 +907,7 @@
                           .removeClass('not-loaded')
                           .find('tr.loading-message').replaceWith($.tmpl('plProblemTR', problemDetails));
                     }
-                    , error: ajaxErrorAlerter('Error retrieving pipeline problems')
+                    , error: ajaxErrorHandler('Error retrieving pipeline problems')
                 });
             }
         }
@@ -929,7 +933,7 @@
                     pl._rev = plRev;
                     $trProblem.remove();
                 }
-                , error:ajaxErrorAlerter('error removing problem from pipeline')
+                , error:ajaxErrorHandler('error removing problem from pipeline')
             });
         });
     }
