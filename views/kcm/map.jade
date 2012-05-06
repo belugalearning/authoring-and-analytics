@@ -10,7 +10,7 @@ block additionalScripts
 
 block wrapper
   #right-panel
-    table#concept-node-data.none-selected
+    table.none-selected(data-panel="concept-node-data")
       tr.field
         td.field-label Db Id:
         td.field-data
@@ -36,7 +36,7 @@ block wrapper
         td(colspan='2')
           | Pipelines:
           div#insert-pipeline-btn.add-btn
-          table#pipelines
+          table(data-section="pipelines")
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")

@@ -35,12 +35,13 @@
         </tr>\
         <tr class="pipeline-problems not-loaded" data-id="{{html _id}}">\
             <td colspan="3">\
-                <table>\
+                <table data-type="pipeline-problems">\
                     <tbody>\
                         <tr class="loading-message">\
                             <td>[Loading Problems]</td>\
                         </tr>\
                         <tr class="add-problems">\
+                            <td/>\
                             <td>\
                                 <div class="add-btn"/>\
                             </td>\
@@ -52,9 +53,12 @@
                 </table>\
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
-//<input name="filesToUpload[]" type="file" multiple="multiple" class="hidden-file-input"/>\
+
     $.template("plProblemTR",
         '<tr class="problem" data-id="{{html id}}" title="last modified: {{html lastModified}}">\
+            <td class="drag-problem">\
+                <div class="gripper"/>\
+            </td>\
             <td class="remove-problem">\
                 <div class="del-btn"/>\
             </td>\
@@ -139,11 +143,11 @@
 
     $(function() {
         $('#insert-pipeline-btn').click(addNewPipelineToConceptNode);
-        $('#concept-node-data').on('click', 'td.del-pipeline > div.del-btn', deleteConceptNodePipeline);
+        $('table[data-panel="concept-node-data"]').on('click', 'td.del-pipeline > div.del-btn', deleteConceptNodePipeline);
 
         $('#insert-tag-btn').click(addNewTagToConceptNode);
-        $('#concept-node-data').on('click', '.del-tag', deleteConceptNodeTag);
-        $('#concept-node-data').on('dblclick', '.cn-tag', editConceptNodeTag);
+        $('table[data-panel="concept-node-data"]').on('click', '.del-tag', deleteConceptNodeTag);
+        $('table[data-panel="concept-node-data"]').on('dblclick', '.cn-tag', editConceptNodeTag);
         $('form#upload-pdefs').ajaxForm();
 
         svg = d3.select("#wrapper")
@@ -151,7 +155,7 @@
                 .attr("data-type", "svg")
                 .attr("data-focusable", "true")
                 .on("mousedown", gainFocus)
-                .call(d3.behavior.zoom()/*.scaleExtent([1, 8])*/.on("zoom", zoom))
+                .call(d3.behavior.zoom().on("zoom", zoom))
         ;
 
         var keyListener = function(e) {
@@ -164,8 +168,42 @@
         };
 
         $(window)
-            .on('keydown keyup', keyListener)
+            .resize(layoutControls).resize()
+            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
+            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
+            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
+            .on('click', 'tr.add-problems div.add-btn', function(e) {
+                var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
+                  , plRev = kcm.pipelines[plId]._rev
+                ;
+                $('input[name="pipeline-id"]').val(plId);
+                $('input[name="pipeline-rev"]').val(plRev);
+                $('input[type="file"][name="pdefs"]').click();
+            })
+            .on('change', 'input[type="file"][name="pdefs"]', function() {
+                $('form#upload-pdefs').ajaxSubmit({
+                    success: function(o) { 
+                        var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]');
+
+                        kcm.pipelines[o.pipelineId]._rev = o.pipelineRev;
+
+                        if ($trPLProbs.length) {
+                            $trPLProbs
+                                .find('tr.problem')
+                                    .remove()
+                                    .end()
+                                .find('tr.add-problems')
+                                    .before($.tmpl('plProblemTR', o.problemDetails));
+                        }
+
+                    }
+                    , error: ajaxErrorHandler('Error uploading problems to pipeline.')
+ 
+                });
+                $('form#upload-pdefs').clearForm();
+            })
             // mouse interactions with concept nodes
+            .on('keydown keyup', keyListener)
             .on('mousedown', '[data-type="concept-node"]', function(e) {
                 var n = d3.select(e.currentTarget)
                   , data = n.data()[0]
@@ -319,39 +357,6 @@
                 }
                 cnInteractionModifiers = '';
             })
-            .resize(layoutControls).resize()
-            .on('click', '#concept-node-data table#pipelines tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
-            .on('click', '#concept-node-data table#pipelines td.remove-problem > div.del-btn', removeProblemFromPipeline)
-            .on('click', 'tr.add-problems div.add-btn', function(e) {
-                var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
-                  , plRev = kcm.pipelines[plId]._rev
-                ;
-                $('input[name="pipeline-id"]').val(plId);
-                $('input[name="pipeline-rev"]').val(plRev);
-                $('input[type="file"][name="pdefs"]').click();
-            })
-            .on('change', 'input[type="file"][name="pdefs"]', function() {
-                $('form#upload-pdefs').ajaxSubmit({
-                    success: function(o) { 
-                        var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]');
-
-                        kcm.pipelines[o.pipelineId]._rev = o.pipelineRev;
-
-                        if ($trPLProbs.length) {
-                            $trPLProbs
-                                .find('tr.problem')
-                                    .remove()
-                                    .end()
-                                .find('tr.add-problems')
-                                    .before($.tmpl('plProblemTR', o.problemDetails));
-                        }
-
-                    }
-                    , error: ajaxErrorHandler('Error uploading problems to pipeline.')
- 
-                });
-                $('form#upload-pdefs').clearForm();
-            })
         ;
         gZoom = svg.append("g");
             
@@ -465,7 +470,7 @@
     }
 
     function layoutControls() {
-        var windowPadding = 10
+        var windowPadding = 4
           , genPadding = 6
           , w = $(window).width() - 2 * windowPadding
           , h = $(window).height() - 2 * windowPadding
@@ -535,19 +540,19 @@
     }
 
     function selectConceptNode(data) {
-        $('#pipelines').html('');
+        $('[data-section="pipelines"]').html('');
 
         if (data) {
-            $('#concept-node-data').removeClass('none-selected');
+            $('table[data-panel="concept-node-data"]').removeClass('none-selected');
             $('#concept-db-id').text(data._id);
             $('#concept-graffle-id').text(data.graffleId || '');
             $('#concept-description').val(data.nodeDescription).prop('disabled', '');
             $('#concept-notes').val(data.notes).prop('disabled', '');
             $('#concept-tags').html($.tmpl('cnTagDIV', $.map(data.tags, function(tag) { return { tag:tag }; })));
-            $('#pipelines').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; })));
+            $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; })));
  
         } else {
-            $('#concept-node-data').addClass('none-selected');
+            $('table[data-panel="concept-node-data"]').addClass('none-selected');
             $('#concept-db-id').text('');
             $('#concept-graffle-id').text('');
             $('#concept-description').val('').prop('disabled', 'disabled');
@@ -935,6 +940,83 @@
                 }
                 , error:ajaxErrorHandler('error removing problem from pipeline')
             });
+        });
+    }
+
+    function dragReorderPipelineProblems(e) {
+        var $nosel = $('body, input, textarea').not('.no-select').addClass('no-select')
+          , $table = $(e.currentTarget).closest('table[data-type="pipeline-problems"]')
+          , $clone = $table.clone()
+          , $div = $('<div data-panel="concept-node-data" style="position:absolute; cursor:pointer;"/>')
+          , $border = $('<div style="position:absolute; border:1px solid #999"/>')
+          , $tr = $(e.target).closest('tr.problem')
+          , id = $tr.attr('data-id')
+          , trOffset = $tr.offset()
+          , tableOffset = $table.offset()
+          , ymin = tableOffset.top - (trOffset.top - tableOffset.top)
+          , ymax = tableOffset.top + ($tr.parent().children('tr.problem:last').offset().top - trOffset.top)
+          , ymouseInit = e.pageY
+          , index = $tr.index()
+        ;
+        $clone
+            .width($table.outerWidth())
+            .find('td')
+                .css('background-color', '#eee')
+        ;
+        $div
+            .css('left', tableOffset.left)
+            .css('top', tableOffset.top)
+            .append($clone)
+            .appendTo('body')
+        ;
+        $border
+            .width($table.width())
+            .height($table.height())
+            .css('left', tableOffset.left)
+            .css('top', tableOffset.top)
+            .appendTo('body')
+        ;
+
+        $table.find('tr[data-id='+id+']').css('visibility', 'hidden');
+        $clone.find('tr[data-id!='+id+']').css('visibility', 'hidden');
+
+        $(window).on('mouseup mousemove', function(e) {
+            if (e.type == 'mousemove') {
+                var y = Math.min(ymax, Math.max(ymin, tableOffset.top + e.pageY - ymouseInit));
+                $div.css('top', y);
+
+                var prev = $tr.prev('.problem')
+                  , next = $tr.next('.problem')
+                  , yProxy = $div.find('tr.problem[data-id="'+id+'"]').offset().top
+                ;
+                
+                if (next.length && (yProxy + $tr.height()) > (next.offset().top + 0.5 * next.height())) {
+                    $tr.remove().insertAfter(next);
+                } else if (prev.length && yProxy < (prev.offset().top + 0.5 * prev.height())) {
+                    $tr.remove().insertBefore(prev);
+                }
+            } else {
+                $nosel.removeClass('no-select');
+                $div.remove();
+                $border.remove();
+                $table.find('tr[data-id='+id+']').css('visibility', '');
+                $(window).off('mouseup mousemove', arguments.callee);
+                
+                if ($tr.index() != index) {
+                    var plId = $('tr.problem').closest('.pipeline-problems').attr('data-id')
+                      , pl = kcm.pipelines[plId];
+                    $.ajax({
+                        url: '/kcm/reorder-pipeline-problems'
+                        , type:'POST'
+                        , contentType:'application/json'
+                        , data:JSON.stringify({ pipelineId:pl._id, pipelineRev:pl._rev, problemId:$tr.attr('data-id'), oldIndex:index, newIndex:$tr.index() })
+                        , success:function(plRev) {
+                            pl._rev = plRev;
+                        }
+                        , error:ajaxErrorHandler('error reordering pipeline problems')
+                    });
+                }
+            }
         });
     }
 

@@ -120,6 +120,7 @@ app.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
 app.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
 app.post('/kcm/pipeline-problem-details', routes.kcm.pipelineProblemDetails);
 app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
+app.post('/kcm/reorder-pipeline-problems', routes.kcm.reorderPipelineProblems);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
 app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);

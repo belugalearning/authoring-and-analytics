@@ -43,6 +43,7 @@ module.exports = function(serverURI) {
         , removeProblemFromPipeline: removeProblemFromPipeline
         , updatePipelineSequence: updatePipelineSequence
         , pipelineProblemDetails: pipelineProblemDetails
+        , reorderPipelineProblems: reorderPipelineProblems
         , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
     };
 };
@@ -1115,6 +1116,53 @@ function pipelineProblemDetails(id, rev, callback) {
             });
 
             callback(null, 200, problems);
+        });
+    });
+}
+
+function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, newIndex, callback) {
+    if (!/^\d+$/.test(oldIndex)) {
+        callback('bad argument suppied for oldIndex:"%s" - positive integer required', oldIndex);
+        return;
+    }
+    if (!/^\d+$/.test(newIndex)) {
+        callback('bad argument suppied for newIndex:"%s" - postive integer required', newIndex);
+        return;
+    }
+
+    getDoc(pipelineId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('could not retrieve document with id="%s" from database. Error reported: "%s"', pipelineId, e), r.statusCode);
+            return;
+        }
+        var pl = JSON.parse(b);
+
+        if (pl._rev != pipelineRev) {
+            callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline problems were not reordered', pipelineRev, pl._rev), 500);
+            return;
+        }
+        if ('pipeline' != pl.type) {
+            callback(util.format('Error: Document with id="%s" is not a pipeline. The document was not deleted.',pipelineId), 500);
+            return;
+        }
+        if (problemId != pl.problems[oldIndex]) {
+            callback(util.format('Pipeline id="%s" does not have problem id="%s" at index="%s". The pipeline problems were not reordered', pipelineId, problemId, oldIndex));
+            return;
+        }
+        if (newIndex >= pl.problems.length) {
+            callback(util.format('Invalid new index:"%s" supplied for problem id="%s" on pipeline id="%s". The pipeline contains %s problems.', newIndex, problemId, pl._id, pl.problems.length),500);
+            return;
+        }
+
+        pl.problems.splice(oldIndex,1);
+        pl.problems.splice(newIndex,0,problemId);
+
+        updateDoc(pl, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback('error reordering pipeline. Database reported error:"%s".', r.statusCode);
+                return;
+            }
+            callback(null,201,JSON.parse(b).rev);
         });
     });
 }

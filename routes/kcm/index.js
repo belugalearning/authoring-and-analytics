@@ -191,6 +191,11 @@ module.exports = function(model) {
                 });
             })(files[0]);
         }
+        , reorderPipelineProblems: function(req, res) {
+            kcmModel.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
+                res.send(e || plRev, statusCode || 500);
+            });
+        }
         , updateConceptNodePosition: function(req,res) {
             kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
                 res.send(e || nodeRevision, statusCode || 500);
