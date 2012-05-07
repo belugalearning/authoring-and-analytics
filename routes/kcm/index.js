@@ -34,7 +34,7 @@ module.exports = function(model) {
                   , dbName = kcmModel.databaseName
                   , zipFile = util.format('/tmp/canned-db-%s.zip', uuid);
                 ;
-                exec(util.format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:config.couchdbPath }, function(e,stdout,stderr) {
+                exec(util.format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:config.couchDatabasesDirectory }, function(e,stdout,stderr) {
                     if (e) {
                         res.send(e, 500);
                         return;

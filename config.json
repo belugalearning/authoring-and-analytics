@@ -1,4 +1,4 @@
 {
-    "couchdbPath": "/home/nick/dev/build-couchdb/build/var/lib/couchdb/"
+    "couchDatabasesDirectory": "/root/build-couchdb/build/var/lib/couchdb/"
 }
 
