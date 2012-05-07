@@ -301,18 +301,15 @@ function pipelineSequenceViewData(plId, callback) {
 }
 
 function decompileFormPList(plist, callback) {
-    var path = plist && plist.path || undefined;
+    var path = plist && plist.path || undefined
+      , command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path)
+      , isBinary
+    ;
 
     if (!path) {
         callback(util.format('plist not found at path "%s".\n\tplist:\n', path, plist));
         return;
     }
-
-    // plist MAY be compiled. If so we want to decompile it using plutil.
-    // The linux implementation taken from: http://scw.us/iPhone/plutil/ (v1.5) does not have an option to test which it is without performing a conversion.
-    // The convertsion converts binary -> text or text -> binary depending on the source file format.
-    // Need to append .plist to the filename first otherwise the conversion will overwrite the original file, which may be the version that we want.
-    // If the original was compiled and named /tmp/foo.plist, the conversion will be named /tmp/foo.text.plist
 
     fs.rename(path, path + '.plist', function(e) {
         if (e) {
@@ -320,25 +317,32 @@ function decompileFormPList(plist, callback) {
             return;
         }
 
-        var command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path);
-
-        exec(command, function(err, stdout, stderr) {
-            if (err) {
-                callback(util.format('plutil was unable to process the plist. error: "%s"', err));
+        fs.readFile(path+'.plist', function(e,data) {
+            if (e) {
+                callback(util.format('error reading file - error reported: "%s"',e));
                 return;
             }
 
-            var xmlToBinary = /XMLToBinary/.test(stdout)
-              , binaryToXml = /BinaryToXML/.test(stdout)
-              , xml = path + (binaryToXml ? '.text.plist' : '.plist')
-            ;
-
-            if (!xmlToBinary && !binaryToXml) {
-                callback('error decompiling plist: plutil output format unrecognised');
+            isBinary = data.toString('utf8').substring(0,6) == 'bplist';
+            if (!isBinary) {
+                // not a compiled plist
+                callback(null, path+'.plist');
                 return;
             }
 
-            callback(null, xml);
+            exec(command, function(err, stdout, stderr) {
+                if (err) {
+                    callback(util.format('plutil was unable to process the file. error: "%s"', err));
+                    return;
+                }
+
+                if (!/BinaryToXML/.test(stdout)) {
+                    callback('error decompiling plist: plutil output format unrecognised');
+                    return;
+                }
+
+                callback(null, path+'.text.plist');
+            });
         });
     });
 }

@@ -243,8 +243,13 @@ exports.content = {
             res.render('upload-plist', { title:'Upload the problem definition PList', probemId:'' });
         }
         , uploadPlist: function(req, res) {
-            decompileFormPList(req, res, function(plist) {
-                model.content.insertProblem(plist, function(e,newProblem) {
+            decompilePList(req.files.plist, function(e, plist) {
+                if (e) {
+                    res.send(e, 500);
+                    return;
+                }
+
+                model.content.insertProblem(plist, function(e, newProblem) {
                     if (e) res.send(e, 500);
                     else res.redirect('/content/problem/'+newProblem.id);
                 });
@@ -413,7 +418,12 @@ exports.content = {
                 res.render('upload-plist', { title:'Upload the replacement problem definition PList', problemId:req.params.problemId });
             }
             , performReplacePList: function(req, res) {
-                decompileFormPList(req, res, function(plist) {
+                decompilePList(req.files.plist, function(e, plist) {
+                    if (e) {
+                        res.send(e, 500);
+                        return;
+                    }
+
                     model.content.updatePDefPList(req.params.problemId, plist, function(e) {
                         if (e) res.send(e, 500);
                         else res.redirect('/content/problem/' + req.params.problemId);
@@ -539,47 +549,49 @@ function formatDateString(jsonDate) {
     return jsonDate.replace(/^([0-9]{4}-[0-9]{2}-[0-9]{2})T(([0-9]{2}:){2}[0-9]{2}).+$/, "$1 $2");
 }
 
-function decompileFormPList(req, res, callback) {
-    var plist = req.files.plist
-      , path = plist && plist.path || undefined
+function decompilePList(plist, callback) {
+    var path = plist && plist.path || undefined
+      , command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path)
+      , isBinary
     ;
 
-    if (!plist) {
-        res.send('error: plist not found.', 500);
+    if (!path) {
+        callback(util.format('plist not found at path "%s".\n\tplist:\n', path, plist));
         return;
     }
 
-    // plist MAY be compiled. If so we want to decompile it using plutil.
-    // The linux implementation taken from: http://scw.us/iPhone/plutil/ (v1.5) does not have an option to test which it is without performing a conversion.
-    // The convertsion converts binary -> text or text -> binary depending on the source file format.
-    // Need to append .plist to the filename first otherwise the conversion will overwrite the original file, which may be the version that we want.
-    // If the original was compiled and named /tmp/foo.plist, the conversion will be named /tmp/foo.text.plist
-
     fs.rename(path, path + '.plist', function(e) {
         if (e) {
-            res.send(500);
+            callback(util.format('error renaming file: "%s"',e));
             return;
         }
 
-        var command = util.format('perl %s/plutil.pl %s.plist', __dirname, path);
-
-        exec(command, function(err, stdout, stderr) {
-            if (err) {
-                res.send(util.format('plutil was unable to process the plist. error: "%s"', err), 500);
+        fs.readFile(path+'.plist', function(e,data) {
+            if (e) {
+                callback(util.format('error reading file - error reported: "%s"',e));
                 return;
             }
 
-            var xmlToBinary = /XMLToBinary/.test(stdout)
-              , binaryToXml = /BinaryToXML/.test(stdout)
-              , xml = path + (binaryToXml ? '.text.plist' : '.plist')
-            ;
-
-            if (!xmlToBinary && !binaryToXml) {
-                res.send('error: plutil output format unrecognised', 500);
+            isBinary = data.toString('utf8').substring(0,6) == 'bplist';
+            if (!isBinary) {
+                // not a compiled plist
+                callback(null, path+'.plist');
                 return;
             }
 
-            callback(xml);
+            exec(command, function(err, stdout, stderr) {
+                if (err) {
+                    callback(util.format('plutil was unable to process the file. error: "%s"', err));
+                    return;
+                }
+
+                if (!/BinaryToXML/.test(stdout)) {
+                    callback('error decompiling plist: plutil output format unrecognised');
+                    return;
+                }
+
+                callback(null, path+'.text.plist');
+            });
         });
     });
 }
