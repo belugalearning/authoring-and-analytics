@@ -1,21 +1,25 @@
+/*
+ *
+ *  Most of this module was made obsolete by transition from topic/module/element to knowledge concept map. Requires a clean-up
+ *
+ */
+
 var fs = require('fs')
   , _ = require('underscore')
   , request = require('request')
   , util = require('util')
 ;
 
-var contentDatabase = 'tmp-blm-kcm3/'
-  , designDoc = 'kcm-views'
-//var contentDatabase = 'temp-blm-content/'
-//  , designDoc = 'content-views'
-  , couchServerURI
+var couchServerURI
+  , designDoc
   , databaseURI
 ;
 
-module.exports = function(serverURI) {
-    couchServerURI = serverURI;
-    databaseURI = serverURI + contentDatabase;
-    console.log("content module: databaseURI =", databaseURI);
+module.exports = function(config) {
+    couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
+    designDoc = config.kcmDatabaseDesignDoc;
+    databaseURI = couchServerURI + config.kcmDatabaseName + '/';
+    console.log(util.format('content module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
     return {
         queryView: queryView

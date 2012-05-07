@@ -5,18 +5,19 @@ var fs = require('fs')
   , libxmljs = require('libxmljs')
 ;
 
-var kcmDatabaseName = 'tmp-blm-kcm3'
-  , designDoc = 'kcm-views'
+var kcmDatabaseName
+  , designDoc
   , couchServerURI
   , databaseURI
+  , relationTypes = ['binary']
 ;
 
-var relationTypes = ['binary'];
-
-module.exports = function(serverURI) {
-    couchServerURI = serverURI.replace(/([^/])$/, '$1');
-    databaseURI = serverURI + kcmDatabaseName.replace(/([^/])$/, '$1') + '/';
-    console.log("knowledge concept map model: databaseURI =", databaseURI);
+module.exports = function(config) {
+    couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
+    kcmDatabaseName = config.kcmDatabaseName;
+    designDoc = config.kcmDatabaseDesignDoc;
+    databaseURI = couchServerURI + kcmDatabaseName + '/';
+    console.log(util.format('kcm module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
     //importGraffleMapIntoNewDB(2, 0, false);
     

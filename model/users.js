@@ -10,10 +10,11 @@ var contentDatabase = 'temp-blm-users/'
   , databaseURI
 ;
 
-module.exports = function(serverURI) {
-    couchServerURI = serverURI;
-    databaseURI = serverURI + contentDatabase;
-    console.log("users module: databaseURI =", databaseURI);
+module.exports = function(config) {
+    couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
+    databaseURI = couchServerURI + config.usersDatabaseName + '/';
+    designDoc = config.usersDatabaseDesignDoc;
+    console.log(util.format('users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
     return {
         queryView: queryView

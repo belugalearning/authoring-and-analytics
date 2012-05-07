@@ -1,4 +1,5 @@
 var fs = require('fs')
+  , config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
   , _ = require('underscore')
   , util = require('util')
   , exec = require('child_process').exec
@@ -29,8 +30,7 @@ module.exports = function(model) {
         }
         , cannedDatabase: function(req, res) {
             kcmModel.generateUUID(function(uuid) {
-                var config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
-                  , dbPath = config.databasePath
+                var dbPath = config.databasePath
                   , dbName = kcmModel.databaseName
                   , zipFile = util.format('/tmp/canned-db-%s.zip', uuid);
                 ;
