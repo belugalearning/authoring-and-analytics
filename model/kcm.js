@@ -39,6 +39,7 @@ module.exports = function(serverURI) {
         , getDoc: getDoc
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
+        , reorderConceptNodePipelines: reorderConceptNodePipelines
         , appendProblemsToPipeline: appendProblemsToPipeline
         , removeProblemFromPipeline: removeProblemFromPipeline
         , updatePipelineSequence: updatePipelineSequence
@@ -976,6 +977,53 @@ function deletePipeline(plId, plRev, cnId, cnRev, callback) {
     });
 }
 
+function reorderConceptNodePipelines(conceptNodeId, conceptNodeRev, pipelineId, oldIndex, newIndex, callback) {
+    if (!/^\d+$/.test(oldIndex)) {
+        callback('bad argument suppied for oldIndex:"%s" - positive integer required', oldIndex);
+        return;
+    }
+    if (!/^\d+$/.test(newIndex)) {
+        callback('bad argument suppied for newIndex:"%s" - postive integer required', newIndex);
+        return;
+    }
+
+    getDoc(conceptNodeId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('could not retrieve document with id="%s" from database. Error reported: "%s"', conceptNodeId, e), r.statusCode);
+            return;
+        }
+        var cn = JSON.parse(b);
+
+        if (cn._rev != conceptNodeRev) {
+            callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The pipelines were not reordered', conceptNodeRev, cn._rev), 500);
+            return;
+        }
+        if ('concept node' != cn.type) {
+            callback(util.format('Error: Document with id="%s" is not a concept node. The pipelines were not reordered.',conceptNodeId), 500);
+            return;
+        }
+        if (pipelineId != cn.pipelines[oldIndex]) {
+            callback(util.format('Concept node id="%s" does not have pipeline id="%s" at index="%s". The pipelines were not reordered', conceptNodeId, pipelineId, oldIndex));
+            return;
+        }
+        if (newIndex >= cn.pipelines.length) {
+            callback(util.format('Invalid new index:"%s" supplied for pipeline id="%s" on concept node id="%s" which contains %s pipelines.', newIndex, pipelineId, cn._id, cn.pipelines.length),500);
+            return;
+        }
+
+        cn.pipelines.splice(oldIndex,1);
+        cn.pipelines.splice(newIndex,0,pipelineId);
+
+        updateDoc(cn, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback(util.format('error reordering concept node pipelines. Database reported error:"%s".', e), r.statusCode);
+                return;
+            }
+            callback(null,201,JSON.parse(b).rev);
+        });
+    });
+}
+
 function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback) {
     var argErrors = [];
     if ('string' != typeof pipelineId) argErrors.push('pipelineId');
@@ -1142,7 +1190,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
             return;
         }
         if ('pipeline' != pl.type) {
-            callback(util.format('Error: Document with id="%s" is not a pipeline. The document was not deleted.',pipelineId), 500);
+            callback(util.format('Error: Document with id="%s" is not a pipeline. The pipeline problems were not reordered.',pipelineId), 500);
             return;
         }
         if (problemId != pl.problems[oldIndex]) {
@@ -1159,7 +1207,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {
-                callback('error reordering pipeline. Database reported error:"%s".', r.statusCode);
+                callback(util.format('error reordering pipeline. Database reported error:"%s".',e), r.statusCode);
                 return;
             }
             callback(null,201,JSON.parse(b).rev);

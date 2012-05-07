@@ -107,9 +107,11 @@ app.get('/user-portal', routes.userPortal.userList);
 app.get('/user-portal/:userId/activity-feed', routes.userPortal.activityFeedPage);
 app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReversed);
 
+// TODO: improve uri's below - more in the uri less in req.body
 app.get('/kcm', routes.kcm.getMap);
-app.get('/kcm/pull-replicate', routes.kcm.pullReplicate);
+app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
+app.post('/kcm/concept-nodes/:conceptNodeId/reorder-pipelines', routes.kcm.reorderConceptNodePipelines);
 app.post('/kcm/insert-concept-node-tag', routes.kcm.insertConceptNodeTag);
 app.post('/kcm/delete-concept-node-tag', routes.kcm.deleteConceptNodeTag);
 app.post('/kcm/edit-concept-node-tag', routes.kcm.editConceptNodeTag);

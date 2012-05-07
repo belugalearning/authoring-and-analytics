@@ -23,6 +23,10 @@ text.node-description { font:12px Helvetica; }
 
 div.add-btn { cursor:pointer; background-image:url('/images/add.png'); background-size:contain; background-repeat:no-repeat; width:17px; height:17px; }
 div.del-btn { cursor:pointer; background-image:url('/images/remove.png'); background-size:contain; background-repeat:no-repeat; width:17px; height:17px; }
+div.gripper { cursor:pointer; background-color:#ccc; }
+div.drag-proxy-wrap { position:absolute; cursor:pointer; }
+div.drag-proxy-wrap td { background-color:#eee; }
+div.drag-zone-marker { position:absolute; border:1px solid #999; }
 
 #right-panel { position:absolute; padding:0px; border:1px solid #ccc; overflow-y:auto; }
 form#upload-plists { visibility:hidden; }
@@ -42,7 +46,9 @@ form#upload-plists { visibility:hidden; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline.expanded > td.expand-collapse > div { background-image:url('/images/collapse_button.jpg'); }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.txt { padding-right:2px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.txt > input[type="text"] { width:100%; }
-[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.del-pipeline { width:22px; vertical-align:top; padding:20px 0 9px 6px; }
+[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.controls { width:22px; vertical-align:top; padding:3px 0 9px 6px; }
+[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.controls > div.gripper { margin:0 2px 11px 0; width:20px; height:6px; }
+[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.controls > div.del-btn { margin-left:1px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline-problems { display:none; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline-problems.expanded { display:table-row; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline-problems.expanded > td { padding:10px 7px 15px 17px; }
@@ -52,7 +58,7 @@ form#upload-plists { visibility:hidden; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] tr.add-problems > td { padding:6px 1px 5px 2px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] tr.add-problems > td.txt { padding-top:8px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] tr { border-top:1px solid #ccc; }
-[data-panel="concept-node-data"] table[data-type="pipeline-problems"] div.gripper { width:6px; height:30px; margin:4px 0 4px 2px; padding:0; background-color:#ccc; cursor:pointer; }
+[data-panel="concept-node-data"] table[data-type="pipeline-problems"] div.gripper { width:6px; height:30px; margin:4px 0 4px 2px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.remove-problem { width:22px; vertical-align:top; padding:13px 1px 0 2px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.txt > div.last-modified { float:right; margin:4px 2px 0 0; font-size:9px; color:#aaa; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.txt > div.problem-desc { padding:3px 0; }

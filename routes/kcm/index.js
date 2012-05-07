@@ -86,6 +86,11 @@ module.exports = function(model) {
                 res.send(e || conceptNodeRev, statusCode || 500);
             });
         }
+        , reorderConceptNodePipelines: function(req, res) {
+            kcmModel.reorderConceptNodePipelines(req.params.conceptNodeId, req.body.conceptNodeRev, req.body.pipelineId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,cnRev) {
+                res.send(e || cnRev, statusCode || 500);
+            });
+        }
         , removeProblemFromPipeline: function(req,res) {
             kcmModel.removeProblemFromPipeline(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, function(e,statusCode,rev) {
                 res.send(e || rev, statusCode || 500);

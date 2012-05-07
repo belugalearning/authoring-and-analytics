@@ -29,7 +29,8 @@
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
             </td>\
-            <td class="del-pipeline">\
+            <td class="controls">\
+                <div class="gripper"/>\
                 <div class="del-btn"/>\
             </td>\
         </tr>\
@@ -143,7 +144,7 @@
 
     $(function() {
         $('#insert-pipeline-btn').click(addNewPipelineToConceptNode);
-        $('table[data-panel="concept-node-data"]').on('click', 'td.del-pipeline > div.del-btn', deleteConceptNodePipeline);
+        $('table[data-panel="concept-node-data"]').on('click', 'tr.pipeline > td > div.del-btn', deleteConceptNodePipeline);
 
         $('#insert-tag-btn').click(addNewTagToConceptNode);
         $('table[data-panel="concept-node-data"]').on('click', '.del-tag', deleteConceptNodeTag);
@@ -171,6 +172,7 @@
             .resize(layoutControls).resize()
             .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
             .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
+            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
             .on('click', 'tr.add-problems div.add-btn', function(e) {
                 var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
@@ -943,33 +945,37 @@
         });
     }
 
-    function dragReorderPipelineProblems(e) {
+    function dragReorderPipelines(e) {
         var $nosel = $('body, input, textarea').not('.no-select').addClass('no-select')
-          , $table = $(e.currentTarget).closest('table[data-type="pipeline-problems"]')
-          , $clone = $table.clone()
-          , $div = $('<div data-panel="concept-node-data" style="position:absolute; cursor:pointer;"/>')
-          , $border = $('<div style="position:absolute; border:1px solid #999"/>')
-          , $tr = $(e.target).closest('tr.problem')
+          , $table = $(e.currentTarget).closest('table[data-section="pipelines"]')
+          , $tbody = $table.children('tbody')
+          , $tr = $(e.target).closest('tr.pipeline').add($(e.target).closest('tr.pipeline').next('tr.pipeline-problems'))
+          , $proxy = $table.clone()
+          , $proxyWrap = $('<div data-panel="concept-node-data" class="drag-proxy-wrap"/>')
+          , $proxyBorder = $('<div class="drag-zone-marker"/>')
           , id = $tr.attr('data-id')
-          , trOffset = $tr.offset()
           , tableOffset = $table.offset()
+          , trOffset = $tr.offset()
+          , trHeight = $tr.outerHeight() + ($tr.hasClass('expanded') ? $($tr[1]).outerHeight() : 0)
+          , $lastVisTR = $tbody.children(':last').hasClass('expanded') ? $tbody.children(':last') : $tbody.children('.pipeline:last')
+          , yEndLastVisTR = $lastVisTR.offset().top + $lastVisTR.outerHeight()
+          , yEndTR = $tr.offset().top + trHeight
           , ymin = tableOffset.top - (trOffset.top - tableOffset.top)
-          , ymax = tableOffset.top + ($tr.parent().children('tr.problem:last').offset().top - trOffset.top)
+          , ymax = tableOffset.top + yEndLastVisTR - yEndTR
           , ymouseInit = e.pageY
-          , index = $tr.index()
+          , startIndex = Math.floor($tr.index() / 2)
         ;
-        $clone
+        $proxy
+            .css('margin', 0)
             .width($table.outerWidth())
-            .find('td')
-                .css('background-color', '#eee')
         ;
-        $div
+        $proxyWrap
             .css('left', tableOffset.left)
             .css('top', tableOffset.top)
-            .append($clone)
+            .append($proxy)
             .appendTo('body')
         ;
-        $border
+        $proxyBorder
             .width($table.width())
             .height($table.height())
             .css('left', tableOffset.left)
@@ -978,16 +984,101 @@
         ;
 
         $table.find('tr[data-id='+id+']').css('visibility', 'hidden');
-        $clone.find('tr[data-id!='+id+']').css('visibility', 'hidden');
+        $proxy.find('tr.pipeline[data-id!='+id+'], tr.pipeline-problems[data-id!='+id+']').css('visibility', 'hidden');
+
+        $(window).on('mouseup mousemove', function(e) {
+            var ix = Math.floor($tr.index() / 2);
+
+            if (e.type == 'mousemove') {
+                var y = Math.min(ymax, Math.max(ymin, tableOffset.top + e.pageY - ymouseInit))
+                  , $proxyTR = $proxyWrap.find('tr.pipeline[data-id="'+id+'"]')
+                  , yProxyTop = $proxyTR.offset().top
+                  , yProxyBottom = $tr.hasClass('expanded') ? ($proxyTR.next().offset().top + $proxyTR.next().outerHeight()) : (yProxyTop + $proxyTR.outerHeight())
+                  , $prevPl = $tbody.children('.pipeline:lt('+ix+'):last')
+                  , $nextPl = $tbody.children('.pipeline:gt('+ix+'):first')
+                  , yMidPrev = $prevPl.length && $prevPl.offset().top + 0.5 * ($prevPl.outerHeight() + ($prevPl.hasClass('expanded') ? $prevPl.next().outerHeight() : 0))
+                  , yMidNext = $nextPl.length && $nextPl.offset().top + 0.5 * ($nextPl.outerHeight() + ($nextPl.hasClass('expanded') ? $nextPl.next().outerHeight() : 0))
+                ;
+                $proxyWrap.css('top', y);
+
+                if ($nextPl.length && yProxyBottom > yMidNext) {
+                    $tr.remove().insertAfter($nextPl.next());
+                } else if ($prevPl.length && yProxyTop < yMidPrev) {
+                    $tr.remove().insertBefore($prevPl);
+                }
+            } else {
+                $nosel.removeClass('no-select');
+                $proxyWrap.remove();
+                $proxyBorder.remove();
+                $table.find('tr[data-id='+id+']').css('visibility', '');
+                $(window).off('mouseup mousemove', arguments.callee);
+                
+                if (ix != startIndex) {
+                    var cnId = $('#concept-db-id').text()
+                      , cn = d3.select($('g#'+cnId)[0]).data()[0]
+                      , plId = $tr.attr('data-id')
+                    ;
+                    $.ajax({
+                        url: '/kcm/concept-nodes/'+cnId+'/reorder-pipelines'
+                        , type:'POST'
+                        , contentType:'application/json'
+                        , data:JSON.stringify({ conceptNodeRev:cn._rev, pipelineId:plId, oldIndex:startIndex, newIndex:ix })
+                        , success:function(cnRev) {
+                            cn._rev = cnRev;
+                            cn.pipelines.splice(startIndex,1);
+                            cn.pipelines.splice(ix,0,plId);
+                            console.log(cnRev);
+                        }
+                        , error:ajaxErrorHandler('error reordering concept node pipelines')
+                    });
+                }
+            }
+        });
+    }
+
+    function dragReorderPipelineProblems(e) {
+        var $nosel = $('body, input, textarea').not('.no-select').addClass('no-select')
+          , $table = $(e.currentTarget).closest('table[data-type="pipeline-problems"]')
+          , $tr = $(e.target).closest('tr.problem')
+          , $proxy = $table.clone()
+          , $proxyWrap = $('<div data-panel="concept-node-data" class="drag-proxy-wrap"/>')
+          , $proxyBorder = $('<div class="drag-zone-marker"/>')
+          , id = $tr.attr('data-id')
+          , trOffset = $tr.offset()
+          , tableOffset = $table.offset()
+          , ymin = tableOffset.top - (trOffset.top - tableOffset.top)
+          , ymax = tableOffset.top + $tr.parent().children('tr.problem:last').offset().top - trOffset.top
+          , ymouseInit = e.pageY
+          , index = $tr.index()
+        ;
+        $proxy
+            .width($table.outerWidth())
+        ;
+        $proxyWrap
+            .css('left', tableOffset.left)
+            .css('top', tableOffset.top)
+            .append($proxy)
+            .appendTo('body')
+        ;
+        $proxyBorder
+            .width($table.width())
+            .height($table.height())
+            .css('left', tableOffset.left)
+            .css('top', tableOffset.top)
+            .appendTo('body')
+        ;
+
+        $table.find('tr[data-id='+id+']').css('visibility', 'hidden');
+        $proxy.find('tr[data-id!='+id+']').css('visibility', 'hidden');
 
         $(window).on('mouseup mousemove', function(e) {
             if (e.type == 'mousemove') {
                 var y = Math.min(ymax, Math.max(ymin, tableOffset.top + e.pageY - ymouseInit));
-                $div.css('top', y);
+                $proxyWrap.css('top', y);
 
                 var prev = $tr.prev('.problem')
                   , next = $tr.next('.problem')
-                  , yProxy = $div.find('tr.problem[data-id="'+id+'"]').offset().top
+                  , yProxy = $proxyWrap.find('tr.problem[data-id="'+id+'"]').offset().top
                 ;
                 
                 if (next.length && (yProxy + $tr.height()) > (next.offset().top + 0.5 * next.height())) {
@@ -997,8 +1088,8 @@
                 }
             } else {
                 $nosel.removeClass('no-select');
-                $div.remove();
-                $border.remove();
+                $proxyWrap.remove();
+                $proxyBorder.remove();
                 $table.find('tr[data-id='+id+']').css('visibility', '');
                 $(window).off('mouseup mousemove', arguments.callee);
                 
