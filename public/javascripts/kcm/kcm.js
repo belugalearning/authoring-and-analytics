@@ -138,7 +138,6 @@
                 .select(".arrow-head")
                 .attr("transform", "translate("+ahr+",0)")
             ;
-            //*/
         });
     }
 
@@ -182,28 +181,7 @@
                 $('input[name="pipeline-rev"]').val(plRev);
                 $('input[type="file"][name="pdefs"]').click();
             })
-            .on('change', 'input[type="file"][name="pdefs"]', function() {
-                $('form#upload-pdefs').ajaxSubmit({
-                    success: function(o) { 
-                        var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]');
-
-                        kcm.pipelines[o.pipelineId]._rev = o.pipelineRev;
-
-                        if ($trPLProbs.length) {
-                            $trPLProbs
-                                .find('tr.problem')
-                                    .remove()
-                                    .end()
-                                .find('tr.add-problems')
-                                    .before($.tmpl('plProblemTR', o.problemDetails));
-                        }
-
-                    }
-                    , error: ajaxErrorHandler('Error uploading problems to pipeline.')
- 
-                });
-                $('form#upload-pdefs').clearForm();
-            })
+            .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             // mouse interactions with concept nodes
             .on('keydown keyup', keyListener)
             .on('mousedown', '[data-type="concept-node"]', function(e) {
@@ -380,7 +358,10 @@
                 .attr('id', function(d) { return d._id; })
                 .attr('data-type', 'concept-node')
                 .attr('class', function(d) {
-                    return 'node' + (d.processed ? ' processed' : '');
+                    var plWithProblems = $.grep(d.pipelines, function(plId) {
+                        return kcm.pipelines[plId].problems.length;
+                    });
+                    return 'node' + (plWithProblems.length ? '' : ' no-problems');
                 })
                 .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
                 .attr("data-focusable", "true")
@@ -885,6 +866,15 @@
                     cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
                     delete kcm.pipelines[plId];
                     selectConceptNode(cn);
+
+                    var plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
+                    if (!plWithProbs.length) {
+                        d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
+                            var classes = d3.select(this).attr('class');
+                            if (/\bno-problems\b/.test(classes)) return classes;
+                            return (classes.length ? (classes + ' ') : '') + 'no-problems';
+                        });
+                    }
                 }
                 , error:ajaxErrorHandler('error deleting pipeline')
             });
@@ -920,6 +910,39 @@
         }
     }
 
+    function uploadProblemsToPipeline(e) {
+        $('form#upload-pdefs').ajaxSubmit({
+            success: function(o) { 
+                var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]')
+                  , pl = kcm.pipelines[o.pipelineId]
+                  , cn = $.grep(kcm.nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
+                ;
+
+                pl._rev = o.pipelineRev;
+                pl.problems = $.map(o.problemDetails, function(p) { return p.id; });
+
+                if ($trPLProbs.length) {
+                    $trPLProbs
+                        .find('tr.problem')
+                            .remove()
+                            .end()
+                        .find('tr.add-problems')
+                            .before($.tmpl('plProblemTR', o.problemDetails));
+                }
+
+                console.log('cn:',cn);
+                d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
+                    var classes = d3.select(this).attr('class');
+                    console.log('classes:',classes);
+                    return classes.replace(/\s*no-problems\b/g, '');
+                });
+            }
+            , error: ajaxErrorHandler('Error uploading problems to pipeline.')
+
+        });
+        $('form#upload-pdefs').clearForm();
+    }
+
     function removeProblemFromPipeline(e) {
         showConfirmCancelModal('You are about to remove a problem from a pipeline. Are you sure?', function(confirmation) {
             if (!confirmation) return;
@@ -939,6 +962,18 @@
                     pl.problems.splice(probIx, 1);
                     pl._rev = plRev;
                     $trProblem.remove();
+
+                    if (!pl.problems.length) {
+                        var cn = $.grep(kcm.nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
+                          , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
+                        ;
+                        if (!plWithProbs.length) {
+                            d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
+                                var classes = d3.select(this).attr('class');
+                                return (classes.length ? (classes + ' ') : '') + 'no-problems';
+                            });
+                        }
+                    }
                 }
                 , error:ajaxErrorHandler('error removing problem from pipeline')
             });
