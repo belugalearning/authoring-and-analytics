@@ -4,5 +4,5 @@
     , "kcmDatabaseDesignDoc": "kcm-views"
     , "usersDatabaseName": "temp-blm-users"
     , "usersDatabaseDesignDoc": "users-views"
-    , "couchDatabasesDirectory": "/root/build-couchdb/build/var/lib/couchdb/"
+    , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
 }
