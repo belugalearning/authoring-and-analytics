@@ -4,8 +4,7 @@ var fs = require('fs')
   , util = require('util')
 ;
 
-var contentDatabase = 'temp-blm-users/'
-  , designDoc = 'users-views'
+var designDoc
   , couchServerURI
   , databaseURI
 ;

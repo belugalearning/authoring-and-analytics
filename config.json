@@ -2,7 +2,7 @@
     "couchServerURI": "http://localhost:5984"
     , "kcmDatabaseName": "tmp-blm-kcm3"
     , "kcmDatabaseDesignDoc": "kcm-views"
-    , "usersDatabaseName": "temp-blm-users"
+    , "usersDatabaseName": "blm-users"
     , "usersDatabaseDesignDoc": "users-views"
     , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
 }
