@@ -4,7 +4,7 @@ var fs = require('fs')
   , util = require('util')
 ;
 
-var designDoc
+var designDocName
   , couchServerURI
   , databaseURI
 ;
@@ -12,8 +12,8 @@ var designDoc
 module.exports = function(config) {
     couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
     databaseURI = couchServerURI + config.usersDatabaseName + '/';
-    designDoc = config.usersDatabaseDesignDoc;
-    console.log(util.format('users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    designDocName = config.usersDatabaseDesignDoc;
+    console.log(util.format('users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDocName, databaseURI));
     
     return {
         queryView: queryView
@@ -27,10 +27,10 @@ function queryView(view, callback) {
 
 // Views
 function updateViews(callback) {
-    console.log('updating views on', databaseURI);
+    console.log('updating views on database:', databaseURI);
 
-    var contentViews = {
-        _id: '_design/' + designDoc
+    var designDoc = {
+        _id: '_design/' + designDocName
         , views: {
             'devices': {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.firstLaunchDateTime, null); }).toString()
@@ -140,14 +140,21 @@ function updateViews(callback) {
         }
     };
 
-    console.log('update views: ' + databaseURI + designDoc);
+    getDoc(designDoc._id, function(e,r,b) {
+        var sc = r.statusCode
+          , writeViewsFunc = sc == 200 ? updateDoc : insertDoc
+        ;
+        if (200 != sc && 404 != sc) {
+            callback('error retrieving design doc from database', sc);
+            return;
+        }
 
-    getDoc(contentViews._id, validatedResponseCallback([200,404], function(e,r,b) {
-        var writeViews = r.statusCode === 404 ? insertDoc : updateDoc;
-        if (r.statusCode === 200) contentViews._rev = JSON.parse(b)._rev;
-        
-        writeViews(contentViews, validatedResponseCallback(201, callback));
-    }));
+        if (200 == sc) designDoc._rev = JSON.parse(b)._rev;
+
+        writeViewsFunc(designDoc, function(e,r,b) {
+            callback(e, r.statusCode);
+        });
+    });
 }
 
 function getDoc(id, callback) {

@@ -128,39 +128,56 @@ app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation)
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
 app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
 
-var options = _.map(
-    _.filter(process.argv, function(arg) { return /^-/.test(arg); })
+var launchOptions = _.map(
+    _.filter(
+        process.argv
+        , function(arg) { return /^-/.test(arg); }
+    )
     , function(arg) {
-        var i = 1 + process.argv.indexOf(arg);
-        var value;
-        if (process.argv.length > i && /^[^\-]/.test(process.argv[i])) value = process.argv[i];
+        var i = 1 + process.argv.indexOf(arg)
+          ,  value
+        ;
+        if (process.argv.length > i && /^[^\-]/.test(process.argv[i])) {
+            value = process.argv[i];
+        }
         return { name:arg.substring(1), value:value }
     }
 );
-var getOption = function(name) {
-    return _.find(options, function(o) { return o.name == name; });
-};
-var portOption = getOption('port');
-var port = portOption && parseInt(portOption.value) || 3000;
+
+function getAppLaunchOption(name) {
+    return _.find(launchOptions, function(o) { return o.name == name; });
+}
+
 var listen = function() {
+    var portOption = getAppLaunchOption('port')
+      , port = portOption && parseInt(portOption.value) || 3000
+    ;
     app.listen(port);
     console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 };
 
-if (getOption('createdb')) {
+if (getAppLaunchOption('createdb')) {
     console.log('creating content database');
     model.content.createDB(function() {
         model.kcm.createDB(listen);
     });
-} else if (getOption('initdb')) {
+} else if (getAppLaunchOption('initdb')) {
     console.log('initialising content database');
     model.content.populateDBWithInitialContent(listen);
 } else {
-    if (getOption('updateviews')) {
+    if (getAppLaunchOption('updateviews')) {
         console.log('updating views');
         model.content.updateViews(function() {
-            model.kcm.updateViews(function() {
-                model.users.updateViews(listen);
+            model.kcm.updateViews(function(e,statusCode) {
+                if (201 != statusCode) {
+                    console.log('failed to update views on model.kcm. statusCode:"%s", error reported:"%s"', statusCode, e);
+                }
+                model.users.updateViews(function(e,statusCode) {
+                    if (201 != statusCode) {
+                        console.log('failed to update views on model.users. statusCode:"%s", error reported:"%s"', statusCode, e);
+                    }
+                    listen();
+                });
             });
         });
     } else {

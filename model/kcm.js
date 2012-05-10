@@ -490,12 +490,21 @@ function updateViews(callback) {
         }
     };
 
-    getDoc(kcmViews._id, validatedResponseCallback([200,404], function(e,r,b) {
-        var writeViews = r.statusCode === 404 ? insertDoc : updateDoc;
-        if (r.statusCode === 200) kcmViews._rev = JSON.parse(b)._rev;
-        
-        writeViews(kcmViews, validatedResponseCallback(201, callback));
-    }));
+    getDoc(kcmViews._id, function(e,r,b) {
+        var sc = r.statusCode
+          , writeViewsFunc = sc == 200 ? updateDoc : insertDoc
+        ;
+        if (200 != sc && 404 != sc) {
+            callback('error retrieving design doc from database', sc);
+            return;
+        }
+
+        if (200 == sc) kcmViews._rev = JSON.parse(b)._rev;
+
+        writeViewsFunc(kcmViews, function(e,r,b) {
+            callback(e, r.statusCode);
+        });
+    });
 }
 
 function queryView(view, callback) {
