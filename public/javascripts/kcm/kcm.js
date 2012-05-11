@@ -5,98 +5,8 @@
       , nodeTextPadding = 5
       , rControlsWidth = 350
       , cnInteractionModifiers = ''
-      , cnInteractionInProgress = false;
+      , cnInteractionInProgress = false
     ;
-
-    $.template("cnTagDIV",
-        '<div class="cn-tag">\
-            <div class="del-btn del-tag"/>\
-            {{html tag}}\
-        </div>'.replace(/(>|}})\s+/g, '$1'));
-
-   $.template("cnEditTagDIV",
-        '<div class="cn-tag edit">\
-            <input type="text" value="{{html tag}}"/>\
-        </div>'.replace(/(>|}})\s+/g, '$1'));
-
-    $.template("cnPipelineTR",
-        '<tr class="pipeline" data-id="{{html _id}}">\
-            <td class="expand-collapse">\
-                <div/>\
-            </td>\
-            <td class="txt">\
-                <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
-                <br/>\
-                <input type="text", value="{{html name}}"/>\
-            </td>\
-            <td class="controls">\
-                <div class="gripper"/>\
-                <div class="del-btn"/>\
-            </td>\
-        </tr>\
-        <tr class="pipeline-problems not-loaded" data-id="{{html _id}}">\
-            <td colspan="3">\
-                <table data-type="pipeline-problems">\
-                    <tbody>\
-                        <tr class="loading-message">\
-                            <td>[Loading Problems]</td>\
-                        </tr>\
-                        <tr class="add-problems">\
-                            <td/>\
-                            <td>\
-                                <div class="add-btn"/>\
-                            </td>\
-                            <td class="txt">\
-                                Upload problems to pipeline\
-                            </td>\
-                        </tr>\
-                    </tbody>\
-                </table>\
-            </td>\
-        </tr>'.replace(/(>|}})\s+/g, '$1'));
-
-    $.template("plProblemTR",
-        '<tr class="problem" data-id="{{html id}}" title="last modified: {{html lastModified}}">\
-            <td class="drag-problem">\
-                <div class="gripper"/>\
-            </td>\
-            <td class="remove-problem">\
-                <div class="del-btn"/>\
-            </td>\
-            <td class="txt">\
-                <div class="last-modified">Mod: {{html lastModified}}</div>\
-                <a href="/kcm/problem/{{html id}}">{{html id}}</a>\
-                <div class="problem-desc">{{html desc}}</div>\
-            </td>\
-        </tr>'.replace(/(>|}})\s+/g, '$1'));
-
-    $.template("newLinkConfigDIV",
-        '<div>\
-            <div class="warning"/>\
-            <input type="radio" name="mode" value="existing" checked="checked" /><span class="radio-label">Existing Relation</span>\
-            <input type="radio" name="mode" value="new" /><span class="radio-label">New Relation</span><br/>\
-            <div class = "relation-name">\
-                <select id="binary-relations">\
-                    {{each relations}}\
-                        <option value="${$value._id}">${$value.name}</option>\
-                    {{/each}}\
-                </select>\
-                <input type="text" id="new-binary-relation-name"/>\
-            </div>\
-            <div class="new-link-node new-link-node-l">\
-                <h3>Concept Node with description:</h3>\
-                <div data-id="{{html cn1Data._id}}">{{html cn1Data.nodeDescription}}</div>\
-            </div>\
-            <div class="new-link-node new-link-node-r">\
-                <h3>Concept Node with description:</h3>\
-                <div data-id="{{html cn2Data._id}}">{{html cn2Data.nodeDescription}}</div>\
-            </div>\
-            <div class="relation-desc">\
-                <span id="binary-relation-desc">{{html relations[0].relationDescription}}</span>\
-                <input type="text" id="new-binary-relation-desc"/>\
-            </div>\
-            <div class="reverse-btn"><input type="button" value="<- reverse relationship ->"/> </div>\
-        </div>'.replace(/(>|}})\s+/g, '$1'));
 
     $.fn.arrowRedraw = function() {
         $.each(this, function() {
@@ -142,13 +52,24 @@
     }
 
     $(function() {
-        $('#insert-pipeline-btn').click(addNewPipelineToConceptNode);
-        $('table[data-panel="concept-node-data"]').on('click', 'tr.pipeline > td > div.del-btn', deleteConceptNodePipeline);
-
-        $('#insert-tag-btn').click(addNewTagToConceptNode);
-        $('table[data-panel="concept-node-data"]').on('click', '.del-tag', deleteConceptNodeTag);
-        $('table[data-panel="concept-node-data"]').on('dblclick', '.cn-tag', editConceptNodeTag);
         $('form#upload-pdefs').ajaxForm();
+
+        $(window)
+            .resize(layoutControls)
+            .on('keydown keyup', keyListener)
+            .on('click', '#insert-tag-btn', addNewTagToConceptNode)
+            .on('click', 'table[data-panel="concept-node-data"] .del-tag', deleteConceptNodeTag)
+            .on('dblclick', 'table[data-panel="concept-node-data"] .cn-tag', editConceptNodeTag)
+            .on('click', '#insert-pipeline-btn', addNewPipelineToConceptNode)
+            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
+            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.del-btn', deleteConceptNodePipeline)
+            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
+            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
+            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
+            .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
+            .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
+            .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
+        ;
 
         svg = d3.select("#wrapper")
             .append("svg")
@@ -157,199 +78,18 @@
                 .on("mousedown", gainFocus)
                 .call(d3.behavior.zoom().on("zoom", zoom))
         ;
-
-        var keyListener = function(e) {
-            switch(String.fromCharCode(e.keyCode).toLowerCase()) {
-                case 'b':
-                    if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
-                    else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
-                    break;
-            }
-        };
-
-        $(window)
-            .resize(layoutControls).resize()
-            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
-            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
-            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
-            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
-            .on('click', 'tr.add-problems div.add-btn', function(e) {
-                var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
-                  , plRev = kcm.pipelines[plId]._rev
-                ;
-                $('input[name="pipeline-id"]').val(plId);
-                $('input[name="pipeline-rev"]').val(plRev);
-                $('input[type="file"][name="pdefs"]').click();
-            })
-            .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
-            // mouse interactions with concept nodes
-            .on('keydown keyup', keyListener)
-            .on('mousedown', '[data-type="concept-node"]', function(e) {
-                var n = d3.select(e.currentTarget)
-                  , data = n.data()[0]
-                  , mouseStart = { x:e.pageX, y:e.pageY }
-                  , mapTransform
-                  , zoomMultiplier
-                  , x, y
-                  , startInteraction = arguments.callee
-                  , mousemoveNext, endInteractionNext
-                  , event = e
-                ;
-                var endInteractionEventType = ~cnInteractionModifiers.indexOf('(drawlink)') ? 'mousedown' : 'mouseup';
-                var mousemove = function(e) {
-                    var dx, dy;
-
-                    mapTransform = d3.transform(gZoom.attr('transform'));
-                    event = e;
-
-                    zoomMultiplier = 1 / mapTransform.scale[0];
-                    dx = zoomMultiplier * (e.pageX - mouseStart.x);
-                    dy = zoomMultiplier * (e.pageY - mouseStart.y)
-                    x = parseInt(data.x + dx)
-                    y = parseInt(data.y + dy)
-
-                    if (typeof mousemoveNext == 'function') mousemoveNext();
-                };
-                var endInteraction = function(e) {
-                    event = e;
-
-                    $(window)
-                        .on('keydown keyup', keyListener)
-                        .on('mousedown', '[data-type="concept-node"]', startInteraction)
-                        .off('mousemove', mousemove)
-                        .off(endInteractionEventType, arguments.callee)
-                    ;
-                    if (typeof endInteractionNext == 'function') endInteractionNext();
-                    cnInteractionInProgress = false;
-                };
-
-                cnInteractionInProgress = true;
-                $(window)
-                    .off('keydown keyup', keyListener)
-                    .off('mousedown', '[data-type="concept-node"]', startInteraction)
-                    .on('mousemove', mousemove)
-                    .on(endInteractionEventType, endInteraction)
-                ;
-
-                if (~cnInteractionModifiers.indexOf('(drawlink)')) {
-                    // LINK DRAWING
-                    var linkTarget
-                      , link
-                    ;
-                    function setLinkTarget(cn) {
-                        var classes = cn.attr('class');
-                        cn.attr('class', (classes + ' link-target').replace(/^\s+/, ''));
-                        linkTarget = cn;
-                    }
-                    function unsetLinkTarget() {
-                        if (!linkTarget) return;
-                        var classes = linkTarget.attr('class');
-                        linkTarget.attr('class', classes.replace(/\s*link-target/, ''));
-                        linkTarget = null;
-                    }
-                    function mouseoverCN (e) {
-                        var cn = d3.select(e.currentTarget)
-                        if (cn.node() == n.node()) return;
-                        if (linkTarget) unsetLinkTarget(linkTarget);
-                        setLinkTarget(cn);
-
-                        var ltData = linkTarget.data()[0];
-                        drawLinkTo(ltData.x, ltData.y);
-                    }
-                    function mouseoutCN (e) {
-                        var cn = d3.select(e.currentTarget);
-                        if (!linkTarget || cn.node() != linkTarget.node()) return;
-                        unsetLinkTarget(linkTarget);
-                    }
-                    function drawLinkTo(x,y) {
-                        var dx = x - data.x
-                          , dy = y - data.y
-                          , len = parseInt(Math.sqrt(dx*dx + dy*dy))
-                          , theta = dx == 0
-                                    ? (dy<0 ? 1.5 : 0.5) * Math.PI
-                                    : Math.atan(dy/dx) + (dx<0 ? Math.PI : 0)
-                        ;
-                        link.attr('transform', 'translate('+data.x+','+data.y+')rotate('+(theta*180/Math.PI)+')');
-                        link.select('rect').attr('transform', 'scale('+len+',1)');
-                    }
-                    $(window)
-                        .on('mouseover', '[data-type="concept-node"]', mouseoverCN)
-                        .on('mouseout', '[data-type="concept-node"]', mouseoutCN)
-                    ;
-
-                    link = gLinks.append('g')
-                        .attr('class', 'link-create')
-                    ;
-                    link.append('rect')
-                        .attr('class', 'arrow-stem')
-                        .attr('x', 0)
-                        .attr('y', -2)
-                        .attr('width', 1)
-                        .attr('height', 4)
-                    ;
-
-                    mousemoveNext = function() {
-                        if (!linkTarget) {
-                            // #wrapper has zero padding, thus its offset is that of its child: the svg map
-                            var mx = (event.pageX - $('#wrapper').offset().left - mapTransform.translate[0]) / mapTransform.scale[0]
-                              , my = (event.pageY - $('#wrapper').offset().top - mapTransform.translate[1]) / mapTransform.scale[0]
-                            ;
-                            drawLinkTo(mx,my);
-                        }
-                    };
-                    endInteractionNext = function() {
-                        $(window)
-                            .off('mouseover', '[data-type="concept-node"]', mouseoverCN)
-                            .off('mouseout', '[data-type="concept-node"]', mouseoutCN)
-                        ;
-
-                        if (linkTarget) {
-                            showNewLinkDetailsModal(data, linkTarget.data()[0], function() {
-                            });
-                            unsetLinkTarget();
-                        }
-                        link.remove();
-                    };
-                } else {
-                    // NODE DRAGGING
-                    mousemoveNext = function() {
-                        n.attr("transform", "translate("+x+","+y+")");
-                        $('g.link[data-head-node='+data._id+'], g.link[data-tail-node='+data._id+']').arrowRedraw();
-                    };
-                    endInteractionNext = function() {
-                        var pos = d3.transform(n.attr('transform')).translate;
-                        if (data.x == pos[0] && data.y == pos[1]) return;
-
-                        data.x = pos[0];
-                        data.y = pos[1];
-
-                        $.ajax({
-                            url: '/kcm/update-concept-node-position'
-                            , type: 'POST'
-                            , contentType: 'application/json'
-                            , data: JSON.stringify({ id:data._id, rev:data._rev, x:data.x, y:data.y })
-                            , success: function(rev) {
-                                data._rev = rev;
-                            }
-                            , error: ajaxErrorHandler('Error saving updated concept node position')
-                        });
-                    };
-                }
-                cnInteractionModifiers = '';
-            })
-        ;
         gZoom = svg.append("g");
-            
         gWrapper = gZoom
             .append("g")
             .attr("data-type", "wrapper")
             .attr("data-focusable", "true")
             .on("mousedown", gainFocus)
         ;
-
         gLinks = gWrapper.append("g");
         gPrereqs = gLinks.append("g");
         gNodes = gWrapper.append("g");
+
+        $(window).resize();
 
         var nodes = gNodes.selectAll('g.node')
             .data(kcm.nodes)
@@ -710,6 +450,15 @@
         }
     }
 
+    function keyListener(e) {
+        switch(String.fromCharCode(e.keyCode).toLowerCase()) {
+            case 'b':
+                if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
+                else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
+                break;
+        }
+    }
+
     function addNewTagToConceptNode(e) {
         var cn = d3.select(inFocus).data()[0];
         
@@ -908,6 +657,15 @@
                 });
             }
         }
+    }
+
+    function populateHiddenUploadProblemInputs(e) {
+        var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
+          , plRev = kcm.pipelines[plId]._rev
+        ;
+        $('input[name="pipeline-id"]').val(plId);
+        $('input[name="pipeline-rev"]').val(plRev);
+        $('input[type="file"][name="pdefs"]').click();
     }
 
     function uploadProblemsToPipeline(e) {
@@ -1149,4 +907,248 @@
     function binaryRelationWithId(id) {
         return $.grep(kcm.binaryRelations, function(br) { return id == br._id; })[0];
     }
+
+    function beginMouseInteractionWithNode(e) {
+        var n = d3.select(e.currentTarget)
+          , data = n.data()[0]
+          , mouseStart = { x:e.pageX, y:e.pageY }
+          , mapTransform
+          , zoomMultiplier
+          , x, y
+          , startInteraction = arguments.callee
+          , mousemoveNext, endInteractionNext
+          , event = e
+        ;
+        var endInteractionEventType = ~cnInteractionModifiers.indexOf('(drawlink)') ? 'mousedown' : 'mouseup';
+        var mousemove = function(e) {
+            var dx, dy;
+
+            mapTransform = d3.transform(gZoom.attr('transform'));
+            event = e;
+
+            zoomMultiplier = 1 / mapTransform.scale[0];
+            dx = zoomMultiplier * (e.pageX - mouseStart.x);
+            dy = zoomMultiplier * (e.pageY - mouseStart.y)
+            x = parseInt(data.x + dx)
+            y = parseInt(data.y + dy)
+
+            if (typeof mousemoveNext == 'function') mousemoveNext();
+        };
+        var endInteraction = function(e) {
+            event = e;
+
+            $(window)
+                .on('keydown keyup', keyListener)
+                .on('mousedown', '[data-type="concept-node"]', startInteraction)
+                .off('mousemove', mousemove)
+                .off(endInteractionEventType, arguments.callee)
+            ;
+            if (typeof endInteractionNext == 'function') endInteractionNext();
+            cnInteractionInProgress = false;
+        };
+
+        cnInteractionInProgress = true;
+        $(window)
+            .off('keydown keyup', keyListener)
+            .off('mousedown', '[data-type="concept-node"]', startInteraction)
+            .on('mousemove', mousemove)
+            .on(endInteractionEventType, endInteraction)
+        ;
+
+        if (~cnInteractionModifiers.indexOf('(drawlink)')) {
+            // LINK DRAWING
+            var linkTarget
+              , link
+            ;
+            function setLinkTarget(cn) {
+                var classes = cn.attr('class');
+                cn.attr('class', (classes + ' link-target').replace(/^\s+/, ''));
+                linkTarget = cn;
+            }
+            function unsetLinkTarget() {
+                if (!linkTarget) return;
+                var classes = linkTarget.attr('class');
+                linkTarget.attr('class', classes.replace(/\s*link-target/, ''));
+                linkTarget = null;
+            }
+            function mouseoverCN (e) {
+                var cn = d3.select(e.currentTarget)
+                if (cn.node() == n.node()) return;
+                if (linkTarget) unsetLinkTarget(linkTarget);
+                setLinkTarget(cn);
+
+                var ltData = linkTarget.data()[0];
+                drawLinkTo(ltData.x, ltData.y);
+            }
+            function mouseoutCN (e) {
+                var cn = d3.select(e.currentTarget);
+                if (!linkTarget || cn.node() != linkTarget.node()) return;
+                unsetLinkTarget(linkTarget);
+            }
+            function drawLinkTo(x,y) {
+                var dx = x - data.x
+                  , dy = y - data.y
+                  , len = parseInt(Math.sqrt(dx*dx + dy*dy))
+                  , theta = dx == 0
+                            ? (dy<0 ? 1.5 : 0.5) * Math.PI
+                            : Math.atan(dy/dx) + (dx<0 ? Math.PI : 0)
+                ;
+                link.attr('transform', 'translate('+data.x+','+data.y+')rotate('+(theta*180/Math.PI)+')');
+                link.select('rect').attr('transform', 'scale('+len+',1)');
+            }
+            $(window)
+                .on('mouseover', '[data-type="concept-node"]', mouseoverCN)
+                .on('mouseout', '[data-type="concept-node"]', mouseoutCN)
+            ;
+
+            link = gLinks.append('g')
+                .attr('class', 'link-create')
+            ;
+            link.append('rect')
+                .attr('class', 'arrow-stem')
+                .attr('x', 0)
+                .attr('y', -2)
+                .attr('width', 1)
+                .attr('height', 4)
+            ;
+
+            mousemoveNext = function() {
+                if (!linkTarget) {
+                    // #wrapper has zero padding, thus its offset is that of its child: the svg map
+                    var mx = (event.pageX - $('#wrapper').offset().left - mapTransform.translate[0]) / mapTransform.scale[0]
+                      , my = (event.pageY - $('#wrapper').offset().top - mapTransform.translate[1]) / mapTransform.scale[0]
+                    ;
+                    drawLinkTo(mx,my);
+                }
+            };
+            endInteractionNext = function() {
+                $(window)
+                    .off('mouseover', '[data-type="concept-node"]', mouseoverCN)
+                    .off('mouseout', '[data-type="concept-node"]', mouseoutCN)
+                ;
+
+                if (linkTarget) {
+                    showNewLinkDetailsModal(data, linkTarget.data()[0], function() {
+                    });
+                    unsetLinkTarget();
+                }
+                link.remove();
+            };
+        } else {
+            // NODE DRAGGING
+            mousemoveNext = function() {
+                n.attr("transform", "translate("+x+","+y+")");
+                $('g.link[data-head-node='+data._id+'], g.link[data-tail-node='+data._id+']').arrowRedraw();
+            };
+            endInteractionNext = function() {
+                var pos = d3.transform(n.attr('transform')).translate;
+                if (data.x == pos[0] && data.y == pos[1]) return;
+
+                data.x = pos[0];
+                data.y = pos[1];
+
+                $.ajax({
+                    url: '/kcm/update-concept-node-position'
+                    , type: 'POST'
+                    , contentType: 'application/json'
+                    , data: JSON.stringify({ id:data._id, rev:data._rev, x:data.x, y:data.y })
+                    , success: function(rev) {
+                        data._rev = rev;
+                    }
+                    , error: ajaxErrorHandler('Error saving updated concept node position')
+                });
+            };
+        }
+        cnInteractionModifiers = '';
+    }
+
+    $.template("cnTagDIV",
+        '<div class="cn-tag">\
+            <div class="del-btn del-tag"/>\
+            {{html tag}}\
+        </div>'.replace(/(>|}})\s+/g, '$1'));
+
+   $.template("cnEditTagDIV",
+        '<div class="cn-tag edit">\
+            <input type="text" value="{{html tag}}"/>\
+        </div>'.replace(/(>|}})\s+/g, '$1'));
+
+    $.template("cnPipelineTR",
+        '<tr class="pipeline" data-id="{{html _id}}">\
+            <td class="expand-collapse">\
+                <div/>\
+            </td>\
+            <td class="txt">\
+                <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
+                <br/>\
+                <input type="text", value="{{html name}}"/>\
+            </td>\
+            <td class="controls">\
+                <div class="gripper"/>\
+                <div class="del-btn"/>\
+            </td>\
+        </tr>\
+        <tr class="pipeline-problems not-loaded" data-id="{{html _id}}">\
+            <td colspan="3">\
+                <table data-type="pipeline-problems">\
+                    <tbody>\
+                        <tr class="loading-message">\
+                            <td>[Loading Problems]</td>\
+                        </tr>\
+                        <tr class="add-problems">\
+                            <td/>\
+                            <td>\
+                                <div class="add-btn"/>\
+                            </td>\
+                            <td class="txt">\
+                                Upload problems to pipeline\
+                            </td>\
+                        </tr>\
+                    </tbody>\
+                </table>\
+            </td>\
+        </tr>'.replace(/(>|}})\s+/g, '$1'));
+
+    $.template("plProblemTR",
+        '<tr class="problem" data-id="{{html id}}" title="last modified: {{html lastModified}}">\
+            <td class="drag-problem">\
+                <div class="gripper"/>\
+            </td>\
+            <td class="remove-problem">\
+                <div class="del-btn"/>\
+            </td>\
+            <td class="txt">\
+                <div class="last-modified">Mod: {{html lastModified}}</div>\
+                <a href="/kcm/problem/{{html id}}">{{html id}}</a>\
+                <div class="problem-desc">{{html desc}}</div>\
+            </td>\
+        </tr>'.replace(/(>|}})\s+/g, '$1'));
+
+    $.template("newLinkConfigDIV",
+        '<div>\
+            <div class="warning"/>\
+            <input type="radio" name="mode" value="existing" checked="checked" /><span class="radio-label">Existing Relation</span>\
+            <input type="radio" name="mode" value="new" /><span class="radio-label">New Relation</span><br/>\
+            <div class = "relation-name">\
+                <select id="binary-relations">\
+                    {{each relations}}\
+                        <option value="${$value._id}">${$value.name}</option>\
+                    {{/each}}\
+                </select>\
+                <input type="text" id="new-binary-relation-name"/>\
+            </div>\
+            <div class="new-link-node new-link-node-l">\
+                <h3>Concept Node with description:</h3>\
+                <div data-id="{{html cn1Data._id}}">{{html cn1Data.nodeDescription}}</div>\
+            </div>\
+            <div class="new-link-node new-link-node-r">\
+                <h3>Concept Node with description:</h3>\
+                <div data-id="{{html cn2Data._id}}">{{html cn2Data.nodeDescription}}</div>\
+            </div>\
+            <div class="relation-desc">\
+                <span id="binary-relation-desc">{{html relations[0].relationDescription}}</span>\
+                <input type="text" id="new-binary-relation-desc"/>\
+            </div>\
+            <div class="reverse-btn"><input type="button" value="<- reverse relationship ->"/> </div>\
+        </div>'.replace(/(>|}})\s+/g, '$1'));
 //})(jQuery);
