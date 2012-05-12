@@ -1,5 +1,6 @@
 //(function($) {
-    var windowPadding = 4, genPadding = 6
+    var nodeEnoughProblems = 5
+      , windowPadding = 4, genPadding = 6
       , svg, gZoom, gWrapper, gLinks, gPrereqs, gNodes
       , inFocus = null
       , l = 400
@@ -102,12 +103,8 @@
             .append('g')
                 .attr('id', function(d) { return d._id; })
                 .attr('data-type', 'concept-node')
-                .attr('class', function(d) {
-                    var plWithProblems = $.grep(d.pipelines, function(plId) {
-                        return kcm.pipelines[plId].problems.length;
-                    });
-                    return 'node' + (plWithProblems.length ? '' : ' no-problems');
-                })
+                .attr('class', 'node')
+                .attr('class', setNodeProblemClasses)
                 .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
                 .attr("data-focusable", "true")
                 .on("mousedown", gainFocus)
@@ -232,6 +229,21 @@
             if (kcm.nodes[i].id == id) return kcm.nodes[i];
         }
         return null;
+    }
+
+    function setNodeProblemClasses(cn) {
+        var classes = d3.select(this).attr('class').replace(/\s*(no-problems|enough-problems)\b/g, '')
+          , numProblems = 0
+        ;
+
+        $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
+
+        if (numProblems == 0) {
+            return 'no-problems ' + classes;
+        } else if (numProblems >= 5) {
+            return 'enough-problems ' + classes;
+        }
+        return classes;
     }
 
     function gainFocus(event) {
@@ -704,13 +716,19 @@
                     delete kcm.pipelines[plId];
                     selectConceptNode(cn);
 
+                    var numProblems = 0;
+                    $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
+
+                    if (!numProblems) {
+                        d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
+                            return updateNodeClassStringForProblems(d, d3.select(this).attr('class'));
+                        });
+                    } else if (numProblems < nodeEnoughProblems) {
+                    } else {
+                    }
+
                     var plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
                     if (!plWithProbs.length) {
-                        d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
-                            var classes = d3.select(this).attr('class');
-                            if (/\bno-problems\b/.test(classes)) return classes;
-                            return (classes.length ? (classes + ' ') : '') + 'no-problems';
-                        });
                     }
                 }
                 , error:ajaxErrorHandler('error deleting pipeline')
@@ -776,10 +794,7 @@
                             .before($.tmpl('plProblemTR', o.problemDetails));
                 }
 
-                d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
-                    var classes = d3.select(this).attr('class');
-                    return classes.replace(/\s*no-problems\b/g, '');
-                });
+                d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
             }
             , error: ajaxErrorHandler('Error uploading problems to pipeline.')
 
@@ -812,10 +827,7 @@
                           , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
                         ;
                         if (!plWithProbs.length) {
-                            d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
-                                var classes = d3.select(this).attr('class');
-                                return (classes.length ? (classes + ' ') : '') + 'no-problems';
-                            });
+                            d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
                         }
                     }
                 }

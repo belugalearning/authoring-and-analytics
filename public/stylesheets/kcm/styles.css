@@ -17,6 +17,7 @@ svg.emphasis { border:2px solid #999; }
 g.node { cursor:pointer; }
 g.node rect.node-bg { fill:#9FD7DD; stroke-width:0; }
 g.node.no-problems rect.node-bg { fill:#EBBFBE; }
+g.node.enough-problems rect.node-bg { fill:#3c3; }
 g.node.in-focus rect.node-bg { stroke-width:2px; stroke:#333; }
 g.node.link-target rect.node-bg { stroke-width:5px; stroke:#f00; fill:#f50; }
 g.link-create rect { fill:#f50; }
