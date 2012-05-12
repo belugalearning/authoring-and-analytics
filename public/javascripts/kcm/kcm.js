@@ -1,11 +1,14 @@
 //(function($) {
-    var svg, gZoom, gWrapper, gLinks, gPrereqs, gNodes
+    var windowPadding = 4, genPadding = 6
+      , svg, gZoom, gWrapper, gLinks, gPrereqs, gNodes
       , inFocus = null
       , l = 400
       , nodeTextPadding = 5
       , rControlsWidth = 350
       , cnInteractionModifiers = ''
       , cnInteractionInProgress = false
+      , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[] }
+      , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
     ;
 
     $.fn.arrowRedraw = function() {
@@ -56,7 +59,6 @@
 
         $(window)
             .resize(layoutControls)
-            .on('keydown keyup', keyListener)
             .on('click', '#insert-tag-btn', addNewTagToConceptNode)
             .on('click', 'table[data-panel="concept-node-data"] .del-tag', deleteConceptNodeTag)
             .on('dblclick', 'table[data-panel="concept-node-data"] .cn-tag', editConceptNodeTag)
@@ -68,7 +70,10 @@
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
             .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
+            .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
             .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
+            .on('mousemove', updateMousePos)
+            .on('keydown keyup', keyListener)
         ;
 
         svg = d3.select("#wrapper")
@@ -193,13 +198,12 @@
     }
 
     function layoutControls() {
-        var windowPadding = 4
-          , genPadding = 6
-          , w = $(window).width() - 2 * windowPadding
+        var w = $(window).width() - 2 * windowPadding
           , h = $(window).height() - 2 * windowPadding
-          , mapWidth = w - rControlsWidth - genPadding
-          , mapHeight = h
         ;
+
+        mapPos.width = w - rControlsWidth - genPadding
+        mapPos.height = h
 
         $('#wrapper')
             .css('left', windowPadding)
@@ -209,10 +213,10 @@
         $('#right-panel')
             .css('left', w - rControlsWidth)
             .css('width', rControlsWidth)
-            .css('height', mapHeight)
+            .css('height', mapPos.height)
         ;
 
-        svg.attr('style', 'width:'+mapWidth+'px; height:'+mapHeight+'px;');
+        svg.attr('style', 'width:'+mapPos.width+'px; height:'+mapPos.height+'px;');
 
         setMapBorder();
     }
@@ -337,6 +341,7 @@
                         , callback
         );
     }
+
     function showNewLinkDetailsModal(cn1Data, cn2Data, callback) {
         var br = kcm.binaryRelations
           , $div = $.tmpl('newLinkConfigDIV', { cn1Data:cn1Data, cn2Data:cn2Data, relations:kcm.binaryRelations })
@@ -406,11 +411,10 @@
                     , contentType:'application/json'
                     , data:JSON.stringify({ relation:relData, pair:pair })
                     , success:function(relation) {
-                        console.log(relation);
+                        alert('successfully added pair to binary relation. Success event needs handling');
                         if (newRel) {
                         } else {
                         }
-
                     }
                     , error: ajaxErrorHandler('Error adding new pair to binary relation')
                 });
@@ -450,12 +454,96 @@
         }
     }
 
+    function updateMousePos(e) {
+        var tf = d3.transform(gZoom.attr('transform'))
+          , scale = tf.scale[0];
+
+        mouse.x = e.pageX;
+        mouse.y = e.pageY;
+
+        mouse.isOverMap = mouse.x > mapPos.x && mouse.x < (mapPos.x + mapPos.width) && mouse.y > mapPos.y && mouse.y < (mapPos.y + mapPos.height);
+        if (mouse.isOverMap) {
+            mouse.xmap = (mouse.x - mapPos.x - tf.translate[0]) / scale;
+            mouse.ymap = (mouse.y - mapPos.y - tf.translate[1]) / scale;
+        } else {
+            mouse.xmap = null;
+            mouse.ymap = null;
+        }
+    }
+
+    function updateMouseOverNodes(e) {
+        var ix = mouse.overNodes.indexOf(this);
+        switch (e.type) {
+            case 'mouseover':
+                if (!~ix) mouse.overNodes.push(this);
+            break;
+            case 'mouseout':
+                if (~ix) mouse.overNodes.splice(ix,1);
+            break;
+        }
+    }
+
     function keyListener(e) {
         switch(String.fromCharCode(e.keyCode).toLowerCase()) {
             case 'b':
                 if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
                 else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
-                break;
+            break;
+            case 'n':
+                if (e.type=='keydown' && mouse.isOverMap && !mouse.overNodes.length) {
+                    /*var o = { x:mouse.xmap, y:mouse.ymap, _id:'new-concept-node', nodeDescription:"PLACEHOLDER TEXT", pipelines:[] }
+                    console.log('push');
+                    kcm.nodes.push(o);
+                    var nodes = gNodes.selectAll('g.node')
+                        .data(kcm.nodes)
+                        .enter()
+                        .append('g')
+                            .attr('id', function(d) { return d._id; })
+                            .attr('data-type', 'concept-node')
+                            .attr('class', function(d) {
+                                var plWithProblems = $.grep(d.pipelines, function(plId) {
+                                    return kcm.pipelines[plId].problems.length;
+                                });
+                                return 'node' + (plWithProblems.length ? '' : ' no-problems');
+                            })
+                            .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
+                            .attr("data-focusable", "true")
+                            .on("mousedown", gainFocus)
+                            .each(function(d,i) {
+                                d3.select(this).append('rect')
+                                    .attr('class', 'node-bg')
+                            })
+                            .each(function(d,i) {
+                                d3.select(this).append('text')
+                                    .attr('class', 'node-description')
+                                    .each(function(d,i) {
+                                        d3.select(this).selectAll('tspan')
+                                            .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
+                                            .enter()
+                                            .append('tspan')
+                                                .attr('x', 0)
+                                                .attr('y', function(d, i) { return 12 + 14 * i; }) // text height 12px, 2px padding between lines
+                                                .text(String)
+                                        ;
+                                    })
+                                    .attr('transform', function() {
+                                        var bbox = d3.select(this).node().getBBox();
+                                        return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')';
+                                    })
+                                ;
+                            })
+                            .each(function(d,i) {
+                                var bbox = d3.select(this).select('text.node-description').node().getBBox();
+                                d3.select(this).select('rect.node-bg')
+                                    .attr('width', bbox.width + 2 * nodeTextPadding)
+                                    .attr('height', bbox.height + 2 * nodeTextPadding)
+                                    .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
+                                ;
+                            })
+                    ;
+                    */
+                }
+            break;
         }
     }
 
@@ -688,10 +776,8 @@
                             .before($.tmpl('plProblemTR', o.problemDetails));
                 }
 
-                console.log('cn:',cn);
                 d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
                     var classes = d3.select(this).attr('class');
-                    console.log('classes:',classes);
                     return classes.replace(/\s*no-problems\b/g, '');
                 });
             }
@@ -820,7 +906,6 @@
                             cn._rev = cnRev;
                             cn.pipelines.splice(startIndex,1);
                             cn.pipelines.splice(ix,0,plId);
-                            console.log(cnRev);
                         }
                         , error:ajaxErrorHandler('error reordering concept node pipelines')
                     });
