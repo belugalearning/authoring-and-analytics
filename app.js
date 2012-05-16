@@ -111,6 +111,9 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
+app.post('/kcm/concept-nodes/insert', routes.kcm.insertConceptNode);
+app.post('/kcm/concept-nodes/:conceptNodeId/delete', routes.kcm.deleteConceptNode);
+app.post('/kcm/concept-nodes/:conceptNodeId/update-description', routes.kcm.updateConceptNodeDescription);
 app.post('/kcm/concept-nodes/:conceptNodeId/reorder-pipelines', routes.kcm.reorderConceptNodePipelines);
 app.post('/kcm/insert-concept-node-tag', routes.kcm.insertConceptNodeTag);
 app.post('/kcm/delete-concept-node-tag', routes.kcm.deleteConceptNodeTag);

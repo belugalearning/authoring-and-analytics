@@ -31,9 +31,7 @@ module.exports = function(config) {
         , queryView: queryView
         , insertProblem: insertProblem
         , insertConceptNode: insertConceptNode
-        , deleteConceptNode: deleteConceptNode
         , updateConceptNodePosition: updateConceptNodePosition
-        , updateConceptNodeDescription: updateConceptNodeDescription
         , insertConceptNodeTag: insertConceptNodeTag
         , deleteConceptNodeTag: deleteConceptNodeTag
         , editConceptNodeTag: editConceptNodeTag
@@ -632,107 +630,29 @@ function insertConceptNode(o, callback) {
     if (isNaN(o.y)) errors += 'Float value required for "y". ';
 
     if (errors.length) {
-        callback('Error. Could not create concept node. Bad argument. ' + errors, 500);
+        if ('function' == typeof callback) callback('Error. Could not create concept node. Bad argument. ' + errors, 500);
         return;
     }
 
     o.type = 'concept node';
     o.pipelines = [];
-    o.tags = [];
     o.taggedNotes = {};
 
     insertDoc(o, function(e,r,b) {
         if (201 != r.statusCode) {
-            callback(util.format('Error inserting concept node. Database reported error:"%s"',e), r.statusCode);
+            if (!e) e = 'Error inserting concept node';
+            if ('function' == typeof callback) callback(e,r.statusCode);
             return;
         }
 
         getDoc(JSON.parse(b).id, function(e,r,b) {
             if (200 != r.statusCode)  {
-                callback(util.format('Error retrieving newly created concept node. Database reported error: "%s"',e), r.statusCode);
+                if (!e) e = 'Error retrieving newly created concept node';
             } else {
-                callback(null, 201, JSON.parse(b));
+                r.statusCode = 201;
             }
-        });
-    });
-}
-
-function deleteConceptNode(conceptNodeId, conceptNodeRev, callback) {
-    getDoc(conceptNodeId, function(e,r,b) {
-        if (200 != r.statusCode) {
-            callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node was not deleted.', e), r.statusCode);
+            if ('function' == typeof callback) callback(e,r,b);
             return;
-        }
-
-        var node = JSON.parse(b);
-
-        if (node._rev != conceptNodeRev) {
-            callback(util.format('Concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node was not deleted.', conceptNodeRev, node._rev), 500);
-            return;
-        }
-        
-        if (node.pipelines.length) {
-            callback('Concept node contains pipelines. The concept node was not deleted.', 500);
-            return;
-        }
-
-        // N.B. if/when relations other than binary relations come into being, this function will need updating
-        // remove from binary relations
-        
-        queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
-            var updatedBinaryRelations = []
-              , binaryRelations = 200 == r.statusCode && JSON.parse(b).rows
-              , i
-              , len = binaryRelations && binaryRelations.length
-              , relation, extantRelationPairs
-              , ix
-            ;
-
-            if (200 != r.statusCode) {
-                callback(util.format('error retrieving binary relations. Datbase reported error: "%s". The concept node was not deleted.', e), r.statusCode);
-                return;
-            }
-
-            for (i=0; i<len; i++) {
-                relation = binaryRelations[i].doc;
-                extantRelationPairs = _.filter(relation.members, function(pair) { return !~pair.indexOf(conceptNodeId); });
-                if (extantRelationPairs.length < relation.members.length) {
-                    relation.members = extantRelationPairs;
-                    updatedBinaryRelations.push(relation);
-                }
-            } 
-
-            if (updatedBinaryRelations.length) {
-                request({
-                    method:'POST'
-                    , uri: databaseURI + '_bulk_docs'
-                    , headers: { 'content-type':'application/json', accepts:'application/json' }
-                    , body: JSON.stringify({ docs:updatedBinaryRelations })
-                }, function(e,r,b) {
-                    if (201 != r.statusCode) {
-                        callback(util.format('error updating binary relations featuring concept node. Database reported error: "%s". The concept node was not deleted.', e), r.statusCode);
-                        return;
-                    }
-
-                    _.each(JSON.parse(b), function(update) {
-                        _.find(updatedBinaryRelations, function(rel) { return rel._id == update.id; })._rev = update.rev;
-                    });
-                    
-                    delCN();
-                });
-            } else {
-                delCN();
-            }
-
-            function delCN() {
-                deleteDoc(conceptNodeId, conceptNodeRev, function(e,r,b) {
-                    if (200 != r.statusCode) {
-                        callback(util.format('error deleting concept node. Database reported error: "%s". The node was removed from all binary relations but not deleted', e), r.statusCode, updatedBinaryRelations);
-                        return;
-                    }
-                    callback(null,200,updatedBinaryRelations);
-                });
-            }
         });
     });
 }
@@ -740,7 +660,7 @@ function deleteConceptNode(conceptNodeId, conceptNodeRev, callback) {
 function updateConceptNodePosition(id, rev, x, y, callback) {
     getDoc(id, function(e,r,b) {
         if (isNaN(x) || isNaN(y)) {
-            callback(util.format('BAD ARGS: numeric values required for x and y. Supplied: "%s" and "%s". The concept node position was not updated.', x, y), 500);
+            callback(util.format('BAD ARGS: numberic values required for x and y. Supplied: "%s" and "%s". The concept node position was not updated.', x, y), 500);
             return;
         }
 
@@ -761,33 +681,6 @@ function updateConceptNodePosition(id, rev, x, y, callback) {
 
         updateDoc(node, function(e,r,b) {
             if (r.statusCode != 201) e = util.format('Error updating concept node position. Database Error: "%s"', e);
-            callback(e, r.statusCode, JSON.parse(b).rev);
-        });
-    });
-}
-
-function updateConceptNodeDescription(id, rev, desc, callback) {
-    if ('string' != typeof(desc) || !desc.length) {
-        callback('BAD ARGS: string required for concept node description', 500);
-    }
-
-    getDoc(id, function(e,r,b) {
-        if (r.statusCode != 200) {
-            callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node description was not updated.', e), r.statusCode);
-            return;
-        }
-
-        var node = JSON.parse(b);
-
-        if (node._rev != rev) {
-            callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node description was not updated.', rev, node._rev), 500);
-            return;
-        }
-
-        node.nodeDescription = desc;
-
-        updateDoc(node, function(e,r,b) {
-            if (201 != r.statusCode) e = util.format('Error updating concept node description. Database Error: "%s"', e);
             callback(e, r.statusCode, JSON.parse(b).rev);
         });
     });
@@ -957,20 +850,21 @@ function insertBinaryRelation(name, description, callback) {
 
 function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, callback) {
     getDoc(relationId, function(e,r,b) {
-        if (200 != r.statusCode)  {
+        if (r.statusCode != 200)  {
             if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not added the relation', e),r.statusCode);
             return;
         }
 
         var relation = JSON.parse(b);
 
-        if ('relation' != relation.type || 'binary' != relation.relationType) {
-            callback(util.format('document with id "%s" does not represent a binary relation - pair not added to relation', relationId), r.statusCode);
+        if (relation._rev != relationRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', relationRev, relation.rev), 500);
             return;
         }
 
-        if (relation._rev != relationRev) {
-            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s" on document id:"%s"', relationRev, relation._rev, relationId), 500);
+        if (relation.type != 'relation' || relation.relationType != 'binary') {
+            r.statusCode = 500;
+            if ('function' == typeof callback) callback(util.format('document with id "%s" does not represent a binary relation - pair not added to relation', relationId), r.statusCode);
             return;
         }
 
@@ -980,7 +874,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, c
             }
         });
         if (duplicate) {
-            callback(util.format('ordered pair ["%s", "%s"] is already a member of binary relation id="%s"', el1Id, el2Id, relationId), 500);
+            if ('function' == typeof callback) callback(util.format('ordered pair ["%s", "%s"] is already a member of binary relation id="%s"', el1Id, el2Id, relationId), 500);
             return;
         }
 
@@ -988,12 +882,10 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, c
 
         updateDoc(relation, function(e,r,b) {
             if (201 != r.statusCode) {
-                callback(util.format('Error updating relation. Database reported error:"%s". The pair was not added to the relation', e), r.statusCode);
+                if ('function' == typeof callback) callback(util.format('Error updating relation. Database reported error:"%s". The pair was not added to the relation', e), r.statusCode);
                 return;
             }
-            
-            relation._rev = JSON.parse(b).rev;
-            callback(null, 201, relation);
+            if ('function' == typeof callback) callback(null, 201, JSON.parse(b).rev);
         });
     });
 }

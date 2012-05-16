@@ -75,13 +75,14 @@
             .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
             .on('mousemove', updateMousePos)
             .on('keydown keyup', keyListener)
+            .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
         ;
 
         svg = d3.select("#wrapper")
             .append("svg")
                 .attr("data-type", "svg")
                 .attr("data-focusable", "true")
-                .on("mousedown", gainFocus)
+                .on("mousedown", clickGainFocus)
                 .call(d3.behavior.zoom().on("zoom", zoom))
         ;
         gZoom = svg.append("g");
@@ -89,7 +90,7 @@
             .append("g")
             .attr("data-type", "wrapper")
             .attr("data-focusable", "true")
-            .on("mousedown", gainFocus)
+            .on("mousedown", clickGainFocus)
         ;
         gLinks = gWrapper.append("g");
         gPrereqs = gLinks.append("g");
@@ -97,86 +98,8 @@
 
         $(window).resize();
 
-        var nodes = gNodes.selectAll('g.node')
-            .data(kcm.nodes)
-            .enter()
-            .append('g')
-                .attr('id', function(d) { return d._id; })
-                .attr('data-type', 'concept-node')
-                .attr('class', 'node')
-                .attr('class', setNodeProblemClasses)
-                .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
-                .attr("data-focusable", "true")
-                .on("mousedown", gainFocus)
-                .each(function(d,i) {
-                    d3.select(this).append('rect')
-                        .attr('class', 'node-bg')
-                })
-                .each(function(d,i) {
-                    d3.select(this).append('text')
-                        .attr('class', 'node-description')
-                        .each(function(d,i) {
-                            d3.select(this).selectAll('tspan')
-                                .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
-                                .enter()
-                                .append('tspan')
-                                    .attr('x', 0)
-                                    .attr('y', function(d, i) { return 12 + 14 * i; }) // text height 12px, 2px padding between lines
-                                    .text(String)
-                            ;
-                        })
-                        .attr('transform', function() {
-                            var bbox = d3.select(this).node().getBBox();
-                            return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')';
-                        })
-                    ;
-                })
-                .each(function(d,i) {
-                    var bbox = d3.select(this).select('text.node-description').node().getBBox();
-                    d3.select(this).select('rect.node-bg')
-                        .attr('width', bbox.width + 2 * nodeTextPadding)
-                        .attr('height', bbox.height + 2 * nodeTextPadding)
-                        .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
-                    ;
-                })
-        ;
-
-        var prereqs = $.grep(kcm.binaryRelations, function(rel) {
-            return rel.name == 'Prerequisite';
-        });
-        
-        if (prereqs.length) {
-            gPrereqs.selectAll('g.link')
-                .data(prereqs[0].members)
-                .enter()
-                .append('g')
-                    .attr('id', function(d) { return d.id; })
-                    .attr('class', 'link')
-                    .attr("data-focusable", "true")
-                    .attr("data-head-node", function(d) { return d[1]; })
-                    .attr("data-tail-node", function(d) { return d[0]; })                
-            ;
-            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
-                .data(function(d) { return [d]; })
-                .enter()
-                .append("rect")
-                    .attr("class", "arrow-stem")
-                    .attr("x", 0)
-                    .attr("y", -0.5)
-                    .attr("width", 1)
-                    .attr("height", 1)
-                    .attr("style", "fill:#000;")
-            ;
-            gPrereqs.selectAll('g.link').selectAll('path.arrow-head')
-                .data(function(d) { return [d]; })
-                .enter()
-                .append('path') 
-                    .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
-                    .attr("class", "arrow-head")
-                    .attr('style', 'fill:#222; stroke-width:0;')
-            ;
-            $('g.link').arrowRedraw();
-        }
+        updateMapNodes();
+        updateMapLinks();
 
         // scale map to fit screen and translate to centre it
         var w = $('svg').width()
@@ -223,6 +146,104 @@
         d3.select('svg').attr('class', mapFocus ? 'emphasis' : '');
     }
 
+    function updateMapNodes() {
+        // TODO: Find out what's wrong with (my understanding of) d3.js. This line should not be necessary. Without next line, nodes do not update after changes, incorrect nodes removed after deletions
+        gNodes.selectAll('g.node').data([]).exit().remove();
+
+        var nodes = gNodes.selectAll('g.node')
+            .data(kcm.nodes)
+        ;
+        nodes
+            .enter()
+            .append('g')
+                .attr('id', function(d) { return d._id; })
+                .attr('data-type', 'concept-node')
+                .attr('class', 'node')
+                .attr('class', setNodeProblemClasses)
+                .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
+                .attr("data-focusable", "true")
+                .on("mousedown", clickGainFocus)
+                .each(function(d,i) {
+                    d3.select(this).append('rect')
+                        .attr('class', 'node-bg')
+                })
+                .each(function(d,i) {
+                    d3.select(this).append('text')
+                        .attr('class', 'node-description')
+                        .each(function(d,i) {
+                            d3.select(this).selectAll('tspan')
+                                .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
+                                .enter()
+                                .append('tspan')
+                                    .attr('x', 0)
+                                    .attr('y', function(d, i) { return 12 + 14 * i; }) // text height 12px, 2px padding between lines
+                                    .text(String)
+                            ;
+                        })
+                        .attr('transform', function() {
+                            var bbox = d3.select(this).node().getBBox();
+                            return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')';
+                        })
+                    ;
+                })
+                .each(function(d,i) {
+                    var bbox = d3.select(this).select('text.node-description').node().getBBox();
+                    d3.select(this).select('rect.node-bg')
+                        .attr('width', bbox.width + 2 * nodeTextPadding)
+                        .attr('height', bbox.height + 2 * nodeTextPadding)
+                        .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
+                    ;
+                })
+        ;
+
+        nodes.exit().remove();
+    }
+
+    function updateMapLinks() {
+        var prereqs = $.grep(kcm.binaryRelations, function(rel) {
+            return rel.name == 'Prerequisite';
+        });
+
+        if (prereqs.length) {
+            var links = gPrereqs.selectAll('g.link')
+                .data(prereqs[0].members)
+            ;
+
+            links
+                .enter()
+                .append('g')
+                    .attr('id', function(d) { return d.id; })
+                    .attr('class', 'link')
+                    .attr("data-focusable", "true")
+                    .attr("data-head-node", function(d) { return d[1]; })
+                    .attr("data-tail-node", function(d) { return d[0]; })                
+            ;
+
+            links.exit().remove();
+
+            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
+                .data(function(d) { return [d]; })
+                .enter()
+                .append("rect")
+                    .attr("class", "arrow-stem")
+                    .attr("x", 0)
+                    .attr("y", -0.5)
+                    .attr("width", 1)
+                    .attr("height", 1)
+                    .attr("style", "fill:#000;")
+            ;
+            gPrereqs.selectAll('g.link').selectAll('path.arrow-head')
+                .data(function(d) { return [d]; })
+                .enter()
+                .append('path') 
+                    .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
+                    .attr("class", "arrow-head")
+                    .attr('style', 'fill:#222; stroke-width:0;')
+            ;
+        }
+        $('g.link').arrowRedraw();
+    }
+
     function nodeWithId(id) {
         var len = kcm.nodes.length, i;
         for (i=0; i<len; i++) {
@@ -246,39 +267,48 @@
         return classes;
     }
 
-    function gainFocus(event) {
+    function clickGainFocus(event) {
         if (cnInteractionInProgress) return;
 
         var e = d3.event || event
           , focusTarget = $(e.target).closest('[data-focusable="true"]')[0]
-          , newType = $(this).attr('data-type')
           , oldType = $(inFocus).attr('data-type')
+          , newType = $(this).attr('data-type')
         ;
 
         if (focusTarget && focusTarget != this || inFocus == this) return;
 
-        svg.setPanEnabled(['svg','wrapper'].indexOf(newType) != -1);
-
         if (newType == 'svg') e.stopPropagation();
         e.preventDefault();
 
+        setFocus(focusTarget);
+    }
+
+    function setFocus(focusTarget) {
+        var newType = $(focusTarget).attr('data-type')
+          , oldType = $(inFocus).attr('data-type')
+        ;
+
+        svg.setPanEnabled(['svg','wrapper'].indexOf(newType) != -1);
+
         if (oldType) {
+            $("*:focus").blur();
             d3.select(inFocus).attr('class', function() {
-                return d3.select(inFocus).attr('class').replace(/in\-focus */, '');
+                return d3.select(inFocus).attr('class').replace(/\bin\-focus */, '');
             });
         }
         if (newType) {
-            d3.select(this).attr('class', function() {
-                return 'in-focus ' + d3.select(this).attr('class');
+            d3.select(focusTarget).attr('class', function() {
+                return 'in-focus ' + d3.select(focusTarget).attr('class');
             });
         }
 
-        selectConceptNode(newType == 'concept-node' ? d3.select(this).data()[0] : null);
-        inFocus = this;
+        displayConceptNodeProperties(newType == 'concept-node' ? d3.select(focusTarget).data()[0] : null);
+        inFocus = focusTarget;
         setMapBorder();
     }
 
-    function selectConceptNode(data) {
+    function displayConceptNodeProperties(data) {
         $('[data-section="pipelines"]').html('');
 
         if (data) {
@@ -319,6 +349,7 @@
         $(window).on('keydown', function(e) {
             switch (e.keyCode) {
                 case 13:
+                    e.preventDefault(); // if focus is in textarea, prevents new line from being inserted
                     if ('function' == typeof confirmDialogTest && !confirmDialogTest()) return;
                     callback(true);
                     break;
@@ -423,10 +454,12 @@
                     , contentType:'application/json'
                     , data:JSON.stringify({ relation:relData, pair:pair })
                     , success:function(relation) {
-                        alert('successfully added pair to binary relation. Success event needs handling');
                         if (newRel) {
+                            kcm.binaryRelations.push(relation);
                         } else {
+                            kcm.binaryRelations.splice(kcm.binaryRelations.indexOf(rel), 1, relation);
                         }
+                        updateMapLinks();
                     }
                     , error: ajaxErrorHandler('Error adding new pair to binary relation')
                 });
@@ -498,65 +531,109 @@
     function keyListener(e) {
         switch(String.fromCharCode(e.keyCode).toLowerCase()) {
             case 'b':
-                if (e.type == 'keydown') cnInteractionModifiers += '(drawlink)';
-                else cnInteractionModifiers.replace(/\(drawlink\)/g, '');
+                switch (e.type) {
+                    case 'keydown':
+                        if (!~cnInteractionModifiers.indexOf('(drawlink)')) cnInteractionModifiers += '(drawlink)';
+                    break;
+                    case 'keyup':
+                        cnInteractionModifiers = cnInteractionModifiers.replace(/\(drawlink\)/g, '');
+                    break;
+                }
+            break;
+            case 'd':
+                switch (e.type) {
+                    case 'keydown':
+                        if (!~cnInteractionModifiers.indexOf('(delete)')) cnInteractionModifiers += '(delete)';
+                    break;
+                    case 'keyup':
+                        cnInteractionModifiers = cnInteractionModifiers.replace(/\(delete\)/g, '');
+                    break;
+                }
             break;
             case 'n':
-                if (e.type=='keydown' && mouse.isOverMap && !mouse.overNodes.length) {
-                    /*var o = { x:mouse.xmap, y:mouse.ymap, _id:'new-concept-node', nodeDescription:"PLACEHOLDER TEXT", pipelines:[] }
-                    console.log('push');
-                    kcm.nodes.push(o);
-                    var nodes = gNodes.selectAll('g.node')
-                        .data(kcm.nodes)
-                        .enter()
-                        .append('g')
-                            .attr('id', function(d) { return d._id; })
-                            .attr('data-type', 'concept-node')
-                            .attr('class', function(d) {
-                                var plWithProblems = $.grep(d.pipelines, function(plId) {
-                                    return kcm.pipelines[plId].problems.length;
-                                });
-                                return 'node' + (plWithProblems.length ? '' : ' no-problems');
-                            })
-                            .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
-                            .attr("data-focusable", "true")
-                            .on("mousedown", gainFocus)
-                            .each(function(d,i) {
-                                d3.select(this).append('rect')
-                                    .attr('class', 'node-bg')
-                            })
-                            .each(function(d,i) {
-                                d3.select(this).append('text')
-                                    .attr('class', 'node-description')
-                                    .each(function(d,i) {
-                                        d3.select(this).selectAll('tspan')
-                                            .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
-                                            .enter()
-                                            .append('tspan')
-                                                .attr('x', 0)
-                                                .attr('y', function(d, i) { return 12 + 14 * i; }) // text height 12px, 2px padding between lines
-                                                .text(String)
-                                        ;
-                                    })
-                                    .attr('transform', function() {
-                                        var bbox = d3.select(this).node().getBBox();
-                                        return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')';
-                                    })
-                                ;
-                            })
-                            .each(function(d,i) {
-                                var bbox = d3.select(this).select('text.node-description').node().getBBox();
-                                d3.select(this).select('rect.node-bg')
-                                    .attr('width', bbox.width + 2 * nodeTextPadding)
-                                    .attr('height', bbox.height + 2 * nodeTextPadding)
-                                    .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
-                                ;
-                            })
-                    ;
-                    */
+                if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
+                    insertConceptNode(mouse.xmap, mouse.ymap);
                 }
             break;
         }
+    }
+
+    function onFocusConceptDescriptionTA() {
+        var $ta = $(this)
+          , gnode = inFocus
+          , cn = d3.select(gnode).data()[0]
+          , savedDesc = cn.nodeDescription
+        ;
+
+        $ta
+            .on('focusout', onDescFocusOut)
+            .on('keyup', onDescKeyUp)
+        ;
+
+        function saveCancelChanges(forceCancel) {
+            var text = $ta.val();
+
+            $ta
+                .off('focusout', onDescFocusOut)
+                .off('keyup', onDescKeyUp)
+            ;
+
+            if (inFocus == gnode) {
+                if (text == savedDesc) return;
+
+                if (!text.length || forceCancel) {
+                    $ta.val(savedDesc);
+                    return;
+                }
+
+                showConfirmCancelModal('Save changes to concept node description?', function(saveChange) {
+                    if (saveChange) {
+                        $.ajax({
+                            url:'/kcm/concept-nodes/' + cn._id + '/update-description'
+                            , type:'POST'
+                            , contentType:'application/json'
+                            , data:JSON.stringify({ nodeDescription:text, rev:cn._rev })
+                            , success:function(cnRev) {
+                                console.log('desc updated:',cnRev);
+                                cn._rev = cnRev;
+                                cn.nodeDescription = text;
+                                updateMapNodes();
+                            }
+                            , error:ajaxErrorHandler('Error updating concept node description')
+                        });
+                    } else {
+                        $ta.val(savedDesc);
+                    }
+                });
+            }
+        }
+
+        function onDescFocusOut() {
+            saveCancelChanges(false);
+        }
+
+        function onDescKeyUp(e) {
+            if (e.keyCode == 27) {
+                saveCancelChanges(true);
+                $('#concept-description').blur();
+            }
+        }
+    }
+
+    function insertConceptNode(x, y) {
+        $.ajax({
+            url:'/kcm/concept-nodes/insert'
+            , type:'POST'
+            , contentType:'application/json'
+            , data:JSON.stringify({ nodeDescription:'[NEW CONCEPT NODE]', x:x, y:y })
+            , success:function(cn) {
+                kcm.nodes.push(cn);
+                updateMapNodes();
+                setFocus($('g#'+cn._id)[0]);
+                $('#concept-description').select();
+            }
+            , error:ajaxErrorHandler('Error inserting new concept node')
+        });
     }
 
     function addNewTagToConceptNode(e) {
@@ -575,7 +652,7 @@
                     , success: function(cnRev) {
                         cn.tags.push(tag);
                         cn._rev = cnRev;
-                        selectConceptNode(cn);
+                        displayConceptNodeProperties(cn);
                     }
                     , error: ajaxErrorHandler('Error adding new tag to concept node')
                 });
@@ -602,7 +679,7 @@
                 , success: function(cnRev) {
                     cn._rev = cnRev;
                     cn.tags.splice(tag.index(), 1);
-                    selectConceptNode(cn);
+                    displayConceptNodeProperties(cn);
                 }
                 , error: ajaxErrorHandler('error deleting concept node tag')
             });
@@ -651,7 +728,7 @@
                 , success: function(cnRev) {
                     cn._rev = cnRev;
                     cn.tags.splice(tagIx, 1, $input.val());
-                    selectConceptNode(cn);
+                    displayConceptNodeProperties(cn);
                 }
                 , error: function() {
                     if (tagIx == 0) $('#concept-tags').prepend($tag);
@@ -685,7 +762,7 @@
                         kcm.pipelines[pl._id] = pl;
                         cn.pipelines.push(pl._id);
                         cn._rev = cnRev;
-                        selectConceptNode(cn);
+                        displayConceptNodeProperties(cn);
                     }
                     , error:ajaxErrorHandler('Error adding new pipeline')
                 });
@@ -714,7 +791,7 @@
                     cn._rev = cnRev;
                     cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
                     delete kcm.pipelines[plId];
-                    selectConceptNode(cn);
+                    displayConceptNodeProperties(cn);
 
                     var numProblems = 0;
                     $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
@@ -1131,6 +1208,41 @@
                 }
                 link.remove();
             };
+        } else if (~cnInteractionModifiers.indexOf('(delete)')) {
+            // DELETE NODE
+            if (data.pipelines.length) {
+                alert('Delete all pipelines from node before deleting node');
+                return;
+            }
+            showSingleInputModal('Are you sure you want to delete the node? Type "yes" and press return to confirm.', function(response) {
+                if (response == 'yes') {
+                    $.ajax({
+                        url:'/kcm/concept-nodes/' + data._id + '/delete'
+                        , type:'POST'
+                        , contentType:'application/json'
+                        , data: JSON.stringify({ conceptNodeId:data._id, conceptNodeRev:data._rev })
+                        , success: function(updatedBinaryRelations) {
+                            setFocus(null);
+
+                            $.each(updatedBinaryRelations, function(i,updated) {
+                                var old = $.grep(kcm.binaryRelations, function(br) { return br._id == updated._id; })[0]
+                                  , ix = kcm.binaryRelations.indexOf(old)
+                                ;
+                                kcm.binaryRelations.splice(ix, 1, updated);
+                            });
+                            
+                            updateMapLinks();
+
+                            ix = mouse.overNodes.indexOf($('g#'+data._id)[0]);
+                            if (~ix) mouse.overNodes.splice(ix,1);
+
+                            kcm.nodes.splice(kcm.nodes.indexOf(data), 1);
+                            updateMapNodes();
+                        }
+                        , error: ajaxErrorHandler('Error deleting concept node.')
+                    });
+                }
+            });
         } else {
             // NODE DRAGGING
             mousemoveNext = function() {

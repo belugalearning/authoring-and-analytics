@@ -57,6 +57,29 @@ module.exports = function(model) {
                 });
             });
         }
+        , insertConceptNode: function(req, res) {
+            kcmModel.insertConceptNode({ nodeDescription:req.body.nodeDescription, x:req.body.x, y:req.body.y }, function(e, statusCode, conceptNode) {
+                res.send(e || conceptNode, statusCode || 500);
+            });
+        }
+        , deleteConceptNode: function(req, res) {
+            kcmModel.deleteConceptNode(req.params.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode, updatedBinaryRelations) {
+                if (200 != statusCode) {
+                    if (updatedBinaryRelations && updatedBinaryRelations.length) {
+                        e += ' You will need to refresh the page to bring back an up-to-date version of the map.';
+                    }
+                    res.send(e, statusCode || 500);
+                    return;
+                }
+
+                res.send(updatedBinaryRelations);
+            });
+        }
+        , updateConceptNodeDescription: function(req, res) {
+            kcmModel.updateConceptNodeDescription(req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode, conceptNodeRevision) {
+                res.send(e || conceptNodeRevision, statusCode || 500);
+            });
+        }
         , insertConceptNodeTag: function(req, res) {
             kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tag, function(e, statusCode, conceptNodeRevision) {
                 res.send(e || conceptNodeRevision, statusCode || 500);
@@ -246,8 +269,8 @@ module.exports = function(model) {
             }
 
             function addPair() {
-                kcmModel.addOrderedPairToBinaryRelation(relation.id, relation.rev, pair[0], pair[1], function(e,statusCode,rev) {
-                    res.send(e || { id:relation.id, rev:rev }, statusCode || 500);
+                kcmModel.addOrderedPairToBinaryRelation(relation.id, relation.rev, pair[0], pair[1], function(e,statusCode,updatedRelation) {
+                    res.send(e || updatedRelation, statusCode || 500);
                 });
             }
         }

@@ -78,7 +78,7 @@ div#modal-dialog { position:absolute; padding:2px; margin:auto; top:25%; left:0;
 div#modal-dialog h1 { margin:2px; font-weight:800; font-size:14px; }
 div#modal-dialog h2 { margin:2px; font-weight:600; font-size:12px; }
 div#modal-dialog.warning-no-buttons { width:400px; height:50px; }
-div#modal-dialog.single-input-no-buttons { width:400px; height:70px; }
+div#modal-dialog.single-input-no-buttons { width:400px; }
 div#modal-dialog.single-input-no-buttons input[type="text"] { margin-top:5px; width:394px; }
 
 div#modal-dialog.new-link-details { width:800px; height:320px; padding:5px; }
