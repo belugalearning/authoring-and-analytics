@@ -6,9 +6,9 @@
       , l = 400
       , nodeTextPadding = 5
       , rControlsWidth = 350
-      , cnInteractionModifiers = ''
+      , mouseInteractionModifiers = ''
       , cnInteractionInProgress = false
-      , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[] }
+      , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
       , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
     ;
 
@@ -46,11 +46,15 @@
             gArrow
                 .attr("transform", "translate("+hx+","+hy+")rotate("+(theta*180/Math.PI)+")")
                 .select(".arrow-stem")
-                .attr("transform", "scale("+len+",1)")
+                    .attr("transform", "scale("+len+",1)")
+            ;
+            gArrow
+                .select(".arrow-stem-bg")
+                    .attr("transform", "scale("+len+",1)")
             ;
             gArrow
                 .select(".arrow-head")
-                .attr("transform", "translate("+ahr+",0)")
+                    .attr("transform", "translate("+ahr+",0)")
             ;
         });
     }
@@ -73,8 +77,9 @@
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
             .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
+            .on('mouseover mouseout', '[data-type="binary-relationship"]', updateMouseOverLink)
             .on('mousemove', updateMousePos)
-            .on('keydown keyup', keyListener)
+            .on('keydown keyup', keyCommandListener)
             .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
         ;
 
@@ -215,12 +220,23 @@
                     .attr('id', function(d) { return d.id; })
                     .attr('class', 'link')
                     .attr("data-focusable", "true")
+                    .attr('data-type', 'binary-relationship')
                     .attr("data-head-node", function(d) { return d[1]; })
                     .attr("data-tail-node", function(d) { return d[0]; })                
             ;
 
             links.exit().remove();
 
+            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem-bg')
+                .data(function(d) { return [d]; })
+                .enter()
+                .append("rect")
+                    .attr("class", "arrow-stem-bg")
+                    .attr("x", 0)
+                    .attr("y", -5)
+                    .attr("width", 1)
+                    .attr("height", 10)
+            ;
             gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
                 .data(function(d) { return [d]; })
                 .enter()
@@ -528,25 +544,44 @@
         }
     }
 
-    function keyListener(e) {
+    function updateMouseOverLink(e) {
+        if (mouse.overLink) {
+            d3.select(mouse.overLink).attr('class', function(d,i) { return $(this).attr('class').replace(/\bmouseover\s*/g, ''); });
+            mouse.overLink = null;
+        }
+
+        switch(e.type) {
+            case 'mouseover':
+                mouse.overLink = this;
+                d3.select(this).attr('class', function(d,i) { return 'mouseover ' + $(this).attr('class'); });
+            break;
+        }
+    }
+
+    function keyCommandListener(e) {
+        var focus = $(':focus');
+        if (e.type == 'keydown' && focus.length && ~['input','textarea'].indexOf(focus[0].tagName.toLowerCase())) return;
+        
         switch(String.fromCharCode(e.keyCode).toLowerCase()) {
             case 'b':
                 switch (e.type) {
                     case 'keydown':
-                        if (!~cnInteractionModifiers.indexOf('(drawlink)')) cnInteractionModifiers += '(drawlink)';
+                        if (!~mouseInteractionModifiers.indexOf('(drawlink)')) mouseInteractionModifiers += '(drawlink)';
                     break;
                     case 'keyup':
-                        cnInteractionModifiers = cnInteractionModifiers.replace(/\(drawlink\)/g, '');
+                        mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(drawlink\)/g, '');
                     break;
                 }
             break;
             case 'd':
                 switch (e.type) {
                     case 'keydown':
-                        if (!~cnInteractionModifiers.indexOf('(delete)')) cnInteractionModifiers += '(delete)';
+                        $('#wrapper').addClass('delete-mode');
+                        if (!~mouseInteractionModifiers.indexOf('(delete)')) mouseInteractionModifiers += '(delete)';
                     break;
                     case 'keyup':
-                        cnInteractionModifiers = cnInteractionModifiers.replace(/\(delete\)/g, '');
+                        $('#wrapper').removeClass('delete-mode');
+                        mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(delete\)/g, '');
                     break;
                 }
             break;
@@ -566,23 +601,32 @@
         ;
 
         $ta
-            .on('focusout', onDescFocusOut)
             .on('keyup', onDescKeyUp)
+            .on('focusout', saveUndoEdit)
         ;
 
-        function saveCancelChanges(forceCancel) {
+        function onDescKeyUp(e) {
+            if (e.keyCode == 27) {
+                saveUndoEdit(true);
+                $('#concept-description').blur();
+            }
+        }
+
+        function undoEdit() { if (gnode == inFocus) $ta.val(savedDesc); }
+
+        function saveUndoEdit(forceUndoEdit) {
             var text = $ta.val();
 
             $ta
-                .off('focusout', onDescFocusOut)
+                .off('focusout', saveUndoEdit)
                 .off('keyup', onDescKeyUp)
             ;
 
-            if (inFocus == gnode) {
+            if (gnode == inFocus) {
                 if (text == savedDesc) return;
 
-                if (!text.length || forceCancel) {
-                    $ta.val(savedDesc);
+                if (!text.length || true === forceUndoEdit) {
+                    if (gnode == inFocus) undoEdit();
                     return;
                 }
 
@@ -602,20 +646,9 @@
                             , error:ajaxErrorHandler('Error updating concept node description')
                         });
                     } else {
-                        $ta.val(savedDesc);
+                        undoEdit();
                     }
                 });
-            }
-        }
-
-        function onDescFocusOut() {
-            saveCancelChanges(false);
-        }
-
-        function onDescKeyUp(e) {
-            if (e.keyCode == 27) {
-                saveCancelChanges(true);
-                $('#concept-description').blur();
             }
         }
     }
@@ -1093,7 +1126,7 @@
           , mousemoveNext, endInteractionNext
           , event = e
         ;
-        var endInteractionEventType = ~cnInteractionModifiers.indexOf('(drawlink)') ? 'mousedown' : 'mouseup';
+        var endInteractionEventType = ~mouseInteractionModifiers.indexOf('(drawlink)') ? 'mousedown' : 'mouseup';
         var mousemove = function(e) {
             var dx, dy;
 
@@ -1112,7 +1145,7 @@
             event = e;
 
             $(window)
-                .on('keydown keyup', keyListener)
+                .on('keydown keyup', keyCommandListener)
                 .on('mousedown', '[data-type="concept-node"]', startInteraction)
                 .off('mousemove', mousemove)
                 .off(endInteractionEventType, arguments.callee)
@@ -1123,13 +1156,13 @@
 
         cnInteractionInProgress = true;
         $(window)
-            .off('keydown keyup', keyListener)
+            .off('keydown keyup', keyCommandListener)
             .off('mousedown', '[data-type="concept-node"]', startInteraction)
             .on('mousemove', mousemove)
             .on(endInteractionEventType, endInteraction)
         ;
 
-        if (~cnInteractionModifiers.indexOf('(drawlink)')) {
+        if (~mouseInteractionModifiers.indexOf('(drawlink)')) {
             // LINK DRAWING
             var linkTarget
               , link
@@ -1208,7 +1241,7 @@
                 }
                 link.remove();
             };
-        } else if (~cnInteractionModifiers.indexOf('(delete)')) {
+        } else if (~mouseInteractionModifiers.indexOf('(delete)')) {
             // DELETE NODE
             if (data.pipelines.length) {
                 alert('Delete all pipelines from node before deleting node');
@@ -1268,7 +1301,7 @@
                 });
             };
         }
-        cnInteractionModifiers = '';
+        mouseInteractionModifiers = '';
     }
 
     $.template("cnTagDIV",
