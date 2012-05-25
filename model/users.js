@@ -74,9 +74,13 @@ function updateViews(callback) {
                     }
                 }).toString()
                 , reduce: (function(keys, values, rereduce) {
-                    var latest;
-                    for (var value in values) {
-                        if (!latest || value > latest) latest = value;
+                    var count = values.length
+                      , sessionStart
+                      , latest
+                    ;
+                    for (var i=0; i<count; i++) {
+                        sessionStart = values[i];
+                        if (!latest || sessionStart > latest) latest = sessionStart;
                     }
                     return latest;
                 }).toString()
