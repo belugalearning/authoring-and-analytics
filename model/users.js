@@ -47,7 +47,7 @@ function updateViews(callback) {
                             emit([launchTS[0].timestamp, doc._id], launchTS);
                         }
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             , 'users-by-nick-name': {
                 map: (function(doc) { if (doc.type == 'user') emit(doc.nickName, null); }).toString()
@@ -72,7 +72,7 @@ function updateViews(callback) {
                     if (doc.type == 'user session') {
                         emit([doc.device, doc.user], doc.dateStart);
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
                 , reduce: (function(keys, values, rereduce) {
                     var count = values.length
                       , sessionStart
@@ -83,7 +83,7 @@ function updateViews(callback) {
                         if (!latest || sessionStart > latest) latest = sessionStart;
                     }
                     return latest;
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             // TODO: legacy - delete after May 25th release
             , 'device-users-last-session': {
@@ -95,14 +95,14 @@ function updateViews(callback) {
                             emit([doc._id, session.userId], session.startDateTime);
                         }
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
                 , reduce: (function(keys, values, rereduce) {
                     var latest;
                     for (var value in values) {
                         if (!latest || value > latest) latest = value;
                     }
                     return latest;
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             // TODO: legacy - delete after May 25th release
             , 'device-sessions-by-date': {
@@ -114,7 +114,7 @@ function updateViews(callback) {
                             emit([session.startDateTime, doc._id], session.userId);
                         }
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             // query with group level 2
             , 'problems-completed-by-user': {
@@ -122,10 +122,10 @@ function updateViews(callback) {
                     if (doc.type == 'problem attempt' && doc.success) {
                         emit([doc.userId, doc.problemId], doc.problemId);
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
                 , reduce: (function(keys, values, rereduce) {
                     return values[0];
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             // query with group level 1
             , 'total-exp-by-user': {
@@ -137,12 +137,12 @@ function updateViews(callback) {
                         ;
                         for (i=0; i<len; i++) emit(doc.userId, aCP[i].points);
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
                 , reduce: (function(keys, values, rereduce) {
                     var sum = 0, len = values.length, i;
                     for (i=0; i<len; i++) sum += values[i];
                     return sum;
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
             // query view with group level=1 (all time in play for user), or group level=2 (time in play on per element per user)
             , 'users-time-in-play': {
@@ -150,12 +150,12 @@ function updateViews(callback) {
                     if (doc.type == 'problem attempt') {
                         emit([doc.userId, doc.elementId], doc.timeInPlay);
                     }
-                }).toString()
+                }).toString().replace(/\n/g, '')
                 , reduce: (function(keys, values, rereduce) {
                     var sum = 0, len = values.length, i;
                     for (i=0; i<len; i++) sum += values[i];
                     return sum;
-                }).toString()
+                }).toString().replace(/\n/g, '')
             }
         }
     };
