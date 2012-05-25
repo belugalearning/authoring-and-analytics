@@ -67,6 +67,21 @@ function updateViews(callback) {
             , 'activity-feed-events-by-date': {
                 map: (function(doc) { if (doc.type == 'activity feed event') emit([doc.dateTime, doc.userId], null); }).toString()
             }
+            , 'most-recent-session-start-per-device-user': {
+                map: (function(doc) {
+                    if (doc.type == 'user session') {
+                        emit([doc.device, doc.user], doc.dateStart);
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    var latest;
+                    for (var value in values) {
+                        if (!latest || value > latest) latest = value;
+                    }
+                    return latest;
+                }).toString()
+            }
+            // TODO: legacy - delete after May 25th release
             , 'device-users-last-session': {
                 map: (function(doc) {
                     if (doc.type == 'device') {
@@ -85,6 +100,7 @@ function updateViews(callback) {
                     return latest;
                 }).toString()
             }
+            // TODO: legacy - delete after May 25th release
             , 'device-sessions-by-date': {
                 map: (function(doc) {
                     if (doc.type == 'device') {
