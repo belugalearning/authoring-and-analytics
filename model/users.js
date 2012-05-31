@@ -22,7 +22,7 @@ module.exports = function(config) {
 };
 
 function queryView(view, callback) {
-    getDoc('_design/' + designDoc + '/_view/' + view, callback);
+    getDoc('_design/' + designDocName + '/_view/' + view, callback);
 };
 
 // Views
@@ -47,7 +47,7 @@ function updateViews(callback) {
                             emit([launchTS[0].timestamp, doc._id], launchTS);
                         }
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             , 'users-by-nick-name': {
                 map: (function(doc) { if (doc.type == 'user') emit(doc.nickName, null); }).toString()
@@ -59,7 +59,21 @@ function updateViews(callback) {
                 map: (function(doc) { if (doc.type == 'device') emit(doc.name, null); }).toString()
             }
             , 'problem-attempts-by-start': {
-                map: (function(doc) { if (doc.type == 'problem attempt') emit(doc.startDateTime, null); }).toString()
+                map: (function(doc) {
+                    if (doc.type == 'problem attempt' && doc.events) {
+                        var len = doc.events.length
+                          , i
+                          , e
+                        ;
+                        for (i=0; i<len; i++) {
+                            e = doc.events[i];
+                            if (e.eventType == 'PROBLEM_ATTEMPT_START') {
+                                emit(e.date, null);
+                                break;
+                            }
+                        }
+                    }
+                }).toString()
             }
             , 'activity-feed-events-by-user-date': {
                 map: (function(doc) { if (doc.type == 'activity feed event') emit([doc.userId, doc.dateTime], null); }).toString()
@@ -72,7 +86,7 @@ function updateViews(callback) {
                     if (doc.type == 'user session') {
                         emit([doc.device, doc.user], doc.dateStart);
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
                 , reduce: (function(keys, values, rereduce) {
                     var count = values.length
                       , sessionStart
@@ -83,7 +97,7 @@ function updateViews(callback) {
                         if (!latest || sessionStart > latest) latest = sessionStart;
                     }
                     return latest;
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             // TODO: legacy - delete after May 25th release
             , 'device-users-last-session': {
@@ -95,14 +109,14 @@ function updateViews(callback) {
                             emit([doc._id, session.userId], session.startDateTime);
                         }
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
                 , reduce: (function(keys, values, rereduce) {
                     var latest;
                     for (var value in values) {
                         if (!latest || value > latest) latest = value;
                     }
                     return latest;
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             // TODO: legacy - delete after May 25th release
             , 'device-sessions-by-date': {
@@ -114,7 +128,7 @@ function updateViews(callback) {
                             emit([session.startDateTime, doc._id], session.userId);
                         }
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             // query with group level 2
             , 'problems-completed-by-user': {
@@ -122,10 +136,10 @@ function updateViews(callback) {
                     if (doc.type == 'problem attempt' && doc.success) {
                         emit([doc.userId, doc.problemId], doc.problemId);
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
                 , reduce: (function(keys, values, rereduce) {
                     return values[0];
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             // query with group level 1
             , 'total-exp-by-user': {
@@ -137,12 +151,12 @@ function updateViews(callback) {
                         ;
                         for (i=0; i<len; i++) emit(doc.userId, aCP[i].points);
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
                 , reduce: (function(keys, values, rereduce) {
                     var sum = 0, len = values.length, i;
                     for (i=0; i<len; i++) sum += values[i];
                     return sum;
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
             }
             // query view with group level=1 (all time in play for user), or group level=2 (time in play on per element per user)
             , 'users-time-in-play': {
@@ -150,12 +164,24 @@ function updateViews(callback) {
                     if (doc.type == 'problem attempt') {
                         emit([doc.userId, doc.elementId], doc.timeInPlay);
                     }
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
                 , reduce: (function(keys, values, rereduce) {
                     var sum = 0, len = values.length, i;
                     for (i=0; i<len; i++) sum += values[i];
                     return sum;
-                }).toString().replace(/\n/g, '')
+                }).toString().replace(/\s+/g, ' ')
+            }
+            , 'num-per-type': {
+                map: (function(doc) {
+                    emit (doc.type || doc._id, null);
+                }).toString().replace(/\s+/g, ' ')
+                , reduce: (function(keys, values, rereduce) {
+                    if (!rereduce) {
+                        return values.length;
+                    } else {
+                        return sum(values);
+                    }
+                }).toString().replace(/\s+/g, ' ')
             }
         }
     };
