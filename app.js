@@ -111,6 +111,8 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
+app.post('/kcm/binary-relations/:binaryRelationId/delete-pair', routes.kcm.deletePairFromBinaryRelation);
+app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 app.post('/kcm/concept-nodes/insert', routes.kcm.insertConceptNode);
 app.post('/kcm/concept-nodes/:conceptNodeId/delete', routes.kcm.deleteConceptNode);
 app.post('/kcm/concept-nodes/:conceptNodeId/update-description', routes.kcm.updateConceptNodeDescription);
@@ -127,7 +129,6 @@ app.post('/kcm/pipeline-problem-details', routes.kcm.pipelineProblemDetails);
 app.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
 app.post('/kcm/reorder-pipeline-problems', routes.kcm.reorderPipelineProblems);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
-app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
 app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
 

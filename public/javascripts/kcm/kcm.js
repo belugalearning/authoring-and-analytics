@@ -77,7 +77,8 @@
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
             .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
-            .on('mouseover mouseout', '[data-type="binary-relationship"]', updateMouseOverLink)
+            .on('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
+            .on('mousedown', '[data-type="binary-relation-pair"]', mouseDownLink)
             .on('mousemove', updateMousePos)
             .on('keydown keyup', keyCommandListener)
             .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
@@ -98,7 +99,10 @@
             .on("mousedown", clickGainFocus)
         ;
         gLinks = gWrapper.append("g");
-        gPrereqs = gLinks.append("g");
+
+        gPrereqs = gLinks.append("g")
+            .attr('data-type', 'binary-relation')
+            .attr('data-id', $.grep(kcm.binaryRelations, function(rel) { return rel.name == 'Prerequisite'; })[0]._id);
         gNodes = gWrapper.append("g");
 
         $(window).resize();
@@ -220,9 +224,10 @@
                     .attr('id', function(d) { return d.id; })
                     .attr('class', 'link')
                     .attr("data-focusable", "true")
-                    .attr('data-type', 'binary-relationship')
+                    .attr('data-type', 'binary-relation-pair')
                     .attr("data-head-node", function(d) { return d[1]; })
                     .attr("data-tail-node", function(d) { return d[0]; })                
+                    .on("mousedown", clickGainFocus)
             ;
 
             links.exit().remove();
@@ -546,15 +551,51 @@
 
     function updateMouseOverLink(e) {
         if (mouse.overLink) {
-            d3.select(mouse.overLink).attr('class', function(d,i) { return $(this).attr('class').replace(/\bmouseover\s*/g, ''); });
+            d3.select(mouse.overLink).attr('class', function(d,i) { return $(this).attr('class').replace(/\bhighlight\s*/g, ''); });
             mouse.overLink = null;
         }
 
-        switch(e.type) {
-            case 'mouseover':
-                mouse.overLink = this;
-                d3.select(this).attr('class', function(d,i) { return 'mouseover ' + $(this).attr('class'); });
-            break;
+        if (e) {
+            switch(e.type) {
+                case 'mouseover':
+                    mouse.overLink = this;
+                    d3.select(this).attr('class', function(d,i) { return 'highlight ' + $(this).attr('class'); });
+                break;
+            }
+        }
+    }
+    
+    function mouseDownLink(e) {
+        if (/\(delete\)/.test(mouseInteractionModifiers)) {
+            $(window)
+                .off('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
+                .off('keydown keyup', keyCommandListener)
+            ;
+            showConfirmCancelModal('You are about to delete a link. Are you sure?', function(doDelete) {
+                mouseInteractionModifiers = '';
+                updateMouseOverLink();
+                $('#wrapper').removeClass('delete-mode');
+
+                $(window)
+                    .on('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
+                    .on('keydown keyup', keyCommandListener)
+                ;
+
+                if (true === doDelete) {
+                    console.log($(e.target).closest('g[data-type="binary-relation"]'));
+                    console.log('delete the link. data:', d3.select(e.target).data()); return;
+                    $.ajax({
+                        url:'/kcm/binary-relations/' + data._id + '/delete-pair'
+                        , type:'POST'
+                        , contentType:'application/json'
+                        , data: JSON.stringify({  })
+                        , success: function() {
+                            console.log('success');
+                        }
+                        , error: ajaxErrorHandler('Error deleting pair from binary relation.')
+                    });
+                }
+            });
         }
     }
 

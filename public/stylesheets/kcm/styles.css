@@ -22,7 +22,7 @@ g.node.in-focus rect.node-bg { stroke-width:2px; stroke:#333; }
 g.node.link-target rect.node-bg { stroke-width:5px; stroke:#f00; fill:#f50; }
 g.link rect.arrow-stem-bg { opacity:0; fill:#f00; }
 #wrapper.delete-mode g.link { cursor:pointer; }
-#wrapper.delete-mode g.link.mouseover rect.arrow-stem-bg{ opacity:1; }
+#wrapper.delete-mode g.link.highlight rect.arrow-stem-bg{ opacity:1; }
 g.link-create rect { fill:#f50; }
 text.node-description { font:12px Helvetica; }
 

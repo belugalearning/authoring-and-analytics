@@ -193,7 +193,7 @@ module.exports = function(model) {
 
                             kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
                                 if (201 != statusCode) {
-                                    res.send('error creating problem', statusCode);
+                                    res.send('error creating problem: ' + e, statusCode || 500);
                                     return;
                                 }
 
@@ -273,6 +273,10 @@ module.exports = function(model) {
                     res.send(e || updatedRelation, statusCode || 500);
                 });
             }
+        }
+        , deletePairFromBinaryRelation: function(req, res) {
+            console.log(req.params.binaryRelationId, req.body.pair);
+            res.send(200);
         }
     };
 };
