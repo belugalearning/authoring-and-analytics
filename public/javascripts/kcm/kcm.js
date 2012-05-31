@@ -866,21 +866,7 @@
                     cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
                     delete kcm.pipelines[plId];
                     displayConceptNodeProperties(cn);
-
-                    var numProblems = 0;
-                    $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
-
-                    if (!numProblems) {
-                        d3.select($('g#'+cn._id)[0]).attr('class', function(d) {
-                            return updateNodeClassStringForProblems(d, d3.select(this).attr('class'));
-                        });
-                    } else if (numProblems < nodeEnoughProblems) {
-                    } else {
-                    }
-
-                    var plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
-                    if (!plWithProbs.length) {
-                    }
+                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
                 }
                 , error:ajaxErrorHandler('error deleting pipeline')
             });
