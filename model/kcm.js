@@ -420,6 +420,49 @@ function updateViews(callback) {
                     }
                 }).toString()
             }
+            , 'pipelines-by-name': {
+                map: (function(doc) { if (doc.type == 'pipeline') emit(doc.name, null); }).toString()
+            }
+            , 'pipeline-problems': {
+                map: (function(doc) {
+                    if (doc.type == 'pipeline') {
+                        var len = doc.problems.length;
+                        for (var i=0; i<len; i++) emit (doc._id, doc.problems[i]);
+                    }
+                }).toString()
+            }
+
+            // group-level none:             key:null,                                           value:<total number of problems in all pipelines>
+            // group-level 1:                key:<pipeline name>,                                value:<number of problems in pipelines with pipeline name>
+            // group-level 2:                key:[<pipeline name>, <pipeline id>],               value:<number of problems in pipeline>
+            // reduce off or group-level 3:  key:[pipeline name, pipeline id, problem id],       value: 1
+            , 'pipelines-with-problems-by-name': {
+                map: (function(doc) {
+                    if (doc.type == 'pipeline') {
+                        len = doc.problems.length;
+                        for (i=0; i<len; i++) {
+                            emit([doc.name, doc._id, doc.problems[i]], null);
+                        }
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    if (!rereduce) {
+                        return values.length;
+                    } else {
+                        return sum(values);
+                    }
+                }).toString()
+            }
+
+            , 'relations-by-name': {
+                map: (function(doc) { if (doc.type == 'relation') emit(doc.name, null); }).toString()
+            }
+            , 'relations-by-relation-type-name': {
+                map: (function(doc) { if (doc.type == 'relation') emit([doc.relationType, doc.name], null); }).toString()
+            }
+            , 'tools-by-name': {
+                map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
+            }
             , 'num-per-type': {
                 map: (function(doc) {
                     emit (doc.type || doc._id, null);
@@ -433,26 +476,6 @@ function updateViews(callback) {
                 }).toString().replace(/\s+/g, ' ')
             }
 
-            , 'pipelines-by-name': {
-                map: (function(doc) { if (doc.type == 'pipeline') emit(doc.name, null); }).toString()
-            }
-            , 'pipeline-problems': {
-                map: (function(doc) {
-                    if (doc.type == 'pipeline') {
-                        var len = doc.problems.length;
-                        for (var i=0; i<len; i++) emit (doc._id, doc.problems[i]);
-                    }
-                }).toString()
-            }
-            , 'relations-by-name': {
-                map: (function(doc) { if (doc.type == 'relation') emit(doc.name, null); }).toString()
-            }
-            , 'relations-by-relation-type-name': {
-                map: (function(doc) { if (doc.type == 'relation') emit([doc.relationType, doc.name], null); }).toString()
-            }
-            , 'tools-by-name': {
-                map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
-            }
 
             // TODO: The following is copied from content. Sort out
             , 'any-by-type-name': {
