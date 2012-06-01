@@ -420,6 +420,19 @@ function updateViews(callback) {
                     }
                 }).toString()
             }
+            , 'num-per-type': {
+                map: (function(doc) {
+                    emit (doc.type || doc._id, null);
+                }).toString().replace(/\s+/g, ' ')
+                , reduce: (function(keys, values, rereduce) {
+                    if (!rereduce) {
+                        return values.length;
+                    } else {
+                        return sum(values);
+                    }
+                }).toString().replace(/\s+/g, ' ')
+            }
+
             , 'pipelines-by-name': {
                 map: (function(doc) { if (doc.type == 'pipeline') emit(doc.name, null); }).toString()
             }
@@ -440,7 +453,6 @@ function updateViews(callback) {
             , 'tools-by-name': {
                 map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
             }
-
 
             // TODO: The following is copied from content. Sort out
             , 'any-by-type-name': {
