@@ -446,6 +446,9 @@ function updateViews(callback) {
             , 'relations-by-name': {
                 map: (function(doc) { if (doc.type == 'relation') emit(doc.name, null); }).toString()
             }
+            , 'relations-by-relation-type': {
+                map: (function(doc) { if (doc.type == 'relation') emit(doc.relationType, null); }).toString()
+            }
             , 'relations-by-relation-type-name': {
                 map: (function(doc) { if (doc.type == 'relation') emit([doc.relationType, doc.name], null); }).toString()
             }
@@ -1398,33 +1401,30 @@ function getAppContent(callback) {
             callback(e || 'error retrieving pipelines', statusCode || 500);
             return;
         }
-
-        queryView(encodeURI('concept-nodes-by-pipeline?keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
+        getNodes(pipelines, function(e, statusCode, nodes) {
             if (200 != statusCode) {
                 callback(e || 'error retrieving concept nodes', statusCode || 500);
                 return;
             }
 
-            var rows = JSON.parse(b).rows
-              , nodes = {}
-            ;
+            var nodeIds = _.keys(nodes);
 
-            _.each(rows, function(row) {
-                var cnId = row.id
-                  , plId = row.key
-                ;
-
-                if (!nodes[cnId]) {
-                    nodes[cnId] = { pipelines:[] };
+            getBinaryRelations(nodeIds, function(e, statusCode, binaryRelations) {
+                if (200 != statusCode) {
+                    callback(e || 'error retrieving binary relations', statusCode || 500);
+                    return;
                 }
 
-                nodes[cnId].pipelines.push(pipelines[plId]);
-            });
+                var nodeArray = _.map(nodeIds, function(id) {
+                    var node = nodes[id];
+                    node.id = id;
+                    return node;
+                });
 
-            callback(null,200,nodes);
+                callback(e, statusCode, { conceptNodes:nodeArray, binaryRelations:binaryRelations });
+            });
         });
     });
-            
 
     function getPipelines(cb) {
         var len = validPipelineNames.length
@@ -1443,7 +1443,7 @@ function getAppContent(callback) {
             if (len) {
                 queryView(qry, function(e,r,b) {
                     if (200 != r.statusCode) {
-                        callback(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                        cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
                         return;
                     }
 
@@ -1465,8 +1465,52 @@ function getAppContent(callback) {
         })(0);
     }
 
-    // relations
+    function getNodes(pipelines, cb) {
+        queryView(encodeURI('concept-nodes-by-pipeline?keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
+            if (200 != r.statusCode) {
+                cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+                return;
+            }
+
+            var rows = JSON.parse(b).rows
+              , nodes = {}
+            ;
+
+            _.each(rows, function(row) {
+                var cnId = row.id
+                  , plId = row.key
+                ;
+
+                if (!nodes[cnId]) {
+                    nodes[cnId] = { pipelines:[] };
+                }
+
+                nodes[cnId].pipelines.push(pipelines[plId]);
+            });
+
+            cb(null,200,nodes);
+        });
+    }
+
+    function getBinaryRelations(nodeIds, cb) {
+        queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
+            if (200 != r.statusCode) {
+                cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
+                return;
+            }
+            var binaryRelations = _.map(JSON.parse(b).rows, function(row) {
+                return {
+                    id: row.id
+                    , name: row.doc.name
+                    , pairs: _.filter(row.doc.members, function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]); })
+                };
+            });
+            cb(null, 200, binaryRelations);
+        });
+    };
+
     // pdefs
+    // revision
 }
 
 // TODO: The following functions should be shared across model modules
