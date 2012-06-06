@@ -389,6 +389,14 @@ function updateViews(callback) {
             , 'concept-nodes-by-graffle-id': {
                 map: (function(doc) { if (doc.type == 'concept node') emit(doc.graffleId, null); }).toString()
             }
+            , 'concept-nodes-by-pipeline': {
+                map: (function(doc) {
+                    if (doc.type == 'concept node') {
+                        var len = doc.pipelines.length;
+                        for (var i=0; i<len; i++) emit (doc.pipelines[i], doc._id);
+                    }
+                }).toString()
+            }
             , 'concept-node-pipelines': {
                 map: (function(doc) {
                     if (doc.type == 'concept node') {
@@ -1385,11 +1393,42 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 function getAppContent(callback) {
     var validPipelineNames = ['25May'];
 
-    getPipelines(callback);
+    getPipelines(function(e, statusCode, pipelines) {
+        if (200 != statusCode) {
+            callback(e || 'error retrieving pipelines', statusCode || 500);
+            return;
+        }
+
+        queryView(encodeURI('concept-nodes-by-pipeline?keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
+            if (200 != statusCode) {
+                callback(e || 'error retrieving concept nodes', statusCode || 500);
+                return;
+            }
+
+            var rows = JSON.parse(b).rows
+              , nodes = {}
+            ;
+
+            _.each(rows, function(row) {
+                var cnId = row.id
+                  , plId = row.key
+                ;
+
+                if (!nodes[cnId]) {
+                    nodes[cnId] = { pipelines:[] };
+                }
+
+                nodes[cnId].pipelines.push(pipelines[plId]);
+            });
+
+            callback(null,200,nodes);
+        });
+    });
+            
 
     function getPipelines(cb) {
         var len = validPipelineNames.length
-          , pipelines = []
+          , pipelines = {}
         ;
 
         if (!len) {
@@ -1408,10 +1447,13 @@ function getAppContent(callback) {
                         return;
                     }
 
-                    var pls = _.map(JSON.parse(b).rows, function(row) {
-                        return { id:row.id, problems:row.value };
-                    });
-                    pipelines.push(pls);
+                    var rows = JSON.parse(b).rows
+                      , len = rows.length, i
+                    ;
+
+                    for (i=0; i<len; i++) {
+                        pipelines[rows[i].id] = rows[i].value;
+                    };
 
                     if (++i < len) {
                         getPipelinesMatchingNameAtIndex(i);
@@ -1422,11 +1464,9 @@ function getAppContent(callback) {
             }
         })(0);
     }
-        // get the nodes
-        // create the nodes array
-        // add the problems to the nodes
-        // relations
-        // 3gt
+
+    // relations
+    // pdefs
 }
 
 // TODO: The following functions should be shared across model modules
