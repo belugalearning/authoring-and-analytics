@@ -43,6 +43,11 @@ module.exports = function(model) {
                 });
             });
         }
+        , getAppContent: function(req, res) {
+            kcmModel.getAppContent(function(e, statusCode, content) {
+                res.send(e || content, statusCode || 500);
+            });
+        }
         , getMap: function(req, res) {
             var map = { pipelines:{}, nodes:[], prerequisites:[] };
             kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {

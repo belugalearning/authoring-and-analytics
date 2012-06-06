@@ -48,6 +48,7 @@ module.exports = function(config) {
         , updatePipelineSequence: updatePipelineSequence
         , pipelineProblemDetails: pipelineProblemDetails
         , reorderPipelineProblems: reorderPipelineProblems
+        , getAppContent: getAppContent
         , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
     };
 };
@@ -75,30 +76,6 @@ function replaceUUIDWithGraffleId() {
         fs.writeFileSync(file, notes, 'UTF8');
     });
 }
-
-
-// the following can safely be deleted. Only retained here in case it saves me a couple of mins somewhere down the line
-//function replaceUUIDWithGraffleId() {
-//    var file = process.cwd() + '/resources/nc-graffle-import-notes.csv'
-//      , notes = fs.readFileSync(file, 'UTF8')
-//      , idMap = {}
-//    ;
-//
-//    queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
-//        var nodes = JSON.parse(b).rows
-//          , docNodeIds = _.uniq(notes.match(/2e203[a-z0-9]+/ig))
-//        ;
-//        _.each(nodes, function(n) {
-//            idMap[n.id] = n.doc.graffleId;
-//        });
-//
-//        _.each(docNodeIds, function(id) {
-//            notes = notes.replace(new RegExp(id,'ig'), 'GraffleId:'+idMap[id]);
-//        });
-//
-//        fs.writeFileSync(file, notes, 'UTF8');
-//    });
-//}
 
 function generateUUID(callback) {
     console.log(couchServerURI);
@@ -432,22 +409,26 @@ function updateViews(callback) {
                 }).toString()
             }
 
-            // group-level none:             key:null,                                           value:<total number of problems in all pipelines>
-            // group-level 1:                key:<pipeline name>,                                value:<number of problems in pipelines with pipeline name>
-            // group-level 2:                key:[<pipeline name>, <pipeline id>],               value:<number of problems in pipeline>
-            // reduce off or group-level 3:  key:[pipeline name, pipeline id, problem id],       value: 1
+            // N.B. only emits results for pipelines with >=1 problem
+            // Reduce off:                  key: [<pipeline_name>, <pipeline_id>]               value: <pipeline_problems>
+            // Group-Level 2 (exact):       key: [<pipeline_name>, <pipeline_id>]               value: <num_problems_in_pipeline>
+            // Group-Level 1:               key: [<pipeline_name>]                              value: <num_problems_in_pipelines_of_name>
+            // group-level none:            key: null,                                          value: <total_number_of_problems_in_all_pipelines>
             , 'pipelines-with-problems-by-name': {
                 map: (function(doc) {
-                    if (doc.type == 'pipeline') {
-                        len = doc.problems.length;
-                        for (i=0; i<len; i++) {
-                            emit([doc.name, doc._id, doc.problems[i]], null);
-                        }
+                    if (doc.type == 'pipeline' && doc.problems.length) {
+                        emit([doc.name, doc._id], doc.problems);
                     }
                 }).toString()
                 , reduce: (function(keys, values, rereduce) {
                     if (!rereduce) {
-                        return values.length;
+                        var numProblems = 0
+                          , i, len = values.length
+                        ;
+                        for (i=0; i<len; i++) {
+                            numProblems += values[i].length;
+                        }
+                        return numProblems;
                     } else {
                         return sum(values);
                     }
@@ -1401,6 +1382,53 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
     });
 }
 
+function getAppContent(callback) {
+    var validPipelineNames = ['25May'];
+
+    getPipelines(callback);
+
+    function getPipelines(cb) {
+        var len = validPipelineNames.length
+          , pipelines = []
+        ;
+
+        if (!len) {
+            cb('case when validPipelineNames.length == 0 not handled', 500);
+            return;
+        }
+
+        (function getPipelinesMatchingNameAtIndex(i) {
+            var name = validPipelineNames[i]
+              , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
+            ;
+            if (len) {
+                queryView(qry, function(e,r,b) {
+                    if (200 != r.statusCode) {
+                        callback(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                        return;
+                    }
+
+                    var pls = _.map(JSON.parse(b).rows, function(row) {
+                        return { id:row.id, problems:row.value };
+                    });
+                    pipelines.push(pls);
+
+                    if (++i < len) {
+                        getPipelinesMatchingNameAtIndex(i);
+                    } else {
+                        cb (null, 200, pipelines);
+                    }
+                });
+            }
+        })(0);
+    }
+        // get the nodes
+        // create the nodes array
+        // add the problems to the nodes
+        // relations
+        // 3gt
+}
+
 // TODO: The following functions should be shared across model modules
 function getDoc(id, callback) {
     request({
@@ -1452,4 +1480,5 @@ function validatedResponseCallback(validStatusCodes, callback) {
         process.exit(1);
     }
 }
+
 

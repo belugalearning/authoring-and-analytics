@@ -110,6 +110,7 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 // TODO: improve uri's below - more in the uri less in req.body
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
+app.get('/kcm/get-app-content', routes.kcm.getAppContent);
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
 app.post('/kcm/binary-relations/:binaryRelationId/delete-pair', routes.kcm.deletePairFromBinaryRelation);
 app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
