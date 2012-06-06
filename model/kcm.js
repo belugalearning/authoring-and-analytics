@@ -3,6 +3,7 @@ var fs = require('fs')
   , request = require('request')
   , util = require('util')
   , libxmljs = require('libxmljs')
+  , sqlite3 = require('sqlite3').verbose()
 ;
 
 var kcmDatabaseName
