@@ -1467,7 +1467,7 @@ function getAppContent(callback) {
     }
 
     function getNodes(pipelines, cb) {
-        queryView(encodeURI('concept-nodes-by-pipeline?keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
+        queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
             if (200 != r.statusCode) {
                 cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
                 return;
@@ -1483,7 +1483,7 @@ function getAppContent(callback) {
                 ;
 
                 if (!nodes[cnId]) {
-                    nodes[cnId] = { pipelines:[] };
+                    nodes[cnId] = { pipelines:[], x:row.doc.x, y:row.doc.y };
                 }
 
                 nodes[cnId].pipelines.push(pipelines[plId]);
