@@ -32,7 +32,7 @@ module.exports = function(model) {
             kcmModel.generateUUID(function(uuid) {
                 var dbPath = config.databasePath
                   , dbName = kcmModel.databaseName
-                  , zipFile = util.format('/tmp/canned-db-%s.zip', uuid);
+                  , zipFile = util.format('/tmp/canned-db-%s.zip', uuid)
                 ;
                 exec(util.format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:config.couchDatabasesDirectory }, function(e,stdout,stderr) {
                     if (e) {
@@ -44,8 +44,12 @@ module.exports = function(model) {
             });
         }
         , getAppContent: function(req, res) {
-            kcmModel.getAppContent(function(e, statusCode, content) {
-                res.send(e || content, statusCode || 500);
+            kcmModel.getAppContent(function(e, statusCode, contentZip) {
+                if (200 != statusCode) {
+                    res.send(e || 'error retrieving canned application content');
+                    return;
+                }
+                res.download(contentZip, 'canned-content.zip');
             });
         }
         , getMap: function(req, res) {

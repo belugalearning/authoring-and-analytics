@@ -3,6 +3,7 @@ var fs = require('fs')
   , request = require('request')
   , util = require('util')
   , libxmljs = require('libxmljs')
+  , exec = require('child_process').exec
   , sqlite3 = require('sqlite3').verbose()
 ;
 
@@ -419,14 +420,14 @@ function updateViews(callback) {
             }
 
             // N.B. only emits results for pipelines with >=1 problem
-            // Reduce off:                  key: [<pipeline_name>, <pipeline_id>]               value: <pipeline_problems>
-            // Group-Level 2 (exact):       key: [<pipeline_name>, <pipeline_id>]               value: <num_problems_in_pipeline>
-            // Group-Level 1:               key: [<pipeline_name>]                              value: <num_problems_in_pipelines_of_name>
-            // group-level none:            key: null,                                          value: <total_number_of_problems_in_all_pipelines>
+            // Reduce off:                  key: [<pipeline_name>, <pipeline_id>, <pipeline_rev>]       value: <pipeline_problems>
+            // Group-Level >=2:             key: [<pipeline_name>, <pipeline_id>, <pipeline_rev>]       value: <num_problems_in_pipeline>
+            // Group-Level 1:               key: [<pipeline_name>, <pipeline_rev>]                      value: <num_problems_in_pipelines_of_name>
+            // group-level none:            key: null,                                                  value: <total_number_of_problems_in_all_pipelines>
             , 'pipelines-with-problems-by-name': {
                 map: (function(doc) {
                     if (doc.type == 'pipeline' && doc.problems.length) {
-                        emit([doc.name, doc._id], doc.problems);
+                        emit([doc.name, doc._id, doc._rev], doc.problems);
                     }
                 }).toString()
                 , reduce: (function(keys, values, rereduce) {
@@ -1395,123 +1396,241 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 }
 
 function getAppContent(callback) {
-    var validPipelineNames = ['25May'];
+    // TODO: include database revision
+    var validPipelineNames = ['25May']
+      , path
+      , dbPath
+      , pdefsPath
+    ;
 
-    getPipelines(function(e, statusCode, pipelines) {
-        if (200 != statusCode) {
-            callback(e || 'error retrieving pipelines', statusCode || 500);
+    //console.log('get app content...');
+
+    request(couchServerURI + '_uuids', function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(e || 'error generating uuid', statusCode || 500);
             return;
         }
-        getNodes(pipelines, function(e, statusCode, nodes) {
+
+        path = '/tmp/' + JSON.parse(b).uuids[0];
+        pdefsPath = path + '/pdefs';
+        dbPath = path + '/content.db';
+
+        fs.mkdirSync(path);
+        fs.mkdirSync(pdefsPath);
+
+        //console.log('content path:', path);
+
+        getAppContentJSON(function(e, statusCode, content) {
             if (200 != statusCode) {
-                callback(e || 'error retrieving concept nodes', statusCode || 500);
+                callback(e || 'error retrieving app json content', statusCode || 500);
                 return;
             }
-
-            var nodeIds = _.keys(nodes);
-
-            getBinaryRelations(nodeIds, function(e, statusCode, binaryRelations) {
-                if (200 != statusCode) {
-                    callback(e || 'error retrieving binary relations', statusCode || 500);
+            createSqliteDB(content, function(e, statusCode) {
+                if (201 != statusCode) {
+                    callback(e || 'error creating content database', statusCode || 500);
                     return;
                 }
+                writePDefs(content.conceptNodes, function(e, statusCode, pdefs) {
+                    if (201 != statusCode) {
+                        callback(e || 'error writing problem pdefs', statusCode || 500);
+                        return;
+                    }
 
-                var nodeArray = _.map(nodeIds, function(id) {
-                    var node = nodes[id];
-                    node.id = id;
-                    return node;
+                    exec('zip content.zip -r pdefs content.db', { cwd:path }, function(e, stdout, stderr) {
+                        if (e) {
+                            callback(util.format('error zipping content:"%s"', e), 500);
+                            return;
+                        }
+                        callback(null, 200, path + '/content.zip');
+                    });
                 });
-
-                callback(e, statusCode, { conceptNodes:nodeArray, binaryRelations:binaryRelations });
             });
         });
     });
 
-    function getPipelines(cb) {
-        var len = validPipelineNames.length
-          , pipelines = {}
-        ;
+    function getAppContentJSON(jsonCallback) {
+        getPipelines(function(e, statusCode, pipelines) {
+            if (200 != statusCode) {
+                jsonCallback(e || 'error retrieving pipelines', statusCode || 500);
+                return;
+            }
+            getNodes(pipelines, function(e, statusCode, nodes) {
+                if (200 != statusCode) {
+                    jsonCallback(e || 'error retrieving concept nodes', statusCode || 500);
+                    return;
+                }
 
-        if (!len) {
-            cb('case when validPipelineNames.length == 0 not handled', 500);
-            return;
-        }
-
-        (function getPipelinesMatchingNameAtIndex(i) {
-            var name = validPipelineNames[i]
-              , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
-            ;
-            if (len) {
-                queryView(qry, function(e,r,b) {
-                    if (200 != r.statusCode) {
-                        cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                getBinaryRelations(_.keys(nodes), function(e, statusCode, binaryRelations) {
+                    if (200 != statusCode) {
+                        jsonCallback(e || 'error retrieving binary relations', statusCode || 500);
                         return;
                     }
 
-                    var rows = JSON.parse(b).rows
-                      , len = rows.length, i
-                    ;
-
-                    for (i=0; i<len; i++) {
-                        pipelines[rows[i].id] = rows[i].value;
-                    };
-
-                    if (++i < len) {
-                        getPipelinesMatchingNameAtIndex(i);
-                    } else {
-                        cb (null, 200, pipelines);
-                    }
+                    //console.log('app content JSON generated.');
+                    jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations });
                 });
-            }
-        })(0);
-    }
+            });
+        });
 
-    function getNodes(pipelines, cb) {
-        queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
-            if (200 != r.statusCode) {
-                cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
-                return;
-            }
-
-            var rows = JSON.parse(b).rows
-              , nodes = {}
+        function getPipelines(cb) {
+            var len = validPipelineNames.length
+              , pipelines = {}
             ;
 
-            _.each(rows, function(row) {
-                var cnId = row.id
-                  , plId = row.key
-                ;
-
-                if (!nodes[cnId]) {
-                    nodes[cnId] = { pipelines:[], x:row.doc.x, y:row.doc.y };
-                }
-
-                nodes[cnId].pipelines.push(pipelines[plId]);
-            });
-
-            cb(null,200,nodes);
-        });
-    }
-
-    function getBinaryRelations(nodeIds, cb) {
-        queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
-            if (200 != r.statusCode) {
-                cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
+            if (!len) {
+                cb('case when validPipelineNames.length == 0 not handled', 500);
                 return;
             }
-            var binaryRelations = _.map(JSON.parse(b).rows, function(row) {
-                return {
-                    id: row.id
-                    , name: row.doc.name
-                    , pairs: _.filter(row.doc.members, function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]); })
-                };
-            });
-            cb(null, 200, binaryRelations);
-        });
-    };
 
-    // pdefs
-    // revision
+            (function getPipelinesMatchingNameAtIndex(i) {
+                var name = validPipelineNames[i]
+                  , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
+                ;
+                if (len) {
+                    queryView(qry, function(e,r,b) {
+                        if (200 != r.statusCode) {
+                            cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                            return;
+                        }
+
+                        var rows = JSON.parse(b).rows
+                          , row, key
+                          , len = rows.length, i
+                        ;
+
+                        for (i=0; i<len; i++) {
+                            row = rows[i];
+                            pipelines[row.id] = { id:row.id, rev:row.key[2], problems:row.value };
+                        };
+
+                        if (++i < len) {
+                            getPipelinesMatchingNameAtIndex(i);
+                        } else {
+                            cb (null, 200, pipelines);
+                        }
+                    });
+                }
+            })(0);
+        }
+
+        function getNodes(pipelines, cb) {
+            queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
+                if (200 != r.statusCode) {
+                    cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+                    return;
+                }
+
+                var rows = JSON.parse(b).rows
+                  , nodes = {}
+                ;
+
+                _.each(rows, function(row) {
+                    var cnId = row.id
+                      , plId = row.key
+                    ;
+
+                    if (!nodes[cnId]) {
+                        nodes[cnId] = { id:cnId, rev:row.doc._rev, pipelines:[], x:row.doc.x, y:row.doc.y };
+                    }
+
+                    nodes[cnId].pipelines.push(pipelines[plId]);
+                });
+
+                cb(null,200,nodes);
+            });
+        }
+
+        function getBinaryRelations(nodeIds, cb) {
+            queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
+                if (200 != r.statusCode) {
+                    cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
+                    return;
+                }
+                var binaryRelations = _.map(JSON.parse(b).rows, function(row) {
+                    return {
+                        id: row.id
+                        , rev: row.doc._rev
+                        , name: row.doc.name
+                        , pairs: _.filter(row.doc.members, function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]); })
+                    };
+                });
+                cb(null, 200, binaryRelations);
+            });
+        };
+    }
+
+    function writePDefs(nodes, cb) {
+        var pIds = []
+          , pdefs = []
+        ;
+        _.each(nodes, function(n) {
+            pIds = pIds.concat(_.flatten(_.map(n.pipelines, function(pl) { return pl.problems; })));
+        });
+        pIds = _.uniq(pIds);
+
+        (function getPDefsRec() {
+            var i = pdefs.length
+              , id = pIds[i]
+            ;
+            if (i == pIds.length) {
+                //console.log('all pdefs retrieved');
+                writePDefsRec(0);
+            } else {
+                //console.log('get pdef at index', i);
+                request({
+                    uri: databaseURI + id + '/pdef.plist'
+                }, function(e,r,b) {
+                    pdefs[i] = b;
+                    getPDefsRec();
+                });
+            }
+        })();
+
+        function writePDefsRec(i) {
+            if (i == pdefs.length) {
+                //console.log('all pdefs written');
+                cb(null, 201);
+            } else {
+                //console.log('write pdef at index:',i);
+                fs.writeFileSync(pdefsPath + '/' + pIds[i] + '.plist', pdefs[i]);
+                writePDefsRec(i+1);
+            }
+        }
+    }
+
+    function createSqliteDB(content, cb) {
+        var db = new sqlite3.Database(dbPath);
+        db.serialize(function() {
+            db.run("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER)");
+            var cnIns = db.prepare("INSERT INTO ConceptNodes VALUES (?,?,?,?,?)");
+            content.conceptNodes.forEach(function(n) {
+                cnIns.run(n.id, n.rev, JSON.stringify(_.map(n.pipelines, function(pl) { return pl.id; })), n.x, n.y);
+            });
+            cnIns.finalize();
+
+            db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, problems TEXT)");
+            var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?)");
+            content.pipelines.forEach(function(pl) {
+                plIns.run(pl.id, pl.rev, JSON.stringify(pl.problems));
+            });
+            plIns.finalize();
+
+            db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, pairs TEXT)");
+            var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
+            content.binaryRelations.forEach(function(br) {
+                brIns.run(br.id, br.rev, br.name, JSON.stringify(br.pairs));
+            });
+            brIns.finalize();
+
+            db.each("SELECT * FROM BinaryRelations", function(err, row) {
+                console.log(row);
+            });
+
+            //console.log('database created');
+            cb(null,201);
+        });  
+        db.close();
+    }
 }
 
 // TODO: The following functions should be shared across model modules
