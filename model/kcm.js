@@ -1650,6 +1650,21 @@ function getAppContent(callback) {
                 brIns.run(br.id, br.rev, br.name, JSON.stringify(br.pairs));
             });
             brIns.finalize();
+
+            /*
+            db.each("SELECT * FROM ConceptNodes", function(err, row) {
+                console.log('ConceptNode row:', JSON.stringify(row,null,2));
+            });
+            db.each("SELECT * FROM Pipelines", function(err, row) {
+                console.log('Pipeline row:', JSON.stringify(row,null,2));
+            });
+            db.each("SELECT * FROM Problems", function(err, row) {
+                console.log('Problem row:', JSON.stringify(row,null,2));
+            });
+            db.each("SELECT * FROM BinaryRelations", function(err, row) {
+                console.log('BinaryRelation row:', JSON.stringify(row,null,2));
+            });
+            //*/
             
             //console.log('database created');
             cb(null,201);
