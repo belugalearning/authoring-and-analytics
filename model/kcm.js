@@ -1428,7 +1428,7 @@ function getAppContent(callback) {
 
             //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2));
 
-            createSqliteDB(content, function(e, statusCode) {
+            createSQLiteDB(content, function(e, statusCode) {
                 if (201 != statusCode) {
                     callback(e || 'error creating content database', statusCode || 500);
                     return;
@@ -1620,7 +1620,7 @@ function getAppContent(callback) {
         }
     }
 
-    function createSqliteDB(content, cb) {
+    function createSQLiteDB(content, cb) {
         var db = new sqlite3.Database(dbPath);
         db.serialize(function() {
             db.run("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER)");
