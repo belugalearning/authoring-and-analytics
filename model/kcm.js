@@ -1509,7 +1509,7 @@ function getAppContent(callback) {
 
                         for (i=0; i<len; i++) {
                             row = rows[i];
-                            pipelines[row.id] = { id:row.id, rev:row.key[2], problems:row.value };
+                            pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
                         };
 
                         if (++i < len) {
@@ -1630,10 +1630,10 @@ function getAppContent(callback) {
             });
             cnIns.finalize();
 
-            db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, problems TEXT)");
-            var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?)");
+            db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, problems TEXT)");
+            var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?)");
             content.pipelines.forEach(function(pl) {
-                plIns.run(pl.id, pl.rev, JSON.stringify(pl.problems));
+                plIns.run(pl.id, pl.rev, pl.name, JSON.stringify(pl.problems));
             });
             plIns.finalize();
 
