@@ -1425,12 +1425,15 @@ function getAppContent(callback) {
                 callback(e || 'error retrieving app json content', statusCode || 500);
                 return;
             }
+
+            //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2));
+
             createSqliteDB(content, function(e, statusCode) {
                 if (201 != statusCode) {
                     callback(e || 'error creating content database', statusCode || 500);
                     return;
                 }
-                writePDefs(content.conceptNodes, function(e, statusCode, pdefs) {
+                writePDefs(content.problems, function(e, statusCode, pdefs) {
                     if (201 != statusCode) {
                         callback(e || 'error writing problem pdefs', statusCode || 500);
                         return;
@@ -1466,8 +1469,14 @@ function getAppContent(callback) {
                         return;
                     }
 
-                    //console.log('app content JSON generated.');
-                    jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations });
+                    getProblems(nodes, function(e, statusCode, problems) {
+                        if (200 != statusCode) {
+                            jsonCallback(e || 'error retrieving problems', statusCode || 500);
+                            return;
+                        }
+                        //console.log('app content JSON generated.');
+                        jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:problems });
+                    });
                 });
             });
         });
@@ -1557,16 +1566,29 @@ function getAppContent(callback) {
                 cb(null, 200, binaryRelations);
             });
         };
+
+        function getProblems(conceptNodes, cb) {
+            var problemIds = [];
+            _.each(conceptNodes, function(n) {
+                problemIds = problemIds.concat(_.flatten(_.map(n.pipelines, function(pl) { return pl.problems; })));
+            });
+            problemIds = _.uniq(problemIds);
+
+            request(encodeURI(databaseURI + '_all_docs?keys=' + JSON.stringify(problemIds)), function(e,r,b) {
+                if (200 != r.statusCode) {
+                    cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
+                    return;
+                }
+
+                var problems = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, rev:row.value.rev }; });
+                cb(null, 200, problems);
+            });
+        }
     }
 
-    function writePDefs(nodes, cb) {
-        var pIds = []
-          , pdefs = []
-        ;
-        _.each(nodes, function(n) {
-            pIds = pIds.concat(_.flatten(_.map(n.pipelines, function(pl) { return pl.problems; })));
-        });
-        pIds = _.uniq(pIds);
+    function writePDefs(problems, cb) {
+        var pIds = _.map(problems, function(p) { return p.id; });
+        var pdefs = [];
 
         (function getPDefsRec() {
             var i = pdefs.length
@@ -1615,17 +1637,20 @@ function getAppContent(callback) {
             });
             plIns.finalize();
 
+            db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT)");
+            var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?)");
+            content.problems.forEach(function(p) {
+                probsIns.run(p.id, p.rev);
+            });
+            probsIns.finalize();
+
             db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, pairs TEXT)");
             var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
             content.binaryRelations.forEach(function(br) {
                 brIns.run(br.id, br.rev, br.name, JSON.stringify(br.pairs));
             });
             brIns.finalize();
-
-            db.each("SELECT * FROM BinaryRelations", function(err, row) {
-                console.log(row);
-            });
-
+            
             //console.log('database created');
             cb(null,201);
         });  
