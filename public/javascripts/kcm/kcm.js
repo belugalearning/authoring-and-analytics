@@ -1,7 +1,14 @@
 //(function($) {
+
+    var tempHardCodedLinkColours = {
+        'Prerequisite': '#000'
+        , 'Mastery': '#60f'
+    };
+
     var nodeEnoughProblems = 5
       , windowPadding = 4, genPadding = 6
-      , svg, gZoom, gWrapper, gLinks, gPrereqs, gNodes
+      , svg, gZoom, gWrapper, gLinks, gNodes
+      , relNameContainerDict = {}
       , inFocus = null
       , l = 400
       , nodeTextPadding = 5
@@ -99,10 +106,6 @@
             .on("mousedown", clickGainFocus)
         ;
         gLinks = gWrapper.append("g");
-
-        gPrereqs = gLinks.append("g")
-            .attr('data-type', 'binary-relation')
-            .attr('data-id', $.grep(kcm.binaryRelations, function(rel) { return rel.name == 'Prerequisite'; })[0]._id);
         gNodes = gWrapper.append("g");
 
         $(window).resize();
@@ -209,19 +212,22 @@
     }
 
     function updateMapLinks() {
-        var prereqs = $.grep(kcm.binaryRelations, function(rel) {
-            return rel.name == 'Prerequisite';
-        });
-
-        if (prereqs.length) {
-            var links = gPrereqs.selectAll('g.link')
-                .data(prereqs[0].members)
+        $.each(kcm.binaryRelations, function(i, br) {
+            if (!relNameContainerDict[br.name]) {
+                relNameContainerDict[br.name] = gLinks.append("g")
+                    .attr('data-type', 'binary-relation')
+                    .attr('data-id', br._id)
+                ;
+            }
+            var g = relNameContainerDict[br.name]
+              , links = g.selectAll('g.link').data(br.members)
+              , linkCol = tempHardCodedLinkColours[br.name] || '#ccc'
             ;
+            console.log(linkCol, br.name);
 
             links
                 .enter()
                 .append('g')
-                    .attr('id', function(d) { return d.id; })
                     .attr('class', 'link')
                     .attr("data-focusable", "true")
                     .attr('data-type', 'binary-relation-pair')
@@ -232,7 +238,7 @@
 
             links.exit().remove();
 
-            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem-bg')
+            g.selectAll('g.link').selectAll('rect.arrow-stem-bg')
                 .data(function(d) { return [d]; })
                 .enter()
                 .append("rect")
@@ -242,26 +248,27 @@
                     .attr("width", 1)
                     .attr("height", 10)
             ;
-            gPrereqs.selectAll('g.link').selectAll('rect.arrow-stem')
+            g.selectAll('g.link').selectAll('rect.arrow-stem')
                 .data(function(d) { return [d]; })
                 .enter()
                 .append("rect")
                     .attr("class", "arrow-stem")
                     .attr("x", 0)
-                    .attr("y", -0.5)
+                    .attr("y", -1.5)
                     .attr("width", 1)
-                    .attr("height", 1)
-                    .attr("style", "fill:#000;")
+                    .attr("height", 3)
+                    .attr("style", "fill:"+linkCol+";")
             ;
-            gPrereqs.selectAll('g.link').selectAll('path.arrow-head')
+            g.selectAll('g.link').selectAll('path.arrow-head')
                 .data(function(d) { return [d]; })
                 .enter()
                 .append('path') 
                     .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
                     .attr("class", "arrow-head")
-                    .attr('style', 'fill:#222; stroke-width:0;')
+                    .attr('style', 'fill:'+linkCol+'; stroke-width:0;')
             ;
-        }
+        });
+
         $('g.link').arrowRedraw();
     }
 
