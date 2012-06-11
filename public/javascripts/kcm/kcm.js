@@ -168,7 +168,7 @@
                 .attr('id', function(d) { return d._id; })
                 .attr('data-type', 'concept-node')
                 .attr('class', 'node')
-                .attr('class', setNodeProblemClasses)
+                .attr('class', setNodeColour)
                 .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
                 .attr("data-focusable", "true")
                 .on("mousedown", clickGainFocus)
@@ -273,10 +273,14 @@
         return null;
     }
 
-    function setNodeProblemClasses(cn) {
-        var classes = d3.select(this).attr('class').replace(/\s*(no-problems|enough-problems)\b/g, '')
+    function setNodeColour(cn) {
+        var classes = d3.select(this).attr('class').replace(/\s*(no-problems|enough-problems|mastery)\b/g, '')
           , numProblems = 0
         ;
+        
+        if (~cn.tags.indexOf('mastery')) {
+            return 'mastery ' + classes;
+        }
 
         $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
 
@@ -626,6 +630,11 @@
                     break;
                 }
             break;
+            case 'm':
+                if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
+                    insertMasteryNode(mouse.xmap, mouse.ymap);
+                }
+            break;
             case 'n':
                 if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
                     insertConceptNode(mouse.xmap, mouse.ymap);
@@ -694,6 +703,34 @@
         }
     }
 
+    function insertMasteryNode(x, y) {
+        $.ajax({
+            url:'/kcm/concept-nodes/insert'
+            , type:'POST'
+            , contentType:'application/json'
+            , data:JSON.stringify({ nodeDescription:'[NEW CONCEPT NODE]', x:x, y:y })
+            , success:function(cn) {
+                var tag = 'mastery';
+                $.ajax({
+                    url:'/kcm/insert-concept-node-tag'
+                    , type:'POST'
+                    , contentType:'application/json'
+                    , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
+                    , success: function(cnRev) {
+                        cn.tags.push(tag);
+                        cn._rev = cnRev;
+                        kcm.nodes.push(cn);
+                        updateMapNodes();
+                        setFocus($('g#'+cn._id)[0]);
+                        $('#concept-description').select();
+                    }
+                    , error: ajaxErrorHandler('Error adding tag "mastery" to new mastery node')
+                });
+            }
+            , error:ajaxErrorHandler('Error inserting new mastery node')
+        });
+    }
+
     function insertConceptNode(x, y) {
         $.ajax({
             url:'/kcm/concept-nodes/insert'
@@ -727,6 +764,7 @@
                         cn.tags.push(tag);
                         cn._rev = cnRev;
                         displayConceptNodeProperties(cn);
+                        d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
                     }
                     , error: ajaxErrorHandler('Error adding new tag to concept node')
                 });
@@ -754,6 +792,7 @@
                     cn._rev = cnRev;
                     cn.tags.splice(tag.index(), 1);
                     displayConceptNodeProperties(cn);
+                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
                 }
                 , error: ajaxErrorHandler('error deleting concept node tag')
             });
@@ -803,6 +842,7 @@
                     cn._rev = cnRev;
                     cn.tags.splice(tagIx, 1, $input.val());
                     displayConceptNodeProperties(cn);
+                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
                 }
                 , error: function() {
                     if (tagIx == 0) $('#concept-tags').prepend($tag);
@@ -866,7 +906,7 @@
                     cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
                     delete kcm.pipelines[plId];
                     displayConceptNodeProperties(cn);
-                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
+                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
                 }
                 , error:ajaxErrorHandler('error deleting pipeline')
             });
@@ -931,7 +971,7 @@
                             .before($.tmpl('plProblemTR', o.problemDetails));
                 }
 
-                d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
+                d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
             }
             , error: ajaxErrorHandler('Error uploading problems to pipeline.')
 
@@ -964,7 +1004,7 @@
                           , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
                         ;
                         if (!plWithProbs.length) {
-                            d3.select($('g#'+cn._id)[0]).attr('class', setNodeProblemClasses);
+                            d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
                         }
                     }
                 }
