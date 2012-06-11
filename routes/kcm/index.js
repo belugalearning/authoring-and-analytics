@@ -283,9 +283,10 @@ module.exports = function(model) {
                 });
             }
         }
-        , deletePairFromBinaryRelation: function(req, res) {
-            console.log(req.params.binaryRelationId, req.body.pair);
-            res.send(200);
+        , removePairFromBinaryRelation: function(req, res) {
+            kcmModel.removeOrderedPairFromBinaryRelation(req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode, rev) {
+                res.send(e || rev, statusCode || 500);
+            });
         }
     };
 };

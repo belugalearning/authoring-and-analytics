@@ -41,6 +41,7 @@ module.exports = function(config) {
         , editConceptNodeTag: editConceptNodeTag
         , insertBinaryRelation: insertBinaryRelation
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
+        , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
         , getDoc: getDoc
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
@@ -996,7 +997,7 @@ function insertBinaryRelation(name, description, callback) {
 function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, callback) {
     getDoc(relationId, function(e,r,b) {
         if (200 != r.statusCode)  {
-            if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not added the relation', e),r.statusCode);
+            if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not added to the relation', e),r.statusCode);
             return;
         }
 
@@ -1032,6 +1033,46 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, el1Id, el2Id, c
             
             relation._rev = JSON.parse(b).rev;
             callback(null, 201, relation);
+        });
+    });
+}
+
+function removeOrderedPairFromBinaryRelation(relationId, relationRev, pair, callback) {
+    getDoc(relationId, function(e,r,b) {
+        if (200 != r.statusCode)  {
+            if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not removed from the relation', e),r.statusCode);
+            return;
+        }
+
+        var relation = JSON.parse(b);
+
+        if ('relation' != relation.type || 'binary' != relation.relationType) {
+            callback(util.format('document with id "%s" does not represent a binary relation - pair not removed from relation', relationId), r.statusCode);
+            return;
+        }
+
+        if (relation._rev != relationRev) {
+            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s" on document id:"%s"', relationRev, relation._rev, relationId), 500);
+            return;
+        }
+
+        var match = _.find(relation.members, function(p) {
+            return pair[0] == p[0] && pair[1] == p[1];
+        });
+
+        if (!match) {
+            callback(util.format('ordered pair ["%s", "%s"] not a member of binary relation id="%s"', pair[0], pair[1], relationId), 500);
+            return;
+        }
+
+        relation.members.splice(relation.members.indexOf(match), 1);
+
+        updateDoc(relation, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback(util.format('Error updating relation. Database reported error:"%s". The pair was not removed from the relation', e), r.statusCode);
+                return;
+            }
+            callback(null, 201, JSON.parse(b).rev);
         });
     });
 }

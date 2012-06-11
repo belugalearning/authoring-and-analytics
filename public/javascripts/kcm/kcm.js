@@ -223,7 +223,6 @@
               , links = g.selectAll('g.link').data(br.members)
               , linkCol = tempHardCodedLinkColours[br.name] || '#ccc'
             ;
-            console.log(linkCol, br.name);
 
             links
                 .enter()
@@ -578,11 +577,18 @@
     
     function mouseDownLink(e) {
         if (/\(delete\)/.test(mouseInteractionModifiers)) {
+            var $lk = $(e.target).closest('[data-type="binary-relation-pair"]')
+              , tId = $lk.attr('data-tail-node')
+              , hId = $lk.attr('data-head-node')
+              , br = binaryRelationWithId($lk.closest('g[data-type="binary-relation"]').attr('data-id'))
+            ;  
+
             $(window)
                 .off('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
                 .off('keydown keyup', keyCommandListener)
             ;
-            showConfirmCancelModal('You are about to delete a link. Are you sure?', function(doDelete) {
+
+            showConfirmCancelModal('You are about to delete a "' + br.name + '" link. Are you sure?', function(doDelete) {
                 mouseInteractionModifiers = '';
                 updateMouseOverLink();
                 $('#wrapper').removeClass('delete-mode');
@@ -593,15 +599,19 @@
                 ;
 
                 if (true === doDelete) {
-                    console.log($(e.target).closest('g[data-type="binary-relation"]'));
-                    console.log('delete the link. data:', d3.select(e.target).data()); return;
+                    var pair = $.grep(br.members, function(p) {
+                        return tId == p[0] && hId == p[1];
+                    })[0];
+
                     $.ajax({
-                        url:'/kcm/binary-relations/' + data._id + '/delete-pair'
+                        url:'/kcm/binary-relations/' + br._id + '/remove-pair'
                         , type:'POST'
                         , contentType:'application/json'
-                        , data: JSON.stringify({  })
-                        , success: function() {
-                            console.log('success');
+                        , data: JSON.stringify({ pair:pair, rev:br._rev })
+                        , success: function(brRev) {
+                            br._rev = brRev;
+                            br.members.splice(br.members.indexOf(pair), 1);
+                            $lk.remove();
                         }
                         , error: ajaxErrorHandler('Error deleting pair from binary relation.')
                     });

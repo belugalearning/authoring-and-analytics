@@ -112,7 +112,7 @@ app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
 app.get('/kcm/get-app-content', routes.kcm.getAppContent);
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
-app.post('/kcm/binary-relations/:binaryRelationId/delete-pair', routes.kcm.deletePairFromBinaryRelation);
+app.post('/kcm/binary-relations/:binaryRelationId/remove-pair', routes.kcm.removePairFromBinaryRelation);
 app.post('/kcm/add-pair-to-binary-relation', routes.kcm.addPairToBinaryRelation);
 app.post('/kcm/concept-nodes/insert', routes.kcm.insertConceptNode);
 app.post('/kcm/concept-nodes/:conceptNodeId/delete', routes.kcm.deleteConceptNode);
