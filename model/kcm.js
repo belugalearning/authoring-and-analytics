@@ -408,6 +408,22 @@ function updateViews(callback) {
                     }
                 }).toString()
             }
+
+            // Reduce off / Group-Level >= 2:   key: <tag>          value: <node_id>
+            // Group-Level 1:                   key: <tag>          value: <total_number_of_instances_of_tag>
+            // Group-Level 0:                   key: null           value: <total_number_of_tags>
+            , 'concept-node-tags': {
+                map: (function(doc) {
+                    if ('concept node' == doc.type) {
+                        doc.tags.forEach(function(tag) { emit(tag, doc._id); });
+                    }
+                }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    if (!rereduce) return values.length;
+                    else return sum(values);
+                }).toString()
+            }
+
             , 'pipelines-by-name': {
                 map: (function(doc) { if (doc.type == 'pipeline') emit(doc.name, null); }).toString()
             }
@@ -1616,6 +1632,8 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 function getAppContent(callback) {
     // TODO: include database revision
     var validPipelineNames = ['25May']
+      , guaranteeExportNodeTags = ['mastery']
+      , nodeTagBitCols = ['mastery']
       , path
       , dbPath
       , pdefsPath
@@ -1675,7 +1693,7 @@ function getAppContent(callback) {
                 jsonCallback(e || 'error retrieving pipelines', statusCode || 500);
                 return;
             }
-            getNodes(pipelines, function(e, statusCode, nodes) {
+            getNodes(_.keys(pipelines), function(e, statusCode, nodes) {
                 if (200 != statusCode) {
                     jsonCallback(e || 'error retrieving concept nodes', statusCode || 500);
                     return;
@@ -1687,7 +1705,7 @@ function getAppContent(callback) {
                         return;
                     }
 
-                    getProblems(nodes, function(e, statusCode, problems) {
+                    getProblems(pipelines, function(e, statusCode, problems) {
                         if (200 != statusCode) {
                             jsonCallback(e || 'error retrieving problems', statusCode || 500);
                             return;
@@ -1740,31 +1758,44 @@ function getAppContent(callback) {
             })(0);
         }
 
-        function getNodes(pipelines, cb) {
-            queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(_.keys(pipelines))), function(e,r,b) {
-                if (200 != r.statusCode) {
-                    cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+        function getNodes(pipelineIds, cb) {
+            getNodesByPipeline(function(plNodeDocs) {
+                getNodesByTag(function(tagNodeDocs) {
+                    var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
+                      , nodes = {}
+                    ;
+                    uniqDocs.forEach(function(doc) {
+                        var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
+                        nodeTagBitCols.forEach(function(tag) { n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0 });
+                        nodes[n.id] = n;
+                    });
+                    cb(null,200,nodes);
+                });
+            });
+            
+            function getNodesByPipeline(successCB) {
+                queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(pipelineIds)), function(e,r,b) {
+                    if (200 != r.statusCode) {
+                        cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+                        return;
+                    }
+                    successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
+                });
+            }
+
+            function getNodesByTag(successCB) {
+                if (!guaranteeExportNodeTags.length) {
+                    successCB([]);
                     return;
                 }
-
-                var rows = JSON.parse(b).rows
-                  , nodes = {}
-                ;
-
-                _.each(rows, function(row) {
-                    var cnId = row.id
-                      , plId = row.key
-                    ;
-
-                    if (!nodes[cnId]) {
-                        nodes[cnId] = { id:cnId, rev:row.doc._rev, pipelines:[], x:row.doc.x, y:row.doc.y };
+                queryView(encodeURI(util.format('concept-node-tags?keys=%s&include_docs=true&reduce=false', JSON.stringify(guaranteeExportNodeTags))), function(e,r,b) {
+                    if (200 != r.statusCode) {
+                        cb(util.format('Error retrieving concept node tags. db reported error: "%s"', e), r.statusCode || 500);
+                        return;
                     }
-
-                    nodes[cnId].pipelines.push(pipelines[plId]);
+                    successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
                 });
-
-                cb(null,200,nodes);
-            });
+            }
         }
 
         function getBinaryRelations(nodeIds, cb) {
@@ -1785,12 +1816,8 @@ function getAppContent(callback) {
             });
         };
 
-        function getProblems(conceptNodes, cb) {
-            var problemIds = [];
-            _.each(conceptNodes, function(n) {
-                problemIds = problemIds.concat(_.flatten(_.map(n.pipelines, function(pl) { return pl.problems; })));
-            });
-            problemIds = _.uniq(problemIds);
+        function getProblems(pipelines, cb) {
+            var problemIds = _.uniq(_.flatten(_.map(pipelines, function(pl) { return pl.problems; })));
 
             request(encodeURI(databaseURI + '_all_docs?keys=' + JSON.stringify(problemIds)), function(e,r,b) {
                 if (200 != r.statusCode) {
@@ -1841,10 +1868,16 @@ function getAppContent(callback) {
     function createSQLiteDB(content, cb) {
         var db = new sqlite3.Database(dbPath);
         db.serialize(function() {
-            db.run("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER)");
-            var cnIns = db.prepare("INSERT INTO ConceptNodes VALUES (?,?,?,?,?)");
+            var tagBitColDecs = _.map(nodeTagBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
+            var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s)", tagBitColDecs);
+            db.run(cnTableCreateScript);
+
+            var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagBitCols.length+1).join(',?')));
             content.conceptNodes.forEach(function(n) {
-                cnIns.run(n.id, n.rev, JSON.stringify(_.map(n.pipelines, function(pl) { return pl.id; })), n.x, n.y);
+                var tags = _.map(nodeTagBitCols, function(tag) { return n[tag]; })
+                  , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
+                ;
+                cnIns.run.apply(cnIns, cols);
             });
             cnIns.finalize();
 
