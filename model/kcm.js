@@ -1074,7 +1074,52 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                         callback('Error: one or both concept nodes are tagged "mastery". The prerequisite relationship is invalid for mastery nodes.', 500);
                         return;
                     }
-                    addPair();
+                    queryView(encodeURI('relations-by-name?include_docs=true&key="Mastery"'), function(e,r,b) {
+                        if (200 != r.statusCode) {
+                            callback(util.format('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
+                            return;
+                        }
+                        var rows = JSON.parse(b).rows
+                          , mastery = rows.length && rows[0].doc
+                          , ds = cn1
+                          , us = cn2
+                        ;
+                        if (!mastery) {
+                            callback('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Zero rows returned', 500);
+                            return;
+                        }
+
+                        var usMasteryPair = _.find(mastery.members, function(p) { return p[0] == us._id; })
+                          , dsMasteryPair = _.find(mastery.members, function(p) { return p[0] == ds._id; })
+                          , us_m_id = usMasteryPair && usMasteryPair[1]
+                          , ds_m_id = dsMasteryPair && dsMasteryPair[1]
+                        ;
+
+                        // if either node doesn't have mastery node, then creation of prerequisite link won't implicitly create bi-directional link between mastery nodes
+                        // likewise if both nodes have same mastery node
+                        if (!us_m_id || !ds_m_id || us_m_id == ds_m_id) {
+                            addPair();
+                            return;
+                        }
+
+                        // are the two mastery nodes linked in opposite direction to that which new prereq will bring about?
+                        var us_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == us_m_id; }), function(p) { return p[0]; })
+                          , ds_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == ds_m_id; }), function(p) { return p[0]; })
+                          , oppDirInterMasteryLinks = _.filter(relation.members, function(p) {
+                              return ~us_m_c_ids.indexOf(p[0]) && ~ds_m_c_ids.indexOf(p[1]);
+                          })
+                        ;
+
+                        // if two mastery nodes linked in opposite direction, then there's a problem
+                        if (oppDirInterMasteryLinks.length) {
+                            callback(util.format('Error: prerequisite relationship would bring about bi-directional link between mastery nodes with ids "%s" and "%s"', ds_m_id, us_m_id), 500);
+                            return;
+                        }
+
+                        // all good
+                        addPair();
+                        return;
+                    });
                 break;
                 case 'Mastery':
                     if (~cn1.tags.indexOf('mastery') || !~cn2.tags.indexOf('mastery')) {
@@ -1096,7 +1141,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                           , m = cn2
                         ;
                         if (!prereq) {
-                            callback('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Zero rows returned', r.statusCode);
+                            callback('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Zero rows returned', 500);
                             return;
                         }
                         // find the mastery nodes of c's prereqs/dependees
@@ -1159,7 +1204,9 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                             return;
                         }
 
+                        // all good
                         addPair();
+                        return;
                     });
                 break;
             }
