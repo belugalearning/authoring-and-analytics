@@ -61,7 +61,12 @@ module.exports = function(model) {
 
                     kcmModel.queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
                         map.binaryRelations = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
-                        res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
+
+                        kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
+                            map.chainedBinaryRelations = chainedBinaryRelations;
+
+                            res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
+                        });
                     });
                 });
             });

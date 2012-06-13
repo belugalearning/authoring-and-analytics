@@ -3,6 +3,7 @@
     var tempHardCodedLinkColours = {
         'Prerequisite': '#000'
         , 'Mastery': '#60f'
+        , 'InterMastery': '#0f0'
     };
 
     var nodeEnoughProblems = 5
@@ -212,10 +213,10 @@
     }
 
     function updateMapLinks() {
-        $.each(kcm.binaryRelations, function(i, br) {
+        $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
             if (!relNameContainerDict[br.name]) {
                 relNameContainerDict[br.name] = gLinks.append("g")
-                    .attr('data-type', 'binary-relation')
+                    .attr('data-type', function() { console.log(arguments); return br.relationType + '-relation'; })
                     .attr('data-id', br._id)
                 ;
             }
@@ -229,7 +230,7 @@
                 .append('g')
                     .attr('class', 'link')
                     .attr("data-focusable", "true")
-                    .attr('data-type', 'binary-relation-pair')
+                    .attr('data-type', function() { return br.relationType + '-relation-pair' })
                     .attr("data-head-node", function(d) { return d[1]; })
                     .attr("data-tail-node", function(d) { return d[0]; })                
                     .on("mousedown", clickGainFocus)
