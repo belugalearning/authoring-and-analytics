@@ -40,6 +40,7 @@ module.exports = function(config) {
         , deleteConceptNodeTag: deleteConceptNodeTag
         , editConceptNodeTag: editConceptNodeTag
         , insertBinaryRelation: insertBinaryRelation
+        , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
         , getDoc: getDoc
@@ -732,6 +733,7 @@ function deleteConceptNode(conceptNodeId, conceptNodeRev, callback) {
         }
 
         // N.B. if/when relations other than binary relations come into being, this function will need updating
+        // TODO: genericise
         // remove from binary relations
         
         queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
@@ -975,6 +977,72 @@ function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText
                 return;
             }
             callback(null, 201, JSON.parse(b).rev);
+        });
+    });
+}
+
+function getChainedBinaryRelationsWithMembers(callback) {
+    queryView(encodeURI('relations-by-relation-type?key="chained-binary"&include_docs=true'), function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('could not retrieve chained relations. Database reported error: "%s"', e), r.statusCode || 500);
+            return;
+        }
+
+        var cRs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
+
+        var bRIds = _.uniq(_.flatten(
+              _.map(
+                  cRs
+                  , function(cR) { return _.map(cR.chain, function(link) { return link.relation; })
+              })
+        ));
+
+        request(encodeURI(util.format('%s_all_docs?include_docs=true&keys=%s', databaseURI, JSON.stringify(bRIds))), function(e,r,b) {
+            if (200 != r.statusCode) {
+                callback(util.format('could not retrieve binary relations from chained relations. Database reported error: "%s"', e), r.statusCode || 500);
+                return;
+            }
+
+            var bRs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
+
+            cRs.forEach(function(cR) {
+                var chainLength = cR.chain.length, i, cRMembers;
+                for (i=0; i<chainLength; i++) {
+                    var link = cR.chain[i]
+                      , tIx = link.direction == -1 ? 1 : 0
+                      , hIx = 1  - tIx
+                      , bR = _.find(bRs, function(r) { return link.relation == r._id; })
+                    ;
+
+                    if (i == 0) {
+                        cRMembers = bR.members;
+                        if (tIx == 1) cRMembers = _.map(cRMembers, function(cRM) { return [cRM[1],cRM[0]]; });
+                    } else {
+                        cRMembers = _.map(
+                            cRMembers
+                            , function(cRM) {
+                                return _.map(
+                                    _.filter(bR.members, function(bRP) { return cRM[1] == bRP[tIx]; })
+                                    , function(bRP) { return [ cRM[0], bRP[hIx] ]; }
+                                );
+                            }
+                        );
+                        cRMembers = _.filter(cRMembers, function(cRM) { return cRM.length; });
+                        if (!cRMembers.length) break;
+                        cRMembers = _.flatten(cRMembers, true);
+                    }
+                }
+
+                if (cRMembers.length) {
+                    cRMembers = _.chain(cRMembers)
+                        .groupBy(function(m) { return m.join(','); })
+                        .map(function(m) { return [ m[0][0], m[0][1], m.length ]; })
+                        .value();
+                }
+
+                cR.members = cRMembers;
+            });
+            callback(null,200,cRs);
         });
     });
 }
