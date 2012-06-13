@@ -981,8 +981,19 @@ function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText
     });
 }
 
-function getChainedBinaryRelationsWithMembers(callback) {
-    queryView(encodeURI('relations-by-relation-type?key="chained-binary"&include_docs=true'), function(e,r,b) {
+function getChainedBinaryRelationsWithMembers(relationIds, callback) {
+    if ('function' == typeof relationIds) {
+        callback = relationIds;
+        relationIds = null;
+    }
+
+    if (relationIds) {
+        request(encodeURI(databaseURI + '_all_docs?include_docs=true&keys=' + JSON.stringify(relationIds)), next);
+    } else {
+        queryView(encodeURI('relations-by-relation-type?key="chained-binary"&include_docs=true'), next);
+    }
+
+    function next(e,r,b) {
         if (200 != r.statusCode) {
             callback(util.format('could not retrieve chained relations. Database reported error: "%s"', e), r.statusCode || 500);
             return;
@@ -1044,7 +1055,7 @@ function getChainedBinaryRelationsWithMembers(callback) {
             });
             callback(null,200,cRs);
         });
-    });
+    }
 }
 
 function insertBinaryRelation(name, description, callback) {
@@ -1097,7 +1108,33 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                 }
 
                 relation._rev = JSON.parse(b).rev;
-                callback(null, 201, relation);
+
+                queryView(encodeURI('relations-by-relation-type?include_docs=true&key="chained-binary"'), function(e,r,b) {
+                    if (200 != r.statusCode) { 
+                        // don't throw error as it's not especially important
+                        // TODO: this error however should be logged somewhere for developer attention
+                        callback(null, 201, relation);
+                        return;
+                    }
+
+                    var cRIds = _.chain(JSON.parse(b).rows)
+                        .map(function(r) { return r.doc; })
+                        .filter(function(r) {
+                            return ~_.pluck(r.chain, 'relation').indexOf(relation._id);
+                        })
+                        .pluck('_id')
+                        .value()
+                    ;
+
+                    if (!cRIds.length) {
+                        callback(null,201,relation);
+                        return;
+                    }
+
+                    getChainedBinaryRelationsWithMembers(cRIds, function(e, statusCode, cRs) {
+                        callback(null, 201, { relation:relation, chainedBinaryRelations:cRs });
+                    });
+                });
             });
         }
 
@@ -1120,181 +1157,180 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
             return;
         }
 
-        var nodesQueryURI = util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify([cn1Id, cn2Id]));
-        request({
-            uri: encodeURI(nodesQueryURI)
-            , headers: { 'content-type':'application/json', accepts:'application/json' }
-        }, function(e,r,b) {
-            if (200 != r.statusCode) {
-                callback(util.format('error retrieving nodes. Database reported error="%s". The pair was not added to the relation', e), r.statusCode);
-                return;
-            }
+        request(
+            encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify([cn1Id, cn2Id])))
+            , function(e,r,b) {
+                if (200 != r.statusCode) {
+                    callback(util.format('error retrieving nodes. Database reported error="%s". The pair was not added to the relation', e), r.statusCode);
+                    return;
+                }
 
-            var rows = JSON.parse(b).rows
-              , r1 = _.find(rows, function(r) { return cn1Id == r.id; })
-              , r2 = _.find(rows, function(r) { return cn2Id == r.id; })
-              , cn1 = r1 && r1.doc
-              , cn2 = r2 && r2.doc
-              , error = ''
-            ;
+                var rows = JSON.parse(b).rows
+                  , r1 = _.find(rows, function(r) { return cn1Id == r.id; })
+                  , r2 = _.find(rows, function(r) { return cn2Id == r.id; })
+                  , cn1 = r1 && r1.doc
+                  , cn2 = r2 && r2.doc
+                  , error = ''
+                ;
 
-            if (!cn1) error = util.format(' Concept node with id="%s" was not found.', cn1Id);
-            if (!cn2) error += util.format(' Concept node with id="%s" was not found.', cn2Id);
-            if (error.length) {
-                callback(util.format('Error retrieving concept nodes.%s', error), 404);
-                return;
-            }
+                if (!cn1) error = util.format(' Concept node with id="%s" was not found.', cn1Id);
+                if (!cn2) error += util.format(' Concept node with id="%s" was not found.', cn2Id);
+                if (error.length) {
+                    callback(util.format('Error retrieving concept nodes.%s', error), 404);
+                    return;
+                }
 
-            if ('concept node' != cn1.type) error = util.format(' Document with id="%s" has type="%s". Required:"concept node".', cn1Id, cn1.type);
-            if ('concept node' != cn2.type) error += util.format(' Document with id="%s" has type="%s". Required:"concept node".', cn2Id, cn2.type);
-            if (error.length) {
-                callback(util.format('Error retrieving concept nodes.%s', error), 500);
-                return;
-            }
-            // TODO: This block is an ugly ad hoc hack, get generic asap
-            switch (relation.name) {
-                case 'Prerequisite':
-                    if (~cn1.tags.indexOf('mastery') || ~cn2.tags.indexOf('mastery')) {
-                        callback('Error: one or both concept nodes are tagged "mastery". The prerequisite relationship is invalid for mastery nodes.', 500);
-                        return;
-                    }
-                    queryView(encodeURI('relations-by-name?include_docs=true&key="Mastery"'), function(e,r,b) {
-                        if (200 != r.statusCode) {
-                            callback(util.format('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
+                if ('concept node' != cn1.type) error = util.format(' Document with id="%s" has type="%s". Required:"concept node".', cn1Id, cn1.type);
+                if ('concept node' != cn2.type) error += util.format(' Document with id="%s" has type="%s". Required:"concept node".', cn2Id, cn2.type);
+                if (error.length) {
+                    callback(util.format('Error retrieving concept nodes.%s', error), 500);
+                    return;
+                }
+                // TODO: This block is an ugly ad hoc hack, get generic asap
+                switch (relation.name) {
+                    case 'Prerequisite':
+                        if (~cn1.tags.indexOf('mastery') || ~cn2.tags.indexOf('mastery')) {
+                            callback('Error: one or both concept nodes are tagged "mastery". The prerequisite relationship is invalid for mastery nodes.', 500);
                             return;
                         }
-                        var rows = JSON.parse(b).rows
-                          , mastery = rows.length && rows[0].doc
-                          , ds = cn1
-                          , us = cn2
-                        ;
-                        if (!mastery) {
-                            callback('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Zero rows returned', 500);
-                            return;
-                        }
+                        queryView(encodeURI('relations-by-name?include_docs=true&key="Mastery"'), function(e,r,b) {
+                            if (200 != r.statusCode) {
+                                callback(util.format('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
+                                return;
+                            }
+                            var rows = JSON.parse(b).rows
+                              , mastery = rows.length && rows[0].doc
+                              , ds = cn1
+                              , us = cn2
+                            ;
+                            if (!mastery) {
+                                callback('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Zero rows returned', 500);
+                                return;
+                            }
 
-                        var usMasteryPair = _.find(mastery.members, function(p) { return p[0] == us._id; })
-                          , dsMasteryPair = _.find(mastery.members, function(p) { return p[0] == ds._id; })
-                          , us_m_id = usMasteryPair && usMasteryPair[1]
-                          , ds_m_id = dsMasteryPair && dsMasteryPair[1]
-                        ;
+                            var usMasteryPair = _.find(mastery.members, function(p) { return p[0] == us._id; })
+                              , dsMasteryPair = _.find(mastery.members, function(p) { return p[0] == ds._id; })
+                              , us_m_id = usMasteryPair && usMasteryPair[1]
+                              , ds_m_id = dsMasteryPair && dsMasteryPair[1]
+                            ;
 
-                        // if either node doesn't have mastery node, then creation of prerequisite link won't implicitly create bi-directional link between mastery nodes
-                        // likewise if both nodes have same mastery node
-                        if (!us_m_id || !ds_m_id || us_m_id == ds_m_id) {
+                            // if either node doesn't have mastery node, then creation of prerequisite link won't implicitly create bi-directional link between mastery nodes
+                            // likewise if both nodes have same mastery node
+                            if (!us_m_id || !ds_m_id || us_m_id == ds_m_id) {
+                                addPair();
+                                return;
+                            }
+
+                            // are the two mastery nodes linked in opposite direction to that which new prereq will bring about?
+                            var us_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == us_m_id; }), function(p) { return p[0]; })
+                              , ds_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == ds_m_id; }), function(p) { return p[0]; })
+                              , oppDirInterMasteryLinks = _.filter(relation.members, function(p) {
+                                  return ~us_m_c_ids.indexOf(p[0]) && ~ds_m_c_ids.indexOf(p[1]);
+                              })
+                            ;
+
+                            // if two mastery nodes linked in opposite direction, then there's a problem
+                            if (oppDirInterMasteryLinks.length) {
+                                callback(util.format('Error: prerequisite relationship would bring about bi-directional link between mastery nodes with ids "%s" and "%s"', ds_m_id, us_m_id), 500);
+                                return;
+                            }
+
+                            // all good
                             addPair();
                             return;
-                        }
-
-                        // are the two mastery nodes linked in opposite direction to that which new prereq will bring about?
-                        var us_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == us_m_id; }), function(p) { return p[0]; })
-                          , ds_m_c_ids = _.map(_.filter(mastery.members, function(p) { return p[1] == ds_m_id; }), function(p) { return p[0]; })
-                          , oppDirInterMasteryLinks = _.filter(relation.members, function(p) {
-                              return ~us_m_c_ids.indexOf(p[0]) && ~ds_m_c_ids.indexOf(p[1]);
-                          })
-                        ;
-
-                        // if two mastery nodes linked in opposite direction, then there's a problem
-                        if (oppDirInterMasteryLinks.length) {
-                            callback(util.format('Error: prerequisite relationship would bring about bi-directional link between mastery nodes with ids "%s" and "%s"', ds_m_id, us_m_id), 500);
+                        });
+                    break;
+                    case 'Mastery':
+                        if (~cn1.tags.indexOf('mastery') || !~cn2.tags.indexOf('mastery')) {
+                            callback('Error: invalid "mastery" relationship. Link tail node MUST NOT be tagged "mastery" and link head node MUST be tagged "mastery"', 500);
                             return;
                         }
-
-                        // all good
-                        addPair();
-                        return;
-                    });
-                break;
-                case 'Mastery':
-                    if (~cn1.tags.indexOf('mastery') || !~cn2.tags.indexOf('mastery')) {
-                        callback('Error: invalid "mastery" relationship. Link tail node MUST NOT be tagged "mastery" and link head node MUST be tagged "mastery"', 500);
-                        return;
-                    }
-                    if (_.find(relation.members, function(p) { return p[0] == cn1Id; })) {
-                        callback(util.format('Error: node id="%s" already contributes towards a mastery node.', cn1Id), 500);
-                        return;
-                    }
-                    queryView(encodeURI('relations-by-name?include_docs=true&key="Prerequisite"'), function(e,r,b) {
-                        if (200 != r.statusCode) {
-                            callback(util.format('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
+                        if (_.find(relation.members, function(p) { return p[0] == cn1Id; })) {
+                            callback(util.format('Error: node id="%s" already contributes towards a mastery node.', cn1Id), 500);
                             return;
                         }
-                        var rows = JSON.parse(b).rows
-                          , prereq = rows.length && rows[0].doc
-                          , c = cn1
-                          , m = cn2
-                        ;
-                        if (!prereq) {
-                            callback('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Zero rows returned', 500);
-                            return;
-                        }
-                        // find the mastery nodes of c's prereqs/dependees
-                        // (1) ids of nodes for which c is a prerequisite
-                        var c_us_c_ids = _.uniq(_.map(
-                            _.filter(prereq.members, function(p) { return p[0] == c._id; })
-                            , function(p) { return p[1]; }
-                        ));
-                        // (2) ids of nodes that are prerequisites of c
-                        var c_ds_c_ids = _.uniq(_.map(
-                            _.filter(prereq.members, function(p) { return p[1] == c._id; })
-                            , function(p) { return p[0]; }
-                        ));
-                        // (3) ids of mastery nodes of (1) excluding m._id -- i.e. upstream mastery nodes of c
-                        var c_us_c_m_ids = _.uniq(_.map(
-                            _.filter(relation.members, function(p) { return m._id != p[1] && ~c_us_c_ids.indexOf(p[0]) })
-                            , function(p) { return p[1]; }
-                        ));
-                        // (4) ids of mastery nodes of (2) excluding m._id -- i.e. downstream mastery nodes of c
-                        var c_ds_c_m_ids = _.uniq(_.map(
-                            _.filter(relation.members, function(p) { return m._id != p[1] && ~c_ds_c_ids.indexOf(p[0]) })
-                            , function(p) { return p[1]; }
-                        ));
-                        // find the mastery nodes that m is connected to
-                        // (5) m's children ids
-                        var m_c_ids = _.map(
-                            _.filter(relation.members, function(p) { return p[1] == m._id; })
-                            , function(p) { return p[0]; }
-                        );
-                        // (6) m's children's upstream node ids
-                        var m_us_c_ids = _.uniq(_.map(
-                            _.filter(prereq.members, function(p) { return ~m_c_ids.indexOf(p[0]); })
-                            , function(p) { return p[1]; }
-                        ));
-                        // (7) m's children's downstream node ids
-                        var m_ds_c_ids = _.uniq(_.map(
-                            _.filter(prereq.members, function(p) { return ~m_c_ids.indexOf(p[1]); })
-                            , function(p) { return p[0]; }
-                        ));
-                        // (8) mastery nodes of (6) -- i.e. upstream mastery nodes of m
-                        var m_us_c_m_ids = _.uniq(_.map(
-                            _.filter(relation.members, function(p) { return m._id != p[1] && ~m_us_c_ids.indexOf(p[0]) })
-                            , function(p) { return p[1]; }
-                        ));
-                        // (9) mastery nodes of (7) -- i.e. downstream mastery nodes of m
-                        var m_ds_c_m_ids = _.uniq(_.map(
-                            _.filter(relation.members, function(p) { return m._id != p[1] && ~m_ds_c_ids.indexOf(p[0]) })
-                            , function(p) { return p[1]; }
-                        ));
+                        queryView(encodeURI('relations-by-name?include_docs=true&key="Prerequisite"'), function(e,r,b) {
+                            if (200 != r.statusCode) {
+                                callback(util.format('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
+                                return;
+                            }
+                            var rows = JSON.parse(b).rows
+                              , prereq = rows.length && rows[0].doc
+                              , c = cn1
+                              , m = cn2
+                            ;
+                            if (!prereq) {
+                                callback('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Zero rows returned', 500);
+                                return;
+                            }
+                            // find the mastery nodes of c's prereqs/dependees
+                            // (1) ids of nodes for which c is a prerequisite
+                            var c_us_c_ids = _.uniq(_.map(
+                                _.filter(prereq.members, function(p) { return p[0] == c._id; })
+                                , function(p) { return p[1]; }
+                            ));
+                            // (2) ids of nodes that are prerequisites of c
+                            var c_ds_c_ids = _.uniq(_.map(
+                                _.filter(prereq.members, function(p) { return p[1] == c._id; })
+                                , function(p) { return p[0]; }
+                            ));
+                            // (3) ids of mastery nodes of (1) excluding m._id -- i.e. upstream mastery nodes of c
+                            var c_us_c_m_ids = _.uniq(_.map(
+                                _.filter(relation.members, function(p) { return m._id != p[1] && ~c_us_c_ids.indexOf(p[0]) })
+                                , function(p) { return p[1]; }
+                            ));
+                            // (4) ids of mastery nodes of (2) excluding m._id -- i.e. downstream mastery nodes of c
+                            var c_ds_c_m_ids = _.uniq(_.map(
+                                _.filter(relation.members, function(p) { return m._id != p[1] && ~c_ds_c_ids.indexOf(p[0]) })
+                                , function(p) { return p[1]; }
+                            ));
+                            // find the mastery nodes that m is connected to
+                            // (5) m's children ids
+                            var m_c_ids = _.map(
+                                _.filter(relation.members, function(p) { return p[1] == m._id; })
+                                , function(p) { return p[0]; }
+                            );
+                            // (6) m's children's upstream node ids
+                            var m_us_c_ids = _.uniq(_.map(
+                                _.filter(prereq.members, function(p) { return ~m_c_ids.indexOf(p[0]); })
+                                , function(p) { return p[1]; }
+                            ));
+                            // (7) m's children's downstream node ids
+                            var m_ds_c_ids = _.uniq(_.map(
+                                _.filter(prereq.members, function(p) { return ~m_c_ids.indexOf(p[1]); })
+                                , function(p) { return p[0]; }
+                            ));
+                            // (8) mastery nodes of (6) -- i.e. upstream mastery nodes of m
+                            var m_us_c_m_ids = _.uniq(_.map(
+                                _.filter(relation.members, function(p) { return m._id != p[1] && ~m_us_c_ids.indexOf(p[0]) })
+                                , function(p) { return p[1]; }
+                            ));
+                            // (9) mastery nodes of (7) -- i.e. downstream mastery nodes of m
+                            var m_ds_c_m_ids = _.uniq(_.map(
+                                _.filter(relation.members, function(p) { return m._id != p[1] && ~m_ds_c_ids.indexOf(p[0]) })
+                                , function(p) { return p[1]; }
+                            ));
 
-                        // if there's any intersection between (3) and (9), or between (4) and (8), then there's circular dependency
-                        var is = _.intersection(c_us_c_m_ids, m_ds_c_m_ids).concat(_.intersection(c_ds_c_m_ids, m_us_c_m_ids));
-                        /*
-                        console.log(
-                            '\n\nc_us_c_ids: %s\nc_ds_c_ids: %s\nc_us_c_m_ids: %s\nc_ds_c_m_ids: %s\nm_c_ids: %s\nm_us_c_ids: %s\nm_ds_c_ids: %s\nm_us_c_m_ids: %s\nm_ds_c_m_ids: %s\nis: %s\n'
-                            , c_us_c_ids, c_ds_c_ids, c_us_c_m_ids, c_ds_c_m_ids, m_c_ids, m_us_c_ids, m_ds_c_ids, m_us_c_m_ids, m_ds_c_m_ids, is);
-                        //*/
-                        if (is.length) {
-                            callback(util.format('Error: adding this link would create bi-directional links between the selected mastery node and the following mastery node(s): %s.', JSON.stringify(is), 500));
-                            return;
-                        }
+                            // if there's any intersection between (3) and (9), or between (4) and (8), then there's circular dependency
+                            var is = _.intersection(c_us_c_m_ids, m_ds_c_m_ids).concat(_.intersection(c_ds_c_m_ids, m_us_c_m_ids));
+                            /*
+                            console.log(
+                                '\n\nc_us_c_ids: %s\nc_ds_c_ids: %s\nc_us_c_m_ids: %s\nc_ds_c_m_ids: %s\nm_c_ids: %s\nm_us_c_ids: %s\nm_ds_c_ids: %s\nm_us_c_m_ids: %s\nm_ds_c_m_ids: %s\nis: %s\n'
+                                , c_us_c_ids, c_ds_c_ids, c_us_c_m_ids, c_ds_c_m_ids, m_c_ids, m_us_c_ids, m_ds_c_ids, m_us_c_m_ids, m_ds_c_m_ids, is);
+                            //*/
+                            if (is.length) {
+                                callback(util.format('Error: adding this link would create bi-directional links between the selected mastery node and the following mastery node(s): %s.', JSON.stringify(is), 500));
+                                return;
+                            }
 
-                        // all good
-                        addPair();
-                        return;
-                    });
-                break;
+                            // all good
+                            addPair();
+                            return;
+                        });
+                    break;
+                }
             }
-        });
+        );
     });
 }
 

@@ -216,7 +216,7 @@
         $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
             if (!relNameContainerDict[br.name]) {
                 relNameContainerDict[br.name] = gLinks.append("g")
-                    .attr('data-type', function() { console.log(arguments); return br.relationType + '-relation'; })
+                    .attr('data-type', function() { return br.relationType + '-relation'; })
                     .attr('data-id', br._id)
                 ;
             }
@@ -485,11 +485,20 @@
                     , type:'POST'
                     , contentType:'application/json'
                     , data:JSON.stringify({ relation:relData, pair:pair })
-                    , success:function(relation) {
+                    , success:function(updates) {
                         if (newRel) {
-                            kcm.binaryRelations.push(relation);
+                            kcm.binaryRelations.push(updates.relation);
                         } else {
-                            kcm.binaryRelations.splice(kcm.binaryRelations.indexOf(rel), 1, relation);
+                            kcm.binaryRelations.splice(kcm.binaryRelations.indexOf(rel), 1, updates.relation);
+                        }
+
+                        var updatedCBRs = updates.chainedBinaryRelations;
+
+                        if (updatedCBRs && updatedCBRs.length) {
+                            $.each(updatedCBRs, function(i, uCBR) {
+                                var match = $.grep(kcm.chainedBinaryRelations, function(cBR) { return uCBR._id == cBR._id; });
+                                match[0].members = uCBR.members;
+                            });
                         }
                         updateMapLinks();
                     }
