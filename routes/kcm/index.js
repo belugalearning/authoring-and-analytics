@@ -95,7 +95,7 @@ module.exports = function(model) {
             });
         }
         , insertConceptNodeTag: function(req, res) {
-            kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tag, function(e, statusCode, conceptNodeRevision) {
+            kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, null, req.body.tag, function(e, statusCode, conceptNodeRevision) {
                 res.send(e || conceptNodeRevision, statusCode || 500);
             });
         }

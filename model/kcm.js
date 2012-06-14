@@ -850,8 +850,8 @@ function updateConceptNodeDescription(id, rev, desc, callback) {
     });
 }
 
-function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
-    if ('string' != typeof tag) {
+function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
+    if ('string' != typeof tagText) {
         callback('tag supplied is not a string', 500);
         return;
     }
@@ -875,7 +875,7 @@ function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
         }
 
         // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
-        if ('mastery' != tag) {
+        if ('mastery' != tagText) {
             insertTag();
         } else {
             queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function (e,r,b) {
@@ -899,7 +899,12 @@ function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
 
         function insertTag() {
             if (!cn.tags) cn.tags = [];
-            cn.tags.push(tag);
+            
+            if (Math.floor(tagIndex) === tagIndex && tagIndex >= 0 && tagIndex < cn.tags.length) {
+                cn.tags.splice(tagIndex, 0, tagText);
+            } else {
+                cn.tags.push(tagText);
+            }
 
             updateDoc(cn, function(e,r,b) {
                 if (201 != r.statusCode) {
@@ -1019,15 +1024,17 @@ function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText
             return;
         }
 
-        cn.tags.splice(tagIndex, 1, newText);
+        function updateTag() {
+            cn.tags.splice(tagIndex, 1, newText);
 
-        updateDoc(cn, function(e,r,b) {
-            if (201 != r.statusCode) {
-                callback('failed to update concept node', r.statusCode);
-                return;
-            }
-            callback(null, 201, JSON.parse(b).rev);
-        });
+            updateDoc(cn, function(e,r,b) {
+                if (201 != r.statusCode) {
+                    callback('failed to update concept node', r.statusCode);
+                    return;
+                }
+                callback(null, 201, JSON.parse(b).rev);
+            });
+        }
     });
 }
 
