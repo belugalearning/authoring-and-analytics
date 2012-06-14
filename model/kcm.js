@@ -1941,10 +1941,27 @@ function getAppContent(callback) {
                         id: row.id
                         , rev: row.doc._rev
                         , name: row.doc.name
-                        , pairs: _.filter(row.doc.members, function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]); })
+                        , members: _.filter(row.doc.members, function(m) { return ~nodeIds.indexOf(m[0]) && ~nodeIds.indexOf(m[1]); })
                     };
                 });
-                cb(null, 200, binaryRelations);
+                
+                getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
+                    if (200 != r.statusCode) {
+                        cb(util.format('Error retrieving chained binary relations. db reported error: "%s"', e), statusCode || 500);
+                        return;
+                    }
+
+                    binaryRelations = _.map(chainedBinaryRelations, function(cbr) {
+                        return {
+                            id: cbr._id
+                            , rev: cbr._rev
+                            , name: cbr.name
+                            , members: cbr.members
+                        };
+                    }).concat(binaryRelations);
+
+                    cb(null, 200, binaryRelations);
+                });
             });
         };
 
@@ -2027,14 +2044,14 @@ function getAppContent(callback) {
             });
             probsIns.finalize();
 
-            db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, pairs TEXT)");
+            db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT)");
             var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
             content.binaryRelations.forEach(function(br) {
-                brIns.run(br.id, br.rev, br.name, JSON.stringify(br.pairs));
+                brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members));
             });
             brIns.finalize();
 
-            /*
+            //*
             db.each("SELECT * FROM ConceptNodes", function(err, row) {
                 console.log('ConceptNode row:', JSON.stringify(row,null,2));
             });
