@@ -1113,7 +1113,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                     if (200 != r.statusCode) { 
                         // don't throw error as it's not especially important
                         // TODO: this error however should be logged somewhere for developer attention
-                        callback(null, 201, relation);
+                        callback(null, 201, { relation:relation });
                         return;
                     }
 
@@ -1127,7 +1127,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                     ;
 
                     if (!cRIds.length) {
-                        callback(null,201,relation);
+                        callback(null, 201, { relation:relation });
                         return;
                     }
 
@@ -1369,7 +1369,35 @@ function removeOrderedPairFromBinaryRelation(relationId, relationRev, pair, call
                 callback(util.format('Error updating relation. Database reported error:"%s". The pair was not removed from the relation', e), r.statusCode);
                 return;
             }
-            callback(null, 201, JSON.parse(b).rev);
+
+            var rev = JSON.parse(b).rev;
+
+            queryView(encodeURI('relations-by-relation-type?include_docs=true&key="chained-binary"'), function(e,r,b) {
+                if (200 != r.statusCode) { 
+                    // don't throw error as it's not especially important
+                    // TODO: this error however should be logged somewhere for developer attention
+                    callback(null, 201, { rev:rev });
+                    return;
+                }
+
+                var cRIds = _.chain(JSON.parse(b).rows)
+                    .map(function(r) { return r.doc; })
+                    .filter(function(r) {
+                        return ~_.pluck(r.chain, 'relation').indexOf(relation._id);
+                    })
+                    .pluck('_id')
+                    .value()
+                ;
+
+                if (!cRIds.length) {
+                    callback(null, 201, { rev:rev });
+                    return;
+                }
+
+                getChainedBinaryRelationsWithMembers(cRIds, function(e, statusCode, cRs) {
+                    callback(null, 201, { rev:rev, chainedBinaryRelations:cRs });
+                });
+            });
         });
     });
 }

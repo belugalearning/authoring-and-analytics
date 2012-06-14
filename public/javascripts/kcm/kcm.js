@@ -213,16 +213,21 @@
     }
 
     function updateMapLinks() {
+        // TODO: d3 exit is not necessarily removing the correct links. So removing all of them so that the correct ones are recreated works ok. But better solution required.
+        $('[data-type="chained-binary-relation-pair"]').remove();
+
         $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
-            if (!relNameContainerDict[br.name]) {
-                relNameContainerDict[br.name] = gLinks.append("g")
+            var g = relNameContainerDict[br.name];
+            if (!g) {
+                g = relNameContainerDict[br.name] = gLinks.append("g")
                     .attr('data-type', function() { return br.relationType + '-relation'; })
                     .attr('data-id', br._id)
                 ;
             }
-            var g = relNameContainerDict[br.name]
+
+            
+            var linkColour = tempHardCodedLinkColours[br.name] || '#ccc'
               , links = g.selectAll('g.link').data(br.members)
-              , linkCol = tempHardCodedLinkColours[br.name] || '#ccc'
             ;
 
             links
@@ -257,7 +262,7 @@
                     .attr("y", -1.5)
                     .attr("width", 1)
                     .attr("height", 3)
-                    .attr("style", "fill:"+linkCol+";")
+                    .attr("style", "fill:"+linkColour+";")
             ;
             g.selectAll('g.link').selectAll('path.arrow-head')
                 .data(function(d) { return [d]; })
@@ -265,7 +270,7 @@
                 .append('path') 
                     .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
                     .attr("class", "arrow-head")
-                    .attr('style', 'fill:'+linkCol+'; stroke-width:0;')
+                    .attr('style', 'fill:'+linkColour+'; stroke-width:0;')
             ;
         });
 
@@ -618,10 +623,20 @@
                         , type:'POST'
                         , contentType:'application/json'
                         , data: JSON.stringify({ pair:pair, rev:br._rev })
-                        , success: function(brRev) {
-                            br._rev = brRev;
+                        , success: function(updates) {
+                            br._rev = updates.rev;
                             br.members.splice(br.members.indexOf(pair), 1);
                             $lk.remove();
+
+                            var updatedCBRs = updates.chainedBinaryRelations;
+
+                            if (updatedCBRs && updatedCBRs.length) {
+                                $.each(updatedCBRs, function(i, uCBR) {
+                                    var match = $.grep(kcm.chainedBinaryRelations, function(cBR) { return uCBR._id == cBR._id; });
+                                    match[0].members = uCBR.members;
+                                });
+                            }
+                            updateMapLinks();
                         }
                         , error: ajaxErrorHandler('Error deleting pair from binary relation.')
                     });
