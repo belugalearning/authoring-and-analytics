@@ -988,53 +988,12 @@ function deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, 
 }
 
 function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText, newText, callback) {
-    if ('string' != typeof currentText) {
-        callback('current text supplied for tag is not a string', 500);
-        return;
-    }
-    if ('string' != typeof newText) {
-        callback('new text supplied for tag is not a string', 500);
-        return;
-    }
-    if (tagIndex != parseInt(tagIndex)) {
-        callback('tagIndex is not an integer', 500);
-        return;
-    }
-
-    getDoc(conceptNodeId, function(e,r,b) {
-        if (200 != r.statusCode) {
-            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode);
+    deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText, function(e, statusCode, cnRev) {
+        if (201 != statusCode) {
+            callback(e, statusCode);
             return;
         }
-
-        var cn = JSON.parse(b);
-
-        if (cn._rev != conceptNodeRev) {
-            callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 409);
-            return;
-        }
-
-        if ('concept node' != cn.type) {
-            callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode);
-            return;
-        }
-
-        if (!cn.tags || currentText != cn.tags[tagIndex]) {
-            callback(util.format('supplied text:"%s" does not match tag at supplied index:"%s".', currentText, tagIndex), 409);
-            return;
-        }
-
-        function updateTag() {
-            cn.tags.splice(tagIndex, 1, newText);
-
-            updateDoc(cn, function(e,r,b) {
-                if (201 != r.statusCode) {
-                    callback('failed to update concept node', r.statusCode);
-                    return;
-                }
-                callback(null, 201, JSON.parse(b).rev);
-            });
-        }
+        insertConceptNodeTag(conceptNodeId, cnRev, tagIndex, newText, callback);
     });
 }
 
