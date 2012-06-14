@@ -858,7 +858,7 @@ function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
 
     getDoc(conceptNodeId, function(e,r,b) {
         if (200 != r.statusCode) {
-            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode);
+            callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode || 500);
             return;
         }
 
@@ -874,16 +874,41 @@ function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tag, callback) {
             return;
         }
 
-        if (!cn.tags) cn.tags = [];
-        cn.tags.push(tag);
+        // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
+        if ('mastery' != tag) {
+            insertTag();
+        } else {
+            queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function (e,r,b) {
+                if (200 != r.statusCode) {
+                    callback(util.format('Could not retrieve "Prerequisite" binary relation. Database Error:"%s"', e), r.statusCode || 500);
+                    return;
+                }
 
-        updateDoc(cn, function(e,r,b) {
-            if (201 != r.statusCode) {
-                callback('failed to update concept node', r.statusCode);
-                return;
-            }
-            callback(null, 201, JSON.parse(b).rev);
-        });
+                var cnPrereqPair = _.find(JSON.parse(b).rows[0].doc.members, function(p) {
+                    return conceptNodeId == p[0] || conceptNodeId == p[1];
+                });
+
+                if (cnPrereqPair) {
+                    callback('node cannot be tagged mastery because it features in a "Prerequisite" relationship', 500);
+                    return;
+                } else {
+                    insertTag();
+                }
+            });
+        }
+
+        function insertTag() {
+            if (!cn.tags) cn.tags = [];
+            cn.tags.push(tag);
+
+            updateDoc(cn, function(e,r,b) {
+                if (201 != r.statusCode) {
+                    callback('failed to update concept node', r.statusCode);
+                    return;
+                }
+                callback(null, 201, JSON.parse(b).rev);
+            });
+        }
     });
 }
 
