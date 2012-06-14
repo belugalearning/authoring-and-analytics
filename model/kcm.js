@@ -2051,7 +2051,7 @@ function getAppContent(callback) {
             });
             brIns.finalize();
 
-            //*
+            /*
             db.each("SELECT * FROM ConceptNodes", function(err, row) {
                 console.log('ConceptNode row:', JSON.stringify(row,null,2));
             });
