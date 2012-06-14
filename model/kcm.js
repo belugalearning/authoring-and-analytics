@@ -945,15 +945,40 @@ function deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, 
             return;
         }
 
-        cn.tags.splice(tagIndex, 1);
+        // TODO: This is ad hoc consideration of mastery tags in combo with Mastery relation. Genericise
+        if ('mastery' != tagText) {
+            deleteTag();
+        } else {
+            queryView(encodeURI('relations-by-name?key="Mastery"&include_docs=true'), function (e,r,b) {
+                if (200 != r.statusCode) {
+                    callback(util.format('Could not retrieve "Mastery" binary relation. Database Error:"%s"', e), r.statusCode || 500);
+                    return;
+                }
 
-        updateDoc(cn, function(e,r,b) {
-            if (201 != r.statusCode) {
-                callback('failed to update concept node', r.statusCode);
-                return;
-            }
-            callback(null, 201, JSON.parse(b).rev);
-        });
+                var cnMasteryPair = _.find(JSON.parse(b).rows[0].doc.members, function(p) {
+                    return conceptNodeId == p[0] || conceptNodeId == p[1];
+                });
+
+                if (cnMasteryPair) {
+                    callback('cannot remove tag "mastery" from node because node features in a "Mastery" relationship', 500);
+                    return;
+                } else {
+                    deleteTag();
+                }
+            });
+        }
+
+        function deleteTag() {
+            cn.tags.splice(tagIndex, 1);
+
+            updateDoc(cn, function(e,r,b) {
+                if (201 != r.statusCode) {
+                    callback('failed to update concept node', r.statusCode);
+                    return;
+                }
+                callback(null, 201, JSON.parse(b).rev);
+            });
+        }
     });
 }
 
