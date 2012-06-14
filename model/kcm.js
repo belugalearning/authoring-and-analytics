@@ -1782,6 +1782,7 @@ function getAppContent(callback) {
     var validPipelineNames = ['25May']
       , guaranteeExportNodeTags = ['mastery']
       , nodeTagBitCols = ['mastery']
+      , nodeTagPrefixTextCols = ['jtd']
       , path
       , dbPath
       , pdefsPath
@@ -1911,10 +1912,22 @@ function getAppContent(callback) {
                 getNodesByTag(function(tagNodeDocs) {
                     var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
                       , nodes = {}
+                      , tagTextRegExps = _.map(nodeTagPrefixTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
                     ;
                     uniqDocs.forEach(function(doc) {
                         var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
-                        nodeTagBitCols.forEach(function(tag) { n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0 });
+
+                        nodeTagBitCols.forEach(function(tag) {
+                            n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
+                        });
+
+                        nodeTagPrefixTextCols.forEach(function(tagPrefix, i) {
+                            var re = tagTextRegExps[i]
+                              , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
+                            ;
+                            n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
+                        });
+
                         nodes[n.id] = n;
                     });
                     cb(null,200,nodes);
@@ -2034,12 +2047,13 @@ function getAppContent(callback) {
         var db = new sqlite3.Database(dbPath);
         db.serialize(function() {
             var tagBitColDecs = _.map(nodeTagBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
-            var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s)", tagBitColDecs);
+            var tagTextColDecs = _.map(nodeTagPrefixTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix); }).join('');
+            var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
             db.run(cnTableCreateScript);
 
-            var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagBitCols.length+1).join(',?')));
+            var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagBitCols.length + nodeTagPrefixTextCols.length + 1).join(',?')));
             content.conceptNodes.forEach(function(n) {
-                var tags = _.map(nodeTagBitCols, function(tag) { return n[tag]; })
+                var tags = _.map(nodeTagBitCols.concat(nodeTagPrefixTextCols), function(tag) { return n[tag]; })
                   , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
                 ;
                 cnIns.run.apply(cnIns, cols);
