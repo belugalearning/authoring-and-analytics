@@ -1778,329 +1778,335 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 }
 
 function getAppContent(callback) {
-    // TODO: include database revision
-    var validPipelineNames = ['25May']
-      , guaranteeExportNodeTags = ['mastery']
-      , nodeTagBitCols = ['mastery']
-      , nodeTagPrefixTextCols = ['jtd']
-      , path
-      , dbPath
-      , pdefsPath
-    ;
-
-    //console.log('get app content...');
-
-    request(couchServerURI + '_uuids', function(e,r,b) {
+    getDoc('kcm-export-settings', function(e,r,b) {
         if (200 != r.statusCode) {
-            callback(e || 'error generating uuid', statusCode || 500);
+            callback('Could not retrieve export settings', 500);
             return;
         }
 
-        path = '/tmp/' + JSON.parse(b).uuids[0];
-        pdefsPath = path + '/pdefs';
-        dbPath = path + '/content.db';
+        var exportSettings = JSON.parse(b)
+          , exportAllNodes  = exportSettings.exportAllNodes === true
+          , nodeInclusionTags = exportSettings.nodeInclusionTags
+          , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
+          , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
+          , pipelineNames = exportSettings.pipelineNames
+          , path
+          , dbPath
+          , pdefsPath
+        ;
 
-        fs.mkdirSync(path);
-        fs.mkdirSync(pdefsPath);
-
-        //console.log('content path:', path);
-
-        getAppContentJSON(function(e, statusCode, content) {
-            if (200 != statusCode) {
-                callback(e || 'error retrieving app json content', statusCode || 500);
+        request(couchServerURI + '_uuids', function(e,r,b) {
+            if (200 != r.statusCode) {
+                callback(e || 'error generating uuid', statusCode || 500);
                 return;
             }
 
-            //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2));
+            path = '/tmp/' + JSON.parse(b).uuids[0];
+            pdefsPath = path + '/pdefs';
+            dbPath = path + '/content.db';
 
-            createSQLiteDB(content, function(e, statusCode) {
-                if (201 != statusCode) {
-                    callback(e || 'error creating content database', statusCode || 500);
-                    return;
-                }
-                writePDefs(content.problems, function(e, statusCode, pdefs) {
-                    if (201 != statusCode) {
-                        callback(e || 'error writing problem pdefs', statusCode || 500);
-                        return;
-                    }
+            fs.mkdirSync(path);
+            fs.mkdirSync(pdefsPath);
 
-                    exec('zip content.zip -r pdefs content.db', { cwd:path }, function(e, stdout, stderr) {
-                        if (e) {
-                            callback(util.format('error zipping content:"%s"', e), 500);
-                            return;
-                        }
-                        callback(null, 200, path + '/content.zip');
-                    });
-                });
-            });
-        });
-    });
+            //console.log('content path:', path);
 
-    function getAppContentJSON(jsonCallback) {
-        getPipelines(function(e, statusCode, pipelines) {
-            if (200 != statusCode) {
-                jsonCallback(e || 'error retrieving pipelines', statusCode || 500);
-                return;
-            }
-            getNodes(_.keys(pipelines), function(e, statusCode, nodes) {
+            getAppContentJSON(function(e, statusCode, content) {
                 if (200 != statusCode) {
-                    jsonCallback(e || 'error retrieving concept nodes', statusCode || 500);
+                    callback(e || 'error retrieving app json content', statusCode || 500);
                     return;
                 }
 
-                getBinaryRelations(_.keys(nodes), function(e, statusCode, binaryRelations) {
-                    if (200 != statusCode) {
-                        jsonCallback(e || 'error retrieving binary relations', statusCode || 500);
+                //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2));
+
+                createSQLiteDB(content, function(e, statusCode) {
+                    if (201 != statusCode) {
+                        callback(e || 'error creating content database', statusCode || 500);
                         return;
                     }
-
-                    getProblems(pipelines, function(e, statusCode, problems) {
-                        if (200 != statusCode) {
-                            jsonCallback(e || 'error retrieving problems', statusCode || 500);
+                    writePDefs(content.problems, function(e, statusCode, pdefs) {
+                        if (201 != statusCode) {
+                            callback(e || 'error writing problem pdefs', statusCode || 500);
                             return;
                         }
-                        //console.log('app content JSON generated.');
-                        jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:problems });
+
+                        exec('zip content.zip -r pdefs content.db', { cwd:path }, function(e, stdout, stderr) {
+                            if (e) {
+                                callback(util.format('error zipping content:"%s"', e), 500);
+                                return;
+                            }
+                            callback(null, 200, path + '/content.zip');
+                        });
                     });
                 });
             });
         });
 
-        function getPipelines(cb) {
-            var len = validPipelineNames.length
-              , pipelines = {}
-            ;
+        function getAppContentJSON(jsonCallback) {
+            getPipelines(function(e, statusCode, pipelines) {
+                if (200 != statusCode) {
+                    jsonCallback(e || 'error retrieving pipelines', statusCode || 500);
+                    return;
+                }
+                getNodes(_.keys(pipelines), function(e, statusCode, nodes) {
+                    if (200 != statusCode) {
+                        jsonCallback(e || 'error retrieving concept nodes', statusCode || 500);
+                        return;
+                    }
 
-            if (!len) {
-                cb('case when validPipelineNames.length == 0 not handled', 500);
-                return;
-            }
-
-            (function getPipelinesMatchingNameAtIndex(i) {
-                var name = validPipelineNames[i]
-                  , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
-                ;
-                if (len) {
-                    queryView(qry, function(e,r,b) {
-                        if (200 != r.statusCode) {
-                            cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                    getBinaryRelations(_.keys(nodes), function(e, statusCode, binaryRelations) {
+                        if (200 != statusCode) {
+                            jsonCallback(e || 'error retrieving binary relations', statusCode || 500);
                             return;
                         }
 
-                        var rows = JSON.parse(b).rows
-                          , row, key
-                          , len = rows.length, i
-                        ;
-
-                        for (i=0; i<len; i++) {
-                            row = rows[i];
-                            pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
-                        };
-
-                        if (++i < len) {
-                            getPipelinesMatchingNameAtIndex(i);
-                        } else {
-                            cb (null, 200, pipelines);
-                        }
-                    });
-                }
-            })(0);
-        }
-
-        function getNodes(pipelineIds, cb) {
-            getNodesByPipeline(function(plNodeDocs) {
-                getNodesByTag(function(tagNodeDocs) {
-                    var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
-                      , nodes = {}
-                      , tagTextRegExps = _.map(nodeTagPrefixTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
-                    ;
-                    uniqDocs.forEach(function(doc) {
-                        var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
-
-                        nodeTagBitCols.forEach(function(tag) {
-                            n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
+                        getProblems(pipelines, function(e, statusCode, problems) {
+                            if (200 != statusCode) {
+                                jsonCallback(e || 'error retrieving problems', statusCode || 500);
+                                return;
+                            }
+                            //console.log('app content JSON generated.');
+                            jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:problems });
                         });
-
-                        nodeTagPrefixTextCols.forEach(function(tagPrefix, i) {
-                            var re = tagTextRegExps[i]
-                              , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
-                            ;
-                            n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
-                        });
-
-                        nodes[n.id] = n;
                     });
-                    cb(null,200,nodes);
                 });
             });
-            
-            function getNodesByPipeline(successCB) {
-                queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(pipelineIds)), function(e,r,b) {
-                    if (200 != r.statusCode) {
-                        cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
-                        return;
-                    }
-                    successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
-                });
-            }
 
-            function getNodesByTag(successCB) {
-                if (!guaranteeExportNodeTags.length) {
-                    successCB([]);
+            function getPipelines(cb) {
+                var len = pipelineNames.length
+                  , pipelines = {}
+                ;
+
+                if (!len) {
+                    cb('case when pipelineNames.length == 0 not handled', 500);
                     return;
                 }
-                queryView(encodeURI(util.format('concept-node-tags?keys=%s&include_docs=true&reduce=false', JSON.stringify(guaranteeExportNodeTags))), function(e,r,b) {
-                    if (200 != r.statusCode) {
-                        cb(util.format('Error retrieving concept node tags. db reported error: "%s"', e), r.statusCode || 500);
-                        return;
-                    }
-                    successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
-                });
-            }
-        }
 
-        function getBinaryRelations(nodeIds, cb) {
-            queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
-                if (200 != r.statusCode) {
-                    cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
-                    return;
-                }
-                var binaryRelations = _.map(JSON.parse(b).rows, function(row) {
-                    return {
-                        id: row.id
-                        , rev: row.doc._rev
-                        , name: row.doc.name
-                        , members: _.filter(row.doc.members, function(m) { return ~nodeIds.indexOf(m[0]) && ~nodeIds.indexOf(m[1]); })
-                    };
+                (function getPipelinesMatchingNameAtIndex(i) {
+                    var name = pipelineNames[i]
+                      , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
+                    ;
+                    if (len) {
+                        queryView(qry, function(e,r,b) {
+                            if (200 != r.statusCode) {
+                                cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                                return;
+                            }
+
+                            var rows = JSON.parse(b).rows
+                              , row, key
+                              , len = rows.length, i
+                            ;
+
+                            for (i=0; i<len; i++) {
+                                row = rows[i];
+                                pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
+                            };
+
+                            if (++i < len) {
+                                getPipelinesMatchingNameAtIndex(i);
+                            } else {
+                                cb (null, 200, pipelines);
+                            }
+                        });
+                    }
+                })(0);
+            }
+
+            function getNodes(pipelineIds, cb) {
+                getNodesByPipeline(function(plNodeDocs) {
+                    getNodesByTag(function(tagNodeDocs) {
+                        var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
+                          , nodes = {}
+                          , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
+                        ;
+                        uniqDocs.forEach(function(doc) {
+                            var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
+
+                            nodeTagsToBitCols.forEach(function(tag) {
+                                n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
+                            });
+
+                            nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
+                                var re = tagTextRegExps[i]
+                                  , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
+                                ;
+                                n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
+                            });
+
+                            nodes[n.id] = n;
+                        });
+                        cb(null,200,nodes);
+                    });
                 });
                 
-                getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
+                function getNodesByPipeline(successCB) {
+                    queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(pipelineIds)), function(e,r,b) {
+                        if (200 != r.statusCode) {
+                            cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+                            return;
+                        }
+                        successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
+                    });
+                }
+
+                function getNodesByTag(successCB) {
+                    if (!nodeInclusionTags.length) {
+                        successCB([]);
+                        return;
+                    }
+                    queryView(encodeURI(util.format('concept-node-tags?keys=%s&include_docs=true&reduce=false', JSON.stringify(nodeInclusionTags))), function(e,r,b) {
+                        if (200 != r.statusCode) {
+                            cb(util.format('Error retrieving concept node tags. db reported error: "%s"', e), r.statusCode || 500);
+                            return;
+                        }
+                        successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc; }));
+                    });
+                }
+            }
+
+            function getBinaryRelations(nodeIds, cb) {
+                queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
                     if (200 != r.statusCode) {
-                        cb(util.format('Error retrieving chained binary relations. db reported error: "%s"', e), statusCode || 500);
+                        cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
+                        return;
+                    }
+                    var binaryRelations = _.map(JSON.parse(b).rows, function(row) {
+                        return {
+                            id: row.id
+                            , rev: row.doc._rev
+                            , name: row.doc.name
+                            , members: _.filter(row.doc.members, function(m) { return ~nodeIds.indexOf(m[0]) && ~nodeIds.indexOf(m[1]); })
+                        };
+                    });
+                    
+                    getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
+                        if (200 != r.statusCode) {
+                            cb(util.format('Error retrieving chained binary relations. db reported error: "%s"', e), statusCode || 500);
+                            return;
+                        }
+
+                        binaryRelations = _.map(chainedBinaryRelations, function(cbr) {
+                            return {
+                                id: cbr._id
+                                , rev: cbr._rev
+                                , name: cbr.name
+                                , members: cbr.members
+                            };
+                        }).concat(binaryRelations);
+
+                        cb(null, 200, binaryRelations);
+                    });
+                });
+            };
+
+            function getProblems(pipelines, cb) {
+                var problemIds = _.uniq(_.flatten(_.map(pipelines, function(pl) { return pl.problems; })));
+
+                request(encodeURI(databaseURI + '_all_docs?keys=' + JSON.stringify(problemIds)), function(e,r,b) {
+                    if (200 != r.statusCode) {
+                        cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
                         return;
                     }
 
-                    binaryRelations = _.map(chainedBinaryRelations, function(cbr) {
-                        return {
-                            id: cbr._id
-                            , rev: cbr._rev
-                            , name: cbr.name
-                            , members: cbr.members
-                        };
-                    }).concat(binaryRelations);
-
-                    cb(null, 200, binaryRelations);
-                });
-            });
-        };
-
-        function getProblems(pipelines, cb) {
-            var problemIds = _.uniq(_.flatten(_.map(pipelines, function(pl) { return pl.problems; })));
-
-            request(encodeURI(databaseURI + '_all_docs?keys=' + JSON.stringify(problemIds)), function(e,r,b) {
-                if (200 != r.statusCode) {
-                    cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
-                    return;
-                }
-
-                var problems = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, rev:row.value.rev }; });
-                cb(null, 200, problems);
-            });
-        }
-    }
-
-    function writePDefs(problems, cb) {
-        var pIds = _.map(problems, function(p) { return p.id; });
-        var pdefs = [];
-
-        (function getPDefsRec() {
-            var i = pdefs.length
-              , id = pIds[i]
-            ;
-            if (i == pIds.length) {
-                //console.log('all pdefs retrieved');
-                writePDefsRec(0);
-            } else {
-                //console.log('get pdef at index', i);
-                request({
-                    uri: databaseURI + id + '/pdef.plist'
-                }, function(e,r,b) {
-                    pdefs[i] = b;
-                    getPDefsRec();
+                    var problems = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, rev:row.value.rev }; });
+                    cb(null, 200, problems);
                 });
             }
-        })();
-
-        function writePDefsRec(i) {
-            if (i == pdefs.length) {
-                //console.log('all pdefs written');
-                cb(null, 201);
-            } else {
-                //console.log('write pdef at index:',i);
-                fs.writeFileSync(pdefsPath + '/' + pIds[i] + '.plist', pdefs[i]);
-                writePDefsRec(i+1);
-            }
         }
-    }
 
-    function createSQLiteDB(content, cb) {
-        var db = new sqlite3.Database(dbPath);
-        db.serialize(function() {
-            var tagBitColDecs = _.map(nodeTagBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
-            var tagTextColDecs = _.map(nodeTagPrefixTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix); }).join('');
-            var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
-            db.run(cnTableCreateScript);
+        function writePDefs(problems, cb) {
+            var pIds = _.map(problems, function(p) { return p.id; });
+            var pdefs = [];
 
-            var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagBitCols.length + nodeTagPrefixTextCols.length + 1).join(',?')));
-            content.conceptNodes.forEach(function(n) {
-                var tags = _.map(nodeTagBitCols.concat(nodeTagPrefixTextCols), function(tag) { return n[tag]; })
-                  , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
+            (function getPDefsRec() {
+                var i = pdefs.length
+                  , id = pIds[i]
                 ;
-                cnIns.run.apply(cnIns, cols);
-            });
-            cnIns.finalize();
+                if (i == pIds.length) {
+                    //console.log('all pdefs retrieved');
+                    writePDefsRec(0);
+                } else {
+                    //console.log('get pdef at index', i);
+                    request({
+                        uri: databaseURI + id + '/pdef.plist'
+                    }, function(e,r,b) {
+                        pdefs[i] = b;
+                        getPDefsRec();
+                    });
+                }
+            })();
 
-            db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, problems TEXT)");
-            var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?)");
-            content.pipelines.forEach(function(pl) {
-                plIns.run(pl.id, pl.rev, pl.name, JSON.stringify(pl.problems));
-            });
-            plIns.finalize();
+            function writePDefsRec(i) {
+                if (i == pdefs.length) {
+                    //console.log('all pdefs written');
+                    cb(null, 201);
+                } else {
+                    //console.log('write pdef at index:',i);
+                    fs.writeFileSync(pdefsPath + '/' + pIds[i] + '.plist', pdefs[i]);
+                    writePDefsRec(i+1);
+                }
+            }
+        }
 
-            db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT)");
-            var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?)");
-            content.problems.forEach(function(p) {
-                probsIns.run(p.id, p.rev);
-            });
-            probsIns.finalize();
+        function createSQLiteDB(content, cb) {
+            var db = new sqlite3.Database(dbPath);
+            db.serialize(function() {
+                var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
+                var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix); }).join('');
+                var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
+                db.run(cnTableCreateScript);
 
-            db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT)");
-            var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
-            content.binaryRelations.forEach(function(br) {
-                brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members));
-            });
-            brIns.finalize();
+                var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagsToBitCols.length + nodeTagPrefixesToTextCols.length + 1).join(',?')));
+                content.conceptNodes.forEach(function(n) {
+                    var tags = _.map(nodeTagsToBitCols.concat(nodeTagPrefixesToTextCols), function(tag) { return n[tag]; })
+                      , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
+                    ;
+                    cnIns.run.apply(cnIns, cols);
+                });
+                cnIns.finalize();
 
-            /*
-            db.each("SELECT * FROM ConceptNodes", function(err, row) {
-                console.log('ConceptNode row:', JSON.stringify(row,null,2));
-            });
-            db.each("SELECT * FROM Pipelines", function(err, row) {
-                console.log('Pipeline row:', JSON.stringify(row,null,2));
-            });
-            db.each("SELECT * FROM Problems", function(err, row) {
-                console.log('Problem row:', JSON.stringify(row,null,2));
-            });
-            db.each("SELECT * FROM BinaryRelations", function(err, row) {
-                console.log('BinaryRelation row:', JSON.stringify(row,null,2));
-            });
-            //*/
-            
-            //console.log('database created');
-            cb(null,201);
-        });  
-        db.close();
-    }
+                db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, problems TEXT)");
+                var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?)");
+                content.pipelines.forEach(function(pl) {
+                    plIns.run(pl.id, pl.rev, pl.name, JSON.stringify(pl.problems));
+                });
+                plIns.finalize();
+
+                db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT)");
+                var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?)");
+                content.problems.forEach(function(p) {
+                    probsIns.run(p.id, p.rev);
+                });
+                probsIns.finalize();
+
+                db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT)");
+                var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
+                content.binaryRelations.forEach(function(br) {
+                    brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members));
+                });
+                brIns.finalize();
+
+                /*
+                db.each("SELECT * FROM ConceptNodes", function(err, row) {
+                    console.log('ConceptNode row:', JSON.stringify(row,null,2));
+                });
+                db.each("SELECT * FROM Pipelines", function(err, row) {
+                    console.log('Pipeline row:', JSON.stringify(row,null,2));
+                });
+                db.each("SELECT * FROM Problems", function(err, row) {
+                    console.log('Problem row:', JSON.stringify(row,null,2));
+                });
+                db.each("SELECT * FROM BinaryRelations", function(err, row) {
+                    console.log('BinaryRelation row:', JSON.stringify(row,null,2));
+                });
+                //*/
+                
+                //console.log('database created');
+                cb(null,201);
+            });  
+            db.close();
+        }
+    });
 }
 
 // TODO: The following functions should be shared across model modules
