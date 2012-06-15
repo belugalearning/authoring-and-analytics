@@ -74,6 +74,9 @@ block wrapper
             div#add-pipeline-to-export.add-btn.panel-right-btn
             | Pipelines:
             div#included-pipelines.tags-box.empty
+        tr.field
+          td(style="text-align:right")
+            a(href='/kcm/get-app-content') Export KCM
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")
