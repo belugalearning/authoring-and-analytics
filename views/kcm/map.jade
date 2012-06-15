@@ -11,32 +11,69 @@ block additionalScripts
 block wrapper
   #right-panel
     table.none-selected(data-panel="concept-node-data")
-      tr.field
-        td.field-label Db Id:
-        td.field-data
-          span#concept-db-id
-      tr.field
-        td.field-label Graffle Id:
-        td.field-data
-          span#concept-graffle-id
-      tr.field
-        td.field-label Description:
-        td.field-data
-          textarea#concept-description(disabled='disabled', rows='10')
-      tr.field
-        td.field-label Notes:
-        td.field-data
-          textarea#concept-notes(disabled='disabled')
-      tr.field
-        td.field-label Tags:
-          div#insert-tag-btn.add-btn
-        td.field-data
-          div#concept-tags
-      tr.field
-        td(colspan='2')
-          | Pipelines:
-          div#insert-pipeline-btn.add-btn
-          table(data-section="pipelines")
+      thead
+        tr
+          th(colspan="2")
+            | Concept Node Properties
+      tbody
+        tr.field
+          td.field-label Db Id:
+          td.field-data
+            span#concept-db-id
+        tr.field
+          td.field-label Graffle Id:
+          td.field-data
+            span#concept-graffle-id
+        tr.field
+          td.field-label Description:
+          td.field-data
+            textarea#concept-description(disabled='disabled', rows='10')
+        tr.field
+          td.field-label Notes:
+          td.field-data
+            textarea#concept-notes(disabled='disabled')
+        tr.field
+          td.field-label Tags:
+            br
+            div#insert-tag-btn.add-btn.panel-left-btn
+          td.field-data
+            div#concept-tags
+        tr.field
+          td(colspan='2')
+            | Pipelines:
+            br
+            div#insert-pipeline-btn.add-btn.panel-left-btn
+            table(data-section="pipelines")
+    table(data-panel="export-settings")
+      thead
+        tr
+          th
+            | Export Settings
+      tbody
+        tr.field
+          td
+            input#export-all-nodes(type="checkbox")
+            | Export All Nodes
+        tr.field(data-key="nodeInclusionTags", data-type="tag")
+          td
+            div#add-node-inclusion-tag.add-btn.panel-right-btn
+            | Export All Nodes Tagged:
+            div#tags-include-cn.tags-box.empty
+        tr.field(data-key="nodeTagsToBitCols", data-type="tag")
+          td
+            div#add-tag-to-bit-col.add-btn.panel-right-btn
+            | Tags To Bit Cols:
+            div#tags-to-bit-cols.tags-box.empty
+        tr.field(data-key="nodeTagPrefixesToTextCols", data-type="tag")
+          td
+            div#add-tag-prefix-to-text-col.add-btn.panel-right-btn
+            | Tag Prefixes To Text Cols:
+            div#tag-prefixes-to-text-cols.tags-box.empty
+        tr.field(data-key="pipelineNames", data-type="tag")
+          td
+            div#add-pipeline-to-export.add-btn.panel-right-btn
+            | Pipelines:
+            div#included-pipelines.tags-box.empty
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")

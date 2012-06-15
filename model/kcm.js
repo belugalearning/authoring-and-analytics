@@ -31,6 +31,7 @@ module.exports = function(config) {
         , pullReplicate: pullReplicate
         , updateViews: updateViews
         , queryView: queryView
+        , updateExportSettings: updateExportSettings
         , insertProblem: insertProblem
         , insertConceptNode: insertConceptNode
         , deleteConceptNode: deleteConceptNode
@@ -374,6 +375,20 @@ function pullReplicate(source, filter, continuous, cancel) {
         , body: JSON.stringify({ source:source, target:target, filter:filter, continuous:continuous===true, cancel:cancel===true })
     }, function() {
         console.log(arguments, '\n\n\n');
+    });
+}
+
+function updateExportSettings(updatedSettings, callback) {
+    if (!updatedSettings || 'kcm-export-settings' != updatedSettings._id) {
+        callback('invalid settings document', 500);
+        return;
+    }
+    updateDoc(updatedSettings, function(e,r,b) {
+        if (201 != r.statusCode) {
+            callback(util.format('error updating export settings. Database reported error: "%s"', e), r.statusCode);
+            return;
+        }
+        callback(null,201,JSON.parse(b).rev);
     });
 }
 

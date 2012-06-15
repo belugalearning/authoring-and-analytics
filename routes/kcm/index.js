@@ -52,6 +52,11 @@ module.exports = function(model) {
                 res.download(contentZip, 'canned-content.zip');
             });
         }
+        , updateExportSettings: function(req, res) {
+            kcmModel.updateExportSettings(req.body.exportSettings, function(e, statusCode, rev) {
+                res.send(e || rev, statusCode || 500);
+            });
+        }
         , getMap: function(req, res) {
             var map = { pipelines:{}, nodes:[], prerequisites:[] };
             kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {
@@ -65,7 +70,10 @@ module.exports = function(model) {
                         kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
                             map.chainedBinaryRelations = chainedBinaryRelations;
 
-                            res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
+                            kcmModel.getDoc('kcm-export-settings', function(e,r,b) {
+                                map.exportSettings = JSON.parse(b);
+                                res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
+                            });
                         });
                     });
                 });

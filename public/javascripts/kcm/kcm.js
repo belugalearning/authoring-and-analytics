@@ -1,5 +1,4 @@
 //(function($) {
-
     var tempHardCodedLinkColours = {
         'Prerequisite': '#000'
         , 'Mastery': '#60f'
@@ -72,6 +71,10 @@
 
         $(window)
             .resize(layoutControls)
+            .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
+            .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
+            .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
+            .on('dblclick', 'table[data-panel="export-settings"] .cn-tag', editExportSettingTag)
             .on('click', '#insert-tag-btn', addNewTagToConceptNode)
             .on('click', 'table[data-panel="concept-node-data"] .del-tag', deleteConceptNodeTag)
             .on('dblclick', 'table[data-panel="concept-node-data"] .cn-tag', editConceptNodeTag)
@@ -91,6 +94,8 @@
             .on('keydown keyup', keyCommandListener)
             .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
         ;
+
+        updateExportSettingsDisplay();
 
         svg = d3.select("#wrapper")
             .append("svg")
@@ -789,6 +794,88 @@
         });
     }
 
+    function saveExportSettings() {
+        var fn = arguments.callee;
+
+        if (true === fn.saveInProgress) {
+            fn.queuedSave = true;
+            return;
+        }
+
+        fn.saveInProgress = true;
+        
+        $.ajax({
+            url:'/kcm/update-export-settings'
+            , type:'POST'
+            , contentType:'application/json'
+            , data: JSON.stringify({ exportSettings: kcm.exportSettings })
+            , success: function(rev) {
+                kcm.exportSettings._rev = rev;
+            }
+            , error: function() {
+                ajaxErrorHandler('Error saving updated export settings').apply(null, [].slice.call(arguments));
+            }
+        });
+    }
+
+    function changeExportAllNodes(e) {
+        kcm.exportSettings.exportAllNodes = $(e.target).prop('checked');
+        saveExportSettings();
+    }
+
+    function updateExportSettingsDisplay() {
+        var es = kcm.exportSettings;
+        $('#export-all-nodes').prop('checked', es.exportAllNodes === true);
+        $.each($('.tags-box'), function() {
+            $(this).html($.tmpl('cnTagDIV', $.map(es[$(this).closest('tr').attr('data-key')], function(tag) { return { tag:tag }; })))
+            $(this).children().length ? $(this).removeClass('empty') : $(this).addClass('empty');
+        });
+    }
+
+    function addExportSettingTag(e) {
+        var $tr = $(this).closest('tr')
+          , type = $tr.attr('data-type')
+          , key = $tr.attr('data-key')
+        ;
+        e.stopPropagation();
+        e.preventDefault();
+
+        showSingleInputModal('Enter Tag:', function(tag) {
+            if (tag) {
+                kcm.exportSettings[key].push(tag);
+                updateExportSettingsDisplay();
+                saveExportSettings();
+            }
+        });
+    }
+
+    function deleteExportSettingTag(e) {
+        var $tr = $(this).closest('tr')
+          , type = $tr.attr('data-type')
+          , key = $tr.attr('data-key')
+        ;
+        e.stopPropagation();
+        e.preventDefault();
+
+        kcm.exportSettings[key].splice($(this).closest('.cn-tag').index(), 1);
+        updateExportSettingsDisplay();
+        saveExportSettings();
+    }
+
+    function editExportSettingTag(e) {
+        var $tr = $(this).closest('tr')
+          , type = $tr.attr('data-type')
+          , key = $tr.attr('data-key')
+          , array = kcm.exportSettings[key]
+        ;
+
+        editTag(e, array, function(newText, tagIx, undoCallback) {
+            array.splice(tagIx, 1, newText);
+            updateExportSettingsDisplay();
+            saveExportSettings();
+        });
+    }
+
     function addNewTagToConceptNode(e) {
         var cn = d3.select(inFocus).data()[0];
         
@@ -840,14 +927,38 @@
             });
         });
     }
-
+    
     function editConceptNodeTag(e) {
-        var $tag = $(this).closest('div.cn-tag')
+        var cn = d3.select(inFocus).data()[0];
+        editTag(e, cn.tags, function(tagText, tagIx, undoCallback) {
+            $.ajax({
+                url: '/kcm/edit-concept-node-tag'
+                , type: 'POST'
+                , contentType: 'application/json'
+                , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:cn.tags[tagIx], newText:tagText})
+                , success: function(cnRev) {
+                    cn._rev = cnRev;
+                    cn.tags.splice(tagIx, 1, tagText);
+                    displayConceptNodeProperties(cn);
+                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
+                }
+                , error: function() {
+                    undoCallback();
+                    ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments));
+                }
+            });
+        });
+    }
+
+    function editTag(e, array, callback) {
+        var $tag = $(e.target).closest('div.cn-tag')
           , tagIx = $tag.index()
-          , cn = d3.select(inFocus).data()[0]
-          , $editTag = $.tmpl('cnEditTagDIV', { tag:cn.tags[tagIx] })
+          , $parent = $tag.parent()
+          , $editTag = $.tmpl('cnEditTagDIV', { tag:array[tagIx] })
           , $input = $editTag.children('input')
         ;
+        e.stopPropagation();
+        e.preventDefault();
 
         $tag.replaceWith($editTag);
 
@@ -859,43 +970,22 @@
             .keydown(function(e) {
                 switch(e.keyCode) {
                     case 27:
-                        cancelEdit();
+                        $editTag.replaceWith($tag);
                         break;
                     case 13:
-                        if ($input.val() == $tag.text()) cancelEdit();
-                        else if ($input.val().length) saveEdit();
+                        if ($input.val() == $tag.text()) {
+                            $editTag.replaceWith($tag);
+                        } else if ($input.val().length) {
+                            $editTag.remove();
+                            callback($input.val(), tagIx, function() {
+                                if (tagIx == 0) $parent.prepend($tag);
+                                else $parent.children().eq(tagIx-1).after($tag);
+                            });
+                        }
                         break;
                 }
             })
         ;
-
-        function cancelEdit() {
-            $editTag.replaceWith($tag);
-        }
-
-        function saveEdit() {
-            $editTag.remove();
-            $.ajax({
-                url: '/kcm/edit-concept-node-tag'
-                , type: 'POST'
-                , contentType: 'application/json'
-                , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:$tag.text(), newText:$input.val() })
-                , success: function(cnRev) {
-                    cn._rev = cnRev;
-                    cn.tags.splice(tagIx, 1, $input.val());
-                    displayConceptNodeProperties(cn);
-                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                }
-                , error: function() {
-                    if (tagIx == 0) $('#concept-tags').prepend($tag);
-                    else $('#concept-tags').children().eq(tagIx-1).after($tag);
-                    ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments));
-                }
-            });
-        }
-
-        e.stopPropagation();
-        e.preventDefault();
     }
 
     function addNewPipelineToConceptNode(e) {
