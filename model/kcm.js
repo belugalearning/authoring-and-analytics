@@ -1913,31 +1913,47 @@ function getAppContent(callback) {
             }
 
             function getNodes(pipelineIds, cb) {
-                getNodesByPipeline(function(plNodeDocs) {
-                    getNodesByTag(function(tagNodeDocs) {
-                        var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
-                          , nodes = {}
-                          , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
-                        ;
-                        uniqDocs.forEach(function(doc) {
-                            var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
+                getNodeDocs(function(docs) {
+                    var nodes = {}
+                      , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
+                    ;
+                    docs.forEach(function(doc) {
+                        var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
 
-                            nodeTagsToBitCols.forEach(function(tag) {
-                                n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
-                            });
-
-                            nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
-                                var re = tagTextRegExps[i]
-                                  , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
-                                ;
-                                n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
-                            });
-
-                            nodes[n.id] = n;
+                        nodeTagsToBitCols.forEach(function(tag) {
+                            n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
                         });
-                        cb(null,200,nodes);
+
+                        nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
+                            var re = tagTextRegExps[i]
+                              , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
+                            ;
+                            n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
+                        });
+
+                        nodes[n.id] = n;
                     });
+                    cb(null,200,nodes);
                 });
+
+                function getNodeDocs(successCB) {
+                    if (exportAllNodes) {
+                        queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
+                            if (200 != r.statusCode) {
+                                cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
+                                return;
+                            }
+                            successCB(_.pluck(JSON.parse(b).rows, 'doc'));
+                        });
+                    } else {
+                        getNodesByPipeline(function(plNodeDocs) {
+                            getNodesByTag(function(tagNodeDocs) {
+                                var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id; })
+                                successCB(uniqDocs);
+                            });
+                        });
+                    }
+                }
                 
                 function getNodesByPipeline(successCB) {
                     queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(pipelineIds)), function(e,r,b) {
