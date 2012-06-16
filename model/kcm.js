@@ -1793,6 +1793,8 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 }
 
 function getAppContent(callback) {
+    var writeLog = true;
+
     getDoc('kcm-export-settings', function(e,r,b) {
         if (200 != r.statusCode) {
             callback('Could not retrieve export settings', 500);
@@ -1808,6 +1810,7 @@ function getAppContent(callback) {
           , path
           , dbPath
           , pdefsPath
+          , exportLogWriteStream
         ;
 
         request(couchServerURI + '_uuids', function(e,r,b) {
@@ -1825,11 +1828,16 @@ function getAppContent(callback) {
 
             //console.log('content path:', path);
 
+            if (writeLog) exportLogWriteStream = fs.createWriteStream(path + '/export-log.txt'); 
+            if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n');
+            
+
             getAppContentJSON(function(e, statusCode, content) {
                 if (200 != statusCode) {
                     callback(e || 'error retrieving app json content', statusCode || 500);
                     return;
                 }
+                if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n');
 
                 //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2));
 
@@ -1844,7 +1852,8 @@ function getAppContent(callback) {
                             return;
                         }
 
-                        exec('zip content.zip -r pdefs content.db', { cwd:path }, function(e, stdout, stderr) {
+                        if (writeLog) exportLogWriteStream.end();
+                        exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
                             if (e) {
                                 callback(util.format('error zipping content:"%s"', e), 500);
                                 return;
@@ -2116,26 +2125,26 @@ function getAppContent(callback) {
                     brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members));
                 });
                 brIns.finalize();
-
-                /*
-                db.each("SELECT * FROM ConceptNodes", function(err, row) {
-                    console.log('ConceptNode row:', JSON.stringify(row,null,2));
-                });
-                db.each("SELECT * FROM Pipelines", function(err, row) {
-                    console.log('Pipeline row:', JSON.stringify(row,null,2));
-                });
-                db.each("SELECT * FROM Problems", function(err, row) {
-                    console.log('Problem row:', JSON.stringify(row,null,2));
-                });
-                db.each("SELECT * FROM BinaryRelations", function(err, row) {
-                    console.log('BinaryRelation row:', JSON.stringify(row,null,2));
-                });
-                //*/
                 
-                //console.log('database created');
-                cb(null,201);
+                if (writeLog) {
+                    db.all("SELECT * FROM ConceptNodes", function(err, rows) {
+                        exportLogWriteStream.write('\n================================================\nSELECT * FROM ConceptNodes:\n' + JSON.stringify(rows,null,4) + '\n================================================\n');
+                    });
+                    db.all("SELECT * FROM Pipelines", function(err, rows) {
+                        exportLogWriteStream.write('\n================================================\nSELECT * FROM Pipelines:\n' + JSON.stringify(rows,null,4) + '\n================================================\n');
+                    });
+                    db.all("SELECT * FROM Problems", function(err, rows) {
+                        exportLogWriteStream.write('\n================================================\nSELECT * FROM Problems:\n' + JSON.stringify(rows,null,4) + '\n================================================\n');
+                    });
+                    db.all("SELECT * FROM BinaryRelations", function(err, rows) {
+                        exportLogWriteStream.write('\n================================================\nSELECT * FROM BinaryRelations:\n' + JSON.stringify(rows,null,4) + '\n================================================\n');
+                    });
+                }
+                
+                db.close(function() {
+                    cb(null,201);
+                });
             });  
-            db.close();
         }
     });
 }
