@@ -65,8 +65,8 @@
 
         $(window)
             .resize(layoutControls)
-            .on('change', 'table[data-panel="view-settings"] #links-view-settings td.br-visible input[type="checkbox"]', onLinkViewSettingsChange)
-            .on('focusout', 'table[data-panel="view-settings"] #links-view-settings td.br-colour input[type="text"]', onLinkViewSettingsChange)
+            .on('change', 'table[data-panel="view-settings"] #links-view-settings input[type="checkbox"]', onLinkViewSettingsEdit)
+            .on('keydown keyup focusout', 'table[data-panel="view-settings"] #links-view-settings input[type="text"]', onLinkViewSettingsEdit)
             .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
             .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
             .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
@@ -805,7 +805,7 @@
         });
     }
 
-    function onLinkViewSettingsChange(e) {
+    function onLinkViewSettingsEdit(e) {
         var id = $(this).closest('tr').attr('data-id')
           , lVS = kcm.viewSettings.links[id]
         ;
@@ -817,15 +817,20 @@
                 lVS.visible = $(this).prop('checked');
             break;
             case 'text':
-                var txt = $(this).val();
-                if (txt == lVS.colour) {
+                var txt = $(this).val().replace(/[^0-9a-f]/ig, '');
+                if (txt != $(this).val()) $(this).val(txt);
+
+                var isValid = /^([0-9a-f]{3,3}){1,2}$/i.test(txt);
+                if (e.type != 'focusout') {
+                    $(this).css('color', isValid ? '#'+txt : '#000');
                     return;
                 }
-                if (!/^([0-9a-f]{3,3}){1,2}$/i.test(txt)) {
-                    $(this).val(lVS.colour);
+                if (!isValid) {
+                    $(this).val(lVS.colour).css('#'+lVS.colour);
                     return;
                 }
                 lVS.colour = txt;
+                $(this).css('color', txt);
             break;
         }
         updateMapLinks();
@@ -1605,7 +1610,7 @@
                 <input type="checkbox" {{if visible !== false}}checked="checked"{{/if}}/>\
             </td>\
             <td class="br-colour">\
-                <input type="text" value="{{html colour}}"/>\
+                <input type="text" value="{{html colour}}" maxlength="6" style="color:#{{html colour}}"/>\
             </td>\
             {{html tag}}\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
