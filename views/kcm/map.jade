@@ -10,6 +10,22 @@ block additionalScripts
 
 block wrapper
   #right-panel
+    table(data-panel="view-settings")
+      thead
+        tr
+          th(colspan="2")
+            | View Settings
+      tbody
+        tr.field
+          td.field-label Links
+          td.field-data
+            table#links-view-settings
+              thead
+                tr
+                  th.br-name Name
+                  th.br-visible Visible
+                  th.br-colour Colour
+              tbody
     table.none-selected(data-panel="concept-node-data")
       thead
         tr
@@ -51,6 +67,9 @@ block wrapper
             | Export Settings
       tbody
         tr.field
+          td(style="text-align:right")
+            a(href='/kcm/get-app-content') Export KCM
+        tr.field
           td
             input#export-all-nodes(type="checkbox")
             | Export All Nodes
@@ -74,9 +93,6 @@ block wrapper
             div#add-pipeline-to-export.add-btn.panel-right-btn
             | Pipelines:
             div#included-pipelines.tags-box.empty
-        tr.field
-          td(style="text-align:right")
-            a(href='/kcm/get-app-content') Export KCM
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")

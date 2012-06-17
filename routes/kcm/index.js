@@ -52,6 +52,11 @@ module.exports = function(model) {
                 res.download(contentZip, 'canned-content.zip');
             });
         }
+        , updateViewSettings: function(req, res) {
+            kcmModel.updateViewSettings(req.body.viewSettings, function(e, statusCode, rev) {
+                res.send(e || rev, statusCode || 500);
+            });
+        }
         , updateExportSettings: function(req, res) {
             kcmModel.updateExportSettings(req.body.exportSettings, function(e, statusCode, rev) {
                 res.send(e || rev, statusCode || 500);
@@ -70,8 +75,10 @@ module.exports = function(model) {
                         kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
                             map.chainedBinaryRelations = chainedBinaryRelations;
 
-                            kcmModel.getDoc('kcm-export-settings', function(e,r,b) {
-                                map.exportSettings = JSON.parse(b);
+                            kcmModel.getDocs(['kcm-export-settings','kcm-view-settings'], function(e,r,b) {
+                                var rows = JSON.parse(b).rows;
+                                map.exportSettings = rows[0].doc;
+                                map.viewSettings = rows[1].doc;
                                 res.render('kcm/map', { title:'Knowledge Concept Map', map:map });
                             });
                         });

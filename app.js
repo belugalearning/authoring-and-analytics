@@ -111,6 +111,7 @@ app.get('/user-portal/all-activity-feed', routes.userPortal.allActivitiesReverse
 app.get('/kcm', routes.kcm.getMap);
 app.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
 app.get('/kcm/get-app-content', routes.kcm.getAppContent);
+app.post('/kcm/update-view-settings', routes.kcm.updateViewSettings);
 app.post('/kcm/update-export-settings', routes.kcm.updateExportSettings);
 app.get('/kcm/canned-database', routes.kcm.cannedDatabase);
 app.post('/kcm/binary-relations/:binaryRelationId/remove-pair', routes.kcm.removePairFromBinaryRelation);

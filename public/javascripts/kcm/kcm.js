@@ -1,14 +1,8 @@
 //(function($) {
-    var tempHardCodedLinkColours = {
-        'Prerequisite': '#000'
-        , 'Mastery': '#60f'
-        , 'InterMastery': '#0f0'
-    };
-
     var nodeEnoughProblems = 5
       , windowPadding = 4, genPadding = 6
       , svg, gZoom, gWrapper, gLinks, gNodes
-      , relNameContainerDict = {}
+      , relIdContainerDict = {}
       , inFocus = null
       , l = 400
       , nodeTextPadding = 5
@@ -71,6 +65,8 @@
 
         $(window)
             .resize(layoutControls)
+            .on('change', 'table[data-panel="view-settings"] #links-view-settings td.br-visible input[type="checkbox"]', onLinkViewSettingsChange)
+            .on('focusout', 'table[data-panel="view-settings"] #links-view-settings td.br-colour input[type="text"]', onLinkViewSettingsChange)
             .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
             .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
             .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
@@ -88,14 +84,12 @@
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
             .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
-            .on('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
-            .on('mousedown', '[data-type="binary-relation-pair"]', mouseDownLink)
+            .on('mouseover mouseout', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', updateMouseOverLink)
+            .on('mousedown', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', mouseDownLink)
             .on('mousemove', updateMousePos)
             .on('keydown keyup', keyCommandListener)
             .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
         ;
-
-        updateExportSettingsDisplay();
 
         svg = d3.select("#wrapper")
             .append("svg")
@@ -118,6 +112,9 @@
 
         updateMapNodes();
         updateMapLinks();
+
+        updateExportSettingsDisplay();
+        updateViewSettingsDisplay();
 
         // scale map to fit screen and translate to centre it
         var w = $('svg').width()
@@ -218,29 +215,42 @@
     }
 
     function updateMapLinks() {
-        // TODO: d3 exit is not necessarily removing the correct links. So removing all of them so that the correct ones are recreated works ok. But better solution required.
-        $('[data-type="chained-binary-relation-pair"]').remove();
+        // TODO: find out how d3 enter/exit actually work
+        // What does NOT seem to happen is linking of data with svg elements. E.g. remove element from data array, add different element to data array...
+        // ... - now I would expect exit() to return array with 1 non-null element, and enter to return array with 1 non-null element, corresponding respectively with removed/added data objects
+        // however arrays returned by both enter() and exit() are all nulls - i.e. it is as if the data is unchanged.
+        // for the same reason, removing an element from the middle of an array does not result in the corresponding svg element from being removed, instead the last svg element is removed.
+        // WTF???????
+        // workaround - delete all svg elements when entering this function
+        $('[data-type="binary-relation-pair"]').remove();
 
         $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
-            var g = relNameContainerDict[br.name];
+            if (!kcm.viewSettings.links[br._id]) kcm.viewSettings.links[br._id] = { visible:true, colour:'000' };
+
+            var brVS = kcm.viewSettings.links[br._id]
+              , g = relIdContainerDict[br._id]
+            ;
+
+            brVS.visible = brVS.visible !== false;
+            brVS.color = /^([0-9a-f]{3,3}){1,2}$/i.test(brVS.colour) && brVS.colour || '000';
+
             if (!g) {
-                g = relNameContainerDict[br.name] = gLinks.append("g")
-                    .attr('data-type', function() { return br.relationType + '-relation'; })
+                g = relIdContainerDict[br._id] = gLinks.append("g")
+                    .attr('data-type', 'relation')
+                    .attr('data-relation-type', function() { return br.relationType; })
                     .attr('data-id', br._id)
                 ;
             }
+            $(g[0]).css('visibility', brVS.visible ? 'visible' : 'hidden');
 
-            
-            var linkColour = tempHardCodedLinkColours[br.name] || '#ccc'
-              , links = g.selectAll('g.link').data(br.members)
-            ;
+            var links = g.selectAll('g.link').data(br.members);
 
             links
                 .enter()
                 .append('g')
                     .attr('class', 'link')
                     .attr("data-focusable", "true")
-                    .attr('data-type', function() { return br.relationType + '-relation-pair' })
+                    .attr('data-type', function() { return 'binary-relation-pair' })
                     .attr("data-head-node", function(d) { return d[1]; })
                     .attr("data-tail-node", function(d) { return d[0]; })                
                     .on("mousedown", clickGainFocus)
@@ -267,7 +277,6 @@
                     .attr("y", -1.5)
                     .attr("width", 1)
                     .attr("height", 3)
-                    .attr("style", "fill:"+linkColour+";")
             ;
             g.selectAll('g.link').selectAll('path.arrow-head')
                 .data(function(d) { return [d]; })
@@ -275,8 +284,10 @@
                 .append('path') 
                     .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
                     .attr("class", "arrow-head")
-                    .attr('style', 'fill:'+linkColour+'; stroke-width:0;')
             ;
+
+            g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ brVS.colour +";"; })
+            g.selectAll('rect.arrow-head').attr('style', function() { return 'fill:#'+ brVS.colour +'; stroke-width:0;'; })
         });
 
         $('g.link').arrowRedraw();
@@ -600,11 +611,11 @@
             var $lk = $(e.target).closest('[data-type="binary-relation-pair"]')
               , tId = $lk.attr('data-tail-node')
               , hId = $lk.attr('data-head-node')
-              , br = binaryRelationWithId($lk.closest('g[data-type="binary-relation"]').attr('data-id'))
+              , br = binaryRelationWithId($lk.closest('g[data-relation-type="binary"]').attr('data-id'))
             ;  
 
             $(window)
-                .off('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
+                .off('mouseover mouseout', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', updateMouseOverLink)
                 .off('keydown keyup', keyCommandListener)
             ;
 
@@ -614,7 +625,7 @@
                 $('#wrapper').removeClass('delete-mode');
 
                 $(window)
-                    .on('mouseover mouseout', '[data-type="binary-relation-pair"]', updateMouseOverLink)
+                    .on('mouseover mouseout', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', updateMouseOverLink)
                     .on('keydown keyup', keyCommandListener)
                 ;
 
@@ -791,6 +802,80 @@
                 $('#concept-description').select();
             }
             , error:ajaxErrorHandler('Error inserting new concept node')
+        });
+    }
+
+    function onLinkViewSettingsChange(e) {
+        var id = $(this).closest('tr').attr('data-id')
+          , lVS = kcm.viewSettings.links[id]
+        ;
+        if (!lVS) {
+            kcm.viewSettings.links[id] = { visible:true, colour:'000' };
+        }
+        switch ($(this).attr('type')) {
+            case 'checkbox':
+                lVS.visible = $(this).prop('checked');
+            break;
+            case 'text':
+                var txt = $(this).val();
+                if (txt == lVS.colour) {
+                    return;
+                }
+                if (!/^([0-9a-f]{3,3}){1,2}$/i.test(txt)) {
+                    $(this).val(lVS.colour);
+                    return;
+                }
+                lVS.colour = txt;
+            break;
+        }
+        updateMapLinks();
+        saveViewSettings();
+    }
+
+    function updateViewSettingsDisplay() {
+        var $t = $('table#links-view-settings')
+        $t.children('tbody').remove();
+        $t.append(
+            $('<tbody/>')
+                .html(
+                    $.tmpl('brViewSettingsTR', 
+                           $.map(
+                               $.merge($.merge([], kcm.binaryRelations), kcm.chainedBinaryRelations)
+                               , function(br) { return $.extend({}, br, kcm.viewSettings.links[br._id]); }))))
+        ;
+    }
+
+    function saveViewSettings() {
+        var fn = arguments.callee;
+        if (!fn.cache) fn.cache = { saveInProgress:false, queuedSave:false };
+
+        if (fn.cache.saveInProgress) {
+            fn.cache.queuedSave = true;
+            return;
+        }
+        fn.cache.saveInProgress = true;
+        
+        $.ajax({
+            url:'/kcm/update-view-settings'
+            , type:'POST'
+            , contentType:'application/json'
+            , data: JSON.stringify({ viewSettings: kcm.viewSettings })
+            , success: function(rev) {
+                kcm.viewSettings._rev = rev;
+                fn.cache.saveInProgress = false;
+                if (fn.cache.queuedSave) {
+                    fn.cache.queuedSave = false;
+                    fn();
+                }
+            }
+            , error: function() {
+                fn.cache.saveInProgress = false;
+                if (fn.cache.queuedSave) {
+                    fn.cache.queuedSave = false;
+                    fn();
+                }
+                ajaxErrorHandler('Error saving updated view settings').apply(null, [].slice.call(arguments));
+            }
         });
     }
 
@@ -1502,6 +1587,18 @@
         }
         mouseInteractionModifiers = '';
     }
+
+    $.template("brViewSettingsTR",
+        '<tr data-id="{{html _id}}">\
+            <td class="br-name">{{html name}}</td>\
+            <td class="br-visible">\
+                <input type="checkbox" {{if visible !== false}}checked="checked"{{/if}}/>\
+            </td>\
+            <td class="br-colour">\
+                <input type="text" value="{{html colour}}"/>\
+            </td>\
+            {{html tag}}\
+        </tr>'.replace(/(>|}})\s+/g, '$1'));
 
     $.template("cnTagDIV",
         '<div class="cn-tag">\
