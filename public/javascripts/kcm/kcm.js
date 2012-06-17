@@ -881,13 +881,13 @@
 
     function saveExportSettings() {
         var fn = arguments.callee;
+        if (!fn.cache) fn.cache = { saveInProgress:false, queuedSave:false };
 
-        if (true === fn.saveInProgress) {
-            fn.queuedSave = true;
+        if (fn.cache.saveInProgress) {
+            fn.cache.queuedSave = true;
             return;
         }
-
-        fn.saveInProgress = true;
+        fn.cache.saveInProgress = true;
         
         $.ajax({
             url:'/kcm/update-export-settings'
@@ -896,8 +896,18 @@
             , data: JSON.stringify({ exportSettings: kcm.exportSettings })
             , success: function(rev) {
                 kcm.exportSettings._rev = rev;
+                fn.cache.saveInProgress = false;
+                if (fn.cache.queuedSave) {
+                    fn.cache.queuedSave = false;
+                    fn();
+                }
             }
             , error: function() {
+                fn.cache.saveInProgress = false;
+                if (fn.cache.queuedSave) {
+                    fn.cache.queuedSave = false;
+                    fn();
+                }
                 ajaxErrorHandler('Error saving updated export settings').apply(null, [].slice.call(arguments));
             }
         });
