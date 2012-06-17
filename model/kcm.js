@@ -31,6 +31,7 @@ module.exports = function(config) {
         , pullReplicate: pullReplicate
         , updateViews: updateViews
         , queryView: queryView
+        , updateViewSettings: updateViewSettings
         , updateExportSettings: updateExportSettings
         , insertProblem: insertProblem
         , insertConceptNode: insertConceptNode
@@ -45,6 +46,7 @@ module.exports = function(config) {
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
         , getDoc: getDoc
+        , getDocs: getDocs
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
         , reorderConceptNodePipelines: reorderConceptNodePipelines
@@ -380,12 +382,26 @@ function pullReplicate(source, filter, continuous, cancel) {
 
 function updateExportSettings(updatedSettings, callback) {
     if (!updatedSettings || 'kcm-export-settings' != updatedSettings._id) {
-        callback('invalid settings document', 500);
+        callback('invalid export settings document', 500);
         return;
     }
     updateDoc(updatedSettings, function(e,r,b) {
         if (201 != r.statusCode) {
             callback(util.format('error updating export settings. Database reported error: "%s"', e), r.statusCode);
+            return;
+        }
+        callback(null,201,JSON.parse(b).rev);
+    });
+}
+
+function updateViewSettings(updatedSettings, callback) {
+    if (!updatedSettings || 'kcm-view-settings' != updatedSettings._id) {
+        callback('invalid view settings document', 500);
+        return;
+    }
+    updateDoc(updatedSettings, function(e,r,b) {
+        if (201 != r.statusCode) {
+            callback(util.format('error updating view settings. Database reported error: "%s"', e), r.statusCode);
             return;
         }
         callback(null,201,JSON.parse(b).rev);
@@ -2155,7 +2171,14 @@ function getDoc(id, callback) {
         uri: databaseURI + id
         , headers: { 'content-type':'application/json', accepts:'application/json' }
     }, callback);
-};
+}
+
+function getDocs(ids, callback) {
+    request({
+        url: encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify(ids)))
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+    }, callback);
+}
 
 function insertDoc(doc, callback) {
     request({
