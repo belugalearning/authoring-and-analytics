@@ -829,8 +829,9 @@
                     $(this).val(lVS.colour).css('#'+lVS.colour);
                     return;
                 }
-                lVS.colour = txt;
                 $(this).css('color', txt);
+                if (txt == lVS.colour) return;
+                lVS.colour = txt;
             break;
         }
         updateMapLinks();
