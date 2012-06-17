@@ -57,7 +57,7 @@ form#upload-plists { visibility:hidden; }
 [data-panel="view-settings"] table#links-view-settings td { vertical-align:middle; }
 [data-panel="view-settings"] table#links-view-settings td.br-visible { text-align:center; }
 [data-panel="view-settings"] table#links-view-settings td.br-colour { width:64px; }
-[data-panel="view-settings"] table#links-view-settings td.br-colour input { width:56px; }
+[data-panel="view-settings"] table#links-view-settings td.br-colour input { width:56px; text-transform:uppercase; }
 
 [data-panel="concept-node-data"] .panel-left-btn { margin:4px 0 2px -1px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] { margin:5px; width:100%; border-collapse:collapse; border:1px solid #ccc; }
