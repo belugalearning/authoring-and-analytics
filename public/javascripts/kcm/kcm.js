@@ -287,7 +287,7 @@
             ;
 
             g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ brVS.colour +";"; })
-            g.selectAll('rect.arrow-head').attr('style', function() { return 'fill:#'+ brVS.colour +'; stroke-width:0;'; })
+            g.selectAll('path.arrow-head').attr('style', function() { return 'fill:#'+ brVS.colour +'; stroke-width:0;'; })
         });
 
         $('g.link').arrowRedraw();
