@@ -45,6 +45,7 @@ module.exports = function(config) {
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
         , getDoc: getDoc
+        , getDocs: getDocs
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
         , reorderConceptNodePipelines: reorderConceptNodePipelines
@@ -2146,7 +2147,14 @@ function getDoc(id, callback) {
         uri: databaseURI + id
         , headers: { 'content-type':'application/json', accepts:'application/json' }
     }, callback);
-};
+}
+
+function getDocs(ids, callback) {
+    request({
+        url: encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify(ids)))
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+    }, callback);
+}
 
 function insertDoc(doc, callback) {
     request({
