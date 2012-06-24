@@ -2,14 +2,14 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var noAuthenticationPathnames = ['/login', '/logout']
+var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload']
   , express = require('express')
   , routes = require('./routes')
   , model = require('./model')
   , fs = require('fs')
   , _ = require('underscore')
   , urlParser = require('url')
-  , app = module.exports = express.createServer();
+  , app = module.exports = express.createServer()
 ;
 
 // Configuration
@@ -134,6 +134,67 @@ app.post('/kcm/reorder-pipeline-problems', routes.kcm.reorderPipelineProblems);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
 app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
+
+var crypto = require('crypto')
+  , zlib = require('zlib')
+  //, fs = require('fs')
+  //, _ = require('underscore')
+  , request = require('request')
+;
+app.post('/app-logging/upload', function(req, res) {
+    // in production should use input stream
+    var rs1 = fs.createReadStream(req.files.logData.path)
+      , ws = fs.createWriteStream(process.cwd() + '/inflated.data')
+      , unzip = zlib.createUnzip()
+      , md5 = crypto.createHash('md5')
+      , rs2 = fs.createReadStream(req.files.logData.path)
+    ;
+
+    // write to disk
+    rs1.pipe(unzip).pipe(ws);
+
+    // md5
+    rs2
+        .on('data', function(d) { md5.update(d); })
+        .on('end', function() {
+            var hash = md5.digest('hex');
+            console.log('md5:', hash);
+            res.send(hash, 200);
+        })
+    ;
+});
+
+/*/ process data
+var interSep = String.fromCharCode(parseInt('91', 16)) // unicode "private use one" UTF-8: 0xC291 - represented as 0x91 in javascript string
+  , intraSep = String.fromCharCode(parseInt('92', 16)) // unicode "private use two" UTF-8: 0xC292 - represented as 0x92 in javascript string 
+  , baseDir = process.cwd()
+  , dbURI = '192.168.56.101:5986/june2012-logging'
+  , util = require('util')
+;
+(function() {
+    // get list of files from pending-logs
+    var pendingFiles = ['inflated.data'];
+
+    _.each(pendingFiles, function(file) {
+        var file = fs.readFileSync(util.format('%s/%s', baseDir, fileName))
+          , records = _.map(
+              file.split(interSep)
+              , function(r) { return r.split(intraSep); }
+          )
+        ;
+
+        // files with .json suffix correspond to db records
+        var jsonRecords = records.filter(function(r) { return /\.json$/.test(r[0]); });
+        console.log(_.pluck(jsonRecords, 0));
+        return;
+
+        // which docs are inserts, which are updates?
+        request(
+            encodeURI(util.format('%s_all_docs?keys=%s', databaseURI, JSON.stringify(_.pluck(jsonRecords, 0))))
+        );
+    });
+})()
+//*/
 
 var launchOptions = _.map(
     _.filter(
