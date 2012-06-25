@@ -140,15 +140,41 @@ var crypto = require('crypto')
   //, fs = require('fs')
   //, _ = require('underscore')
   , request = require('request')
+  , util = require('util')
 ;
 app.post('/app-logging/upload', function(req, res) {
-    // in production should use input stream
-    var rs1 = fs.createReadStream(req.files.logData.path)
-      , ws = fs.createWriteStream(process.cwd() + '/inflated.data')
-      , unzip = zlib.createUnzip()
-      , md5 = crypto.createHash('md5')
-      , rs2 = fs.createReadStream(req.files.logData.path)
+    var batchFilePath = req.files.batchData.path;
+    var md5 = crypto.createHash('md5');
+
+    fs.createReadStream(batchFilePath)
+        .on('data', function(d) { md5.update(d); })
+        .on('end', function() {
+            var hash = md5.digest('hex');
+            res.send(hash, 200);
+        })
     ;
+
+    fs.readFile(batchFilePath, function(e, buffer) {
+        var batchDate = buffer.readUInt32LE(0, false).toString(16);
+
+        zlib.unzip(buffer.slice(4), function(e, inflatedBuffer) {
+            fs.writeFile( util.format('%s/pending-logs/batch-%s', process.cwd(), batchDate), inflatedBuffer, function(e) {
+               if (e) console.log('failed to write log file. Will need to do something better than this very soon!!!');
+            }); 
+        });
+    });
+
+    return;
+
+    // in production should use input stream
+    var date = req.body.date
+      , rs1 = fs.createReadStream(req.files.batchData.path)
+      //, ws = fs.createWriteStream(process.cwd() + '/pending-logs/' + new Date().toString().replace(/^[a-z]+ ([a-z]+) (\d+) (\d+) ([0-9]+):([0-9]+):([0-9]+).*/i, 'batch_$3_$1$2_$4h$5m$6s'))
+      , ws = fs.createWriteStream(process.cwd() + '/pending-logs/batch-' + date)
+      , unzip = zlib.createUnzip()
+      , rs2 = fs.createReadStream(req.files.batchData.path)
+    ;
+
 
     // write to disk
     rs1.pipe(unzip).pipe(ws);
@@ -157,9 +183,6 @@ app.post('/app-logging/upload', function(req, res) {
     rs2
         .on('data', function(d) { md5.update(d); })
         .on('end', function() {
-            var hash = md5.digest('hex');
-            console.log('md5:', hash);
-            res.send(hash, 200);
         })
     ;
 });
