@@ -2109,11 +2109,14 @@ function getAppContent(callback) {
             db.serialize(function() {
                 var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
                 var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix); }).join('');
+                exportLogWriteStream.write('\n================================================\nCREATE TABLE ConceptNodes\n');
                 var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
                 db.run(cnTableCreateScript);
 
+                exportLogWriteStream.write('\n================================================\nINSERT INTO ConceptNodes\n');
                 var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagsToBitCols.length + nodeTagPrefixesToTextCols.length + 1).join(',?')));
                 content.conceptNodes.forEach(function(n) {
+                    exportLogWriteStream.write('['+n.id+']');
                     var tags = _.map(nodeTagsToBitCols.concat(nodeTagPrefixesToTextCols), function(tag) { return n[tag]; })
                       , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
                     ;
@@ -2121,23 +2124,32 @@ function getAppContent(callback) {
                 });
                 cnIns.finalize();
 
+                exportLogWriteStream.write('\n================================================\nCREATE TABLE Pipelines\n');
                 db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, problems TEXT)");
+                exportLogWriteStream.write('\n================================================\nINSERT INTO Pipelines\n');
                 var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?)");
                 content.pipelines.forEach(function(pl) {
+                    exportLogWriteStream.write('['+pl.id+']');
                     plIns.run(pl.id, pl.rev, pl.name, JSON.stringify(pl.problems));
                 });
                 plIns.finalize();
 
+                exportLogWriteStream.write('\n================================================\nCREATE TABLE Problems\n');
                 db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT)");
+                exportLogWriteStream.write('\n================================================\nINSERT INTO Problems\n');
                 var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?)");
                 content.problems.forEach(function(p) {
+                    exportLogWriteStream.write('['+p.id+']');
                     probsIns.run(p.id, p.rev);
                 });
                 probsIns.finalize();
 
+                exportLogWriteStream.write('\n================================================\nCREATE TABLE BinaryRelations\n');
                 db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT)");
+                exportLogWriteStream.write('\n================================================\nINSERT INTO BinaryRelations\n');
                 var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)");
                 content.binaryRelations.forEach(function(br) {
+                    exportLogWriteStream.write('['+br.id+']');
                     brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members));
                 });
                 brIns.finalize();
