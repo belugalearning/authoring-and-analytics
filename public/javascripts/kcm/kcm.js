@@ -13,6 +13,10 @@
       , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
     ;
 
+    function nodesWithDescriptionsContaining(text) {
+        return $.grep(kcm.nodes, function(n) { return ~n.nodeDescription.indexOf(text); });
+    }
+
     $.fn.arrowRedraw = function() {
         $.each(this, function() {
             var gArrow = d3.select(this)
