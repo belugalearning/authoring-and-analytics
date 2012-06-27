@@ -1966,9 +1966,10 @@ function getAppContent(callback) {
 
                         nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
                             var re = tagTextRegExps[i]
-                              , matchingTag = _.find(doc.tags, function(tag) { return tag.match(re) != null; })
+                              , matchingTags = _.filter(doc.tags, function(tag) { return tag.match(re) != null; })
                             ;
-                            n[tagPrefix] = matchingTag ? matchingTag.match(re)[1] : '';
+
+                            n[tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length); }));
                         });
 
                         nodes[n.id] = n;
