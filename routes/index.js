@@ -1,10 +1,16 @@
-var model = require('../model')
-  , _ = require('underscore')
+var  _ = require('underscore')
   , exec = require('child_process').exec
   , fs = require('fs')
   , util = require('util')
-  , kcm = exports.kcm = require('./kcm')(model)
+  , model
 ;
+
+module.exports = function(m) {
+    model = m;
+    exports.kcm = require('./kcm')(model.kcm);
+    exports.appUsersService = require('./app-users-service')(model.appUsersService);
+    return exports;
+};
 
 exports.index = function(req, res){
     res.redirect('/sitemap');

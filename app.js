@@ -2,10 +2,10 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload']
+var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload', '/app-users/sync-users']
   , express = require('express')
-  , routes = require('./routes')
   , model = require('./model')
+  , routes = require('./routes')(model)
   , fs = require('fs')
   , _ = require('underscore')
   , urlParser = require('url')
@@ -134,6 +134,8 @@ app.post('/kcm/reorder-pipeline-problems', routes.kcm.reorderPipelineProblems);
 app.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
 app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
 app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
+
+app.post('/app-users/sync-users', routes.appUsersService.syncUsers);
 
 var crypto = require('crypto')
   , zlib = require('zlib')

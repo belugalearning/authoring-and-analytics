@@ -6,8 +6,8 @@ var fs = require('fs')
   , kcmModel
 ;
 
-module.exports = function(model) {
-    kcmModel = model.kcm;
+module.exports = function(kcm_model) {
+    kcmModel = kcm_model
 
     return {
         pullReplicate: function(req, res) {
