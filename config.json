@@ -1,5 +1,5 @@
 {
-    "couchServerURI": "http://192.168.56.101:5984"
+    "couchServerURI": "http://localhost:5984"
     , "kcmDatabaseName": "tmp-blm-kcm3"
     , "kcmDatabaseDesignDoc": "kcm-views"
     , "usersDatabaseName": "june2012-users"
