@@ -117,7 +117,11 @@ function updateDesignDoc(callback) {
         }
     };
 
-    getDoc(dd._id, function(e,r,b) {
+    request({
+        uri: databaseURI + dd._id
+        , method: 'GET'
+        , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
+    }, function(e,r,b) {
         var requestObj = {
             headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
             , body: JSON.stringify(dd)
@@ -138,7 +142,6 @@ function updateDesignDoc(callback) {
                 return;
             break;
         }
-
         request(requestObj, callback);
     });
 }
