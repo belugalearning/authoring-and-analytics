@@ -16,14 +16,13 @@ exports.syncUsers = function(req, res) {
     });
 };
 
-
-/*
-app.post('/app-users/sync-users', function(req,res) {
-    var users = JSON.parse(req.body.users);
-
-    request('');
-
-    res.send(['this','is','only',{a:'test'}], 200);
-});
-
-*/
+exports.checkNickAvailable = function(req, res) {
+    var nick = req.body.nick;
+    model.userMatchingNick(nick, function(e,r,b) {
+        if (200 != r.statusCode) {
+            res.send(e, 500);
+            return;
+        }
+        res.send(JSON.parse(b).rows.length == 0, 200);
+    });
+};

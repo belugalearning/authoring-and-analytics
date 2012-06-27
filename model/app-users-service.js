@@ -7,6 +7,7 @@ var couchServerURI
   , dbName
   , designDoc
   , databaseURI
+  , viewsPath
 ;
 
 module.exports = function(config) {
@@ -14,6 +15,7 @@ module.exports = function(config) {
     dbName = config.usersDatabaseName;
     designDoc = config.usersDatabaseDesignDoc;
     databaseURI = couchServerURI + dbName + '/';
+    viewsPath = databaseURI + '_design/' + designDoc + '/_view/'; 
     console.log(util.format('appUsersService module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
 
     updateDesignDoc(function(e,r,b) {
@@ -22,10 +24,13 @@ module.exports = function(config) {
         }
     });
     
-    return exports;
+    return {
+        syncUsers: syncUsers
+        , userMatchingNick: userMatchingNick
+    }
 };
 
-exports.syncUsers = function(clientDeviceUsers, device, callback) {
+function syncUsers(clientDeviceUsers, device, callback) {
     var log = false;
 
     if (log) console.log('\n----------------------------------------------------------------');
@@ -102,7 +107,8 @@ exports.syncUsers = function(clientDeviceUsers, device, callback) {
     });
 };
 
-exports.checkNickAvailable = function(nickName) {
+function userMatchingNick(nick, callback) {
+    queryView(util.format('users-by-nick?key="%s"', nick), callback);
 };
 
 function updateDesignDoc(callback) {
@@ -117,25 +123,20 @@ function updateDesignDoc(callback) {
         }
     };
 
-    request({
-        uri: databaseURI + dd._id
-        , method: 'GET'
-        , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
-    }, function(e,r,b) {
-        var requestObj = {
-            headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
-            , body: JSON.stringify(dd)
-        };
+    getDoc(dd._id, function(e,r,b) {
+        var requestObj = { headers: { 'content-type': 'application/json', 'accepts': 'application/json' } };
 
         switch (r.statusCode) {
             case 404:
-                requestObj.method = 'POST'
-                requestObj.uri = databaseURI
+                requestObj.method = 'POST';
+                requestObj.uri = databaseURI;
+                requestObj.body = JSON.stringify(dd);
             break;
             case 200:
-                views._rev = JSON.parse(b)._rev;
-                requestObj.method = 'PUT'
-                requestObj.uri = dd._id
+                requestObj.method = 'PUT';
+                requestObj.uri = databaseURI + dd._id;
+                dd._rev = JSON.parse(b)._rev;
+                requestObj.body = JSON.stringify(dd);
             break;
             default:
                 callback('error retrieving design doc from database', r.statusCode);
@@ -144,4 +145,18 @@ function updateDesignDoc(callback) {
         }
         request(requestObj, callback);
     });
+}
+
+function getDoc(id, callback) {
+    request({
+        uri: databaseURI + id
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+    }, callback);
+}
+
+function queryView(viewNameAndQueryString, callback) {
+    request({
+        uri: encodeURI(util.format('%s%s', viewsPath, viewNameAndQueryString))
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+    }, callback);
 }
