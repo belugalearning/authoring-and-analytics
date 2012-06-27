@@ -15,12 +15,18 @@ module.exports = function(config) {
     designDoc = config.usersDatabaseDesignDoc;
     databaseURI = couchServerURI + dbName + '/';
     console.log(util.format('appUsersService module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+
+    updateDesignDoc(function(e,r,b) {
+        if (e || 201 != r.statusCode) {
+            console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode);
+        }
+    });
     
     return exports;
 };
 
 exports.syncUsers = function(clientDeviceUsers, device, callback) {
-    var log = true;
+    var log = false;
 
     if (log) console.log('\n----------------------------------------------------------------');
     if (log) console.log('clientDeviceUsers:%s', JSON.stringify(clientDeviceUsers,null,2));
@@ -75,7 +81,7 @@ exports.syncUsers = function(clientDeviceUsers, device, callback) {
 
         // update couch db if required
         var bulkUpdateDocs = 
-            _.map(newUsers, function(ur) { return { _id:ur.id, nick:ur.nick, password:ur.password, nodesCompleted:ur.nodesCompleted }; })
+            _.map(newUsers, function(ur) { return { _id:ur.id, nick:ur.nick, password:ur.password, nodesCompleted:ur.nodesCompleted, type:'USER' }; })
             .concat(serverUpdates)
         ;
         if (log) console.log('\nbulkUpdateDocs:',JSON.stringify(bulkUpdateDocs,null,2));
@@ -95,3 +101,44 @@ exports.syncUsers = function(clientDeviceUsers, device, callback) {
         }
     });
 };
+
+exports.checkNickAvailable = function(nickName) {
+};
+
+function updateDesignDoc(callback) {
+    console.log('updating design doc on database:', databaseURI);
+
+    var dd = {
+        _id: '_design/' + designDoc
+        , views: {
+            'users-by-nick' : {
+                map: (function(doc) { if ('USER' == doc.type) emit(doc.nick, null); }).toString()
+            }
+        }
+    };
+
+    getDoc(dd._id, function(e,r,b) {
+        var requestObj = {
+            headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
+            , body: JSON.stringify(dd)
+        };
+
+        switch (r.statusCode) {
+            case 404:
+                requestObj.method = 'POST'
+                requestObj.uri = databaseURI
+            break;
+            case 200:
+                views._rev = JSON.parse(b)._rev;
+                requestObj.method = 'PUT'
+                requestObj.uri = dd._id
+            break;
+            default:
+                callback('error retrieving design doc from database', r.statusCode);
+                return;
+            break;
+        }
+
+        request(requestObj, callback);
+    });
+}
