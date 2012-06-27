@@ -27,6 +27,7 @@ module.exports = function(config) {
     return {
         syncUsers: syncUsers
         , userMatchingNick: userMatchingNick
+        , userMatchingNickAndPassword: userMatchingNickAndPassword
     }
 };
 
@@ -108,7 +109,11 @@ function syncUsers(clientDeviceUsers, device, callback) {
 };
 
 function userMatchingNick(nick, callback) {
-    queryView(util.format('users-by-nick?key="%s"', nick), callback);
+    queryView(util.format('users-by-nick?key="%s"&include_docs=true', nick), callback);
+};
+
+function userMatchingNickAndPassword(nick, password, callback) {
+    queryView(util.format('users-by-nick-password?key=%s&include_docs=true', JSON.stringify([nick,password])), callback);
 };
 
 function updateDesignDoc(callback) {
@@ -119,6 +124,9 @@ function updateDesignDoc(callback) {
         , views: {
             'users-by-nick' : {
                 map: (function(doc) { if ('USER' == doc.type) emit(doc.nick, null); }).toString()
+            }
+            , 'users-by-nick-password' : {
+                map: (function(doc) { if ('USER' == doc.type) emit([doc.nick, doc.password], null); }).toString()
             }
         }
     };

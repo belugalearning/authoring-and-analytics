@@ -2,7 +2,7 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload', '/app-users/sync-users']
+var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload', '/app-users/sync-users', '/app-users/check-nick-available', '/app-users/get-user-matching-nick-password']
   , express = require('express')
   , model = require('./model')
   , routes = require('./routes')(model)
@@ -38,6 +38,7 @@ app.configure('production', function(){
 
 function checkAuthentication(req, res, next) {
     var url = urlParser.parse(req.url);
+    //console.log(url.pathname);
     if (~noAuthenticationPathnames.indexOf(url.pathname) || req.session.isAuthenticated) {
         next();
         return;
@@ -136,6 +137,8 @@ app.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
 app.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
 
 app.post('/app-users/sync-users', routes.appUsersService.syncUsers);
+app.post('/app-users/check-nick-available', routes.appUsersService.checkNickAvailable);
+app.post('/app-users/get-user-matching-nick-password', routes.appUsersService.getUserMatchingNickAndPassword);
 
 var crypto = require('crypto')
   , zlib = require('zlib')
