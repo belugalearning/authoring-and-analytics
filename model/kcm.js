@@ -19,46 +19,62 @@ module.exports = function(config) {
     kcmDatabaseName = config.kcmDatabaseName;
     designDoc = config.kcmDatabaseDesignDoc;
     databaseURI = couchServerURI + kcmDatabaseName + '/';
-    console.log(util.format('kcm module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    console.log(util.format('kcm\t\t\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
+    request({
+        method: 'PUT'
+        , uri: databaseURI
+        , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
+    }, function(e,r,b) {
+        if (201 != r.statusCode && 412 != r.statusCode) {
+            console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode);
+            return;
+        }
+        updateDesignDoc(function(e, statusCode) {
+            if (201 != statusCode) {
+                console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode);
+            }
+
+            return {
+                databaseName: kcmDatabaseName
+                , generateUUID: generateUUID
+                , importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
+                , createDB: createDB
+                , pullReplicate: pullReplicate
+                , updateDesignDoc: updateDesignDoc
+                , queryView: queryView
+                , updateViewSettings: updateViewSettings
+                , updateExportSettings: updateExportSettings
+                , insertProblem: insertProblem
+                , insertConceptNode: insertConceptNode
+                , deleteConceptNode: deleteConceptNode
+                , updateConceptNodePosition: updateConceptNodePosition
+                , updateConceptNodeDescription: updateConceptNodeDescription
+                , insertConceptNodeTag: insertConceptNodeTag
+                , deleteConceptNodeTag: deleteConceptNodeTag
+                , editConceptNodeTag: editConceptNodeTag
+                , insertBinaryRelation: insertBinaryRelation
+                , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
+                , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
+                , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
+                , getDoc: getDoc
+                , getDocs: getDocs
+                , addNewPipelineToConceptNode: addNewPipelineToConceptNode
+                , deletePipeline: deletePipeline
+                , reorderConceptNodePipelines: reorderConceptNodePipelines
+                , appendProblemsToPipeline: appendProblemsToPipeline
+                , removeProblemFromPipeline: removeProblemFromPipeline
+                , updatePipelineSequence: updatePipelineSequence
+                , pipelineProblemDetails: pipelineProblemDetails
+                , reorderPipelineProblems: reorderPipelineProblems
+                , getAppContent: getAppContent
+                , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
+            };
+        });
+    });
     //importGraffleMapIntoNewDB(2, 0, false);
-    
-    return {
-        databaseName: kcmDatabaseName
-        , generateUUID: generateUUID
-        , importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
-        , createDB: createDB
-        , pullReplicate: pullReplicate
-        , updateViews: updateViews
-        , queryView: queryView
-        , updateViewSettings: updateViewSettings
-        , updateExportSettings: updateExportSettings
-        , insertProblem: insertProblem
-        , insertConceptNode: insertConceptNode
-        , deleteConceptNode: deleteConceptNode
-        , updateConceptNodePosition: updateConceptNodePosition
-        , updateConceptNodeDescription: updateConceptNodeDescription
-        , insertConceptNodeTag: insertConceptNodeTag
-        , deleteConceptNodeTag: deleteConceptNodeTag
-        , editConceptNodeTag: editConceptNodeTag
-        , insertBinaryRelation: insertBinaryRelation
-        , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
-        , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
-        , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
-        , getDoc: getDoc
-        , getDocs: getDocs
-        , addNewPipelineToConceptNode: addNewPipelineToConceptNode
-        , deletePipeline: deletePipeline
-        , reorderConceptNodePipelines: reorderConceptNodePipelines
-        , appendProblemsToPipeline: appendProblemsToPipeline
-        , removeProblemFromPipeline: removeProblemFromPipeline
-        , updatePipelineSequence: updatePipelineSequence
-        , pipelineProblemDetails: pipelineProblemDetails
-        , reorderPipelineProblems: reorderPipelineProblems
-        , getAppContent: getAppContent
-        , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
-    };
 };
+    
 
 function replaceUUIDWithGraffleId() {
     var file = process.cwd() + '/resources/nc-graffle-import-notes.csv'
@@ -254,74 +270,67 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
     if (dummyRun === true) return;
 
     //insert into db
-    createDB(function(e,statusCode,b) {
-        if (e || statusCode != 201) {
-            console.log('Error creating database. error="%s", statusCode="%s"', e, statusCode);
-            return;
-        }
+    if (map.nodes.length) {
+        queryView(encodeURI('relations-by-name?key="Prerequisite"'), function(e,r,b) {
+            var rows = r.statusCode == 200 && JSON.parse(b).rows
+              , prereqId = rows && rows.length && rows[0].id
+              , prereqRev = rows && rows.length && rows[0].rev
+            ;
+            if (!prereqId) {
+                console.log('error - could not retrieve prerequisite relation. \ne:"%s", \nstatusCode:%d, \nb:"%s"', e, r.statusCode, b);
+                return;
+            }
 
-        if (map.nodes.length) {
-            queryView(encodeURI('relations-by-name?key="Prerequisite"'), function(e,r,b) {
-                var rows = r.statusCode == 200 && JSON.parse(b).rows
-                  , prereqId = rows && rows.length && rows[0].id
-                  , prereqRev = rows && rows.length && rows[0].rev
-                ;
-                if (!prereqId) {
-                    console.log('error - could not retrieve prerequisite relation. \ne:"%s", \nstatusCode:%d, \nb:"%s"', e, r.statusCode, b);
-                    return;
-                }
+            (function insertCNode(nodeIndex) {
+                console.log('inserting concept node at index:%d of array length:%d', nodeIndex, map.nodes.length);
 
-                (function insertCNode(nodeIndex) {
-                    console.log('inserting concept node at index:%d of array length:%d', nodeIndex, map.nodes.length);
+                var node = map.nodes[nodeIndex];
+                delete node.id;
+                delete node.valid;
+                insertConceptNode(node, function(e,statusCode,conceptNode) {
+                    if (statusCode != 201) {
+                        console.log('error inserting concept node: (e:"%s", statusCode:%d, b:"%s")', e, r.statusCode, b);
+                        return;
+                    }
 
-                    var node = map.nodes[nodeIndex];
-                    delete node.id;
-                    delete node.valid;
-                    insertConceptNode(node, function(e,statusCode,conceptNode) {
-                        if (statusCode != 201) {
-                            console.log('error inserting concept node: (e:"%s", statusCode:%d, b:"%s")', e, r.statusCode, b);
-                            return;
-                        }
-
-                        _.each(prerequisitePairs, function(pair) {
-                            if (pair[0] == node.graffleId) pair[0] = conceptNode._id;
-                            else if (pair[1] == node.graffleId) pair[1] = conceptNode._id;
-                        });
-
-                        if (++nodeIndex < map.nodes.length) {
-                            insertCNode(nodeIndex);
-                        } else if (prerequisitePairs.length) {
-
-                            (function insertPrerequisitePair(pairIndex) {
-                                console.log('inserting prerequisite pair at index:%d of array length:%d', pairIndex, prerequisitePairs.length);
-
-                                var pair = prerequisitePairs[pairIndex];
-                                addOrderedPairToBinaryRelation(prereqId, prereqRev, pair[0], pair[1], function(e,statusCode,rev) {
-                                    if (201 != statusCode) {
-                                        console.log('error inserting prerequisite relation member: (e:"%s", statusCode:%d)', e, statusCode);
-                                        var nodes = _.filter(map.nodes, function(n) { return n.id == pair[0] || n.id == pair[1]; });
-                                        return;
-                                    }
-                                    prereqRev = rev;
-                                    if (++pairIndex < prerequisitePairs.length) {
-                                        insertPrerequisitePair(pairIndex);
-                                    } else {
-                                        console.log('all prerequisite pairs inserted');
-                                    }
-                                });
-                            })(0);
-                        } else {
-                            console.log('no prerequisite links on graph');
-                            return;
-                        }
+                    _.each(prerequisitePairs, function(pair) {
+                        if (pair[0] == node.graffleId) pair[0] = conceptNode._id;
+                        else if (pair[1] == node.graffleId) pair[1] = conceptNode._id;
                     });
-                })(0);
-            });
-        } else {
-            console.log('no concept nodes on graph.');
-            return;
-        }
-    });
+
+                    if (++nodeIndex < map.nodes.length) {
+                        insertCNode(nodeIndex);
+                    } else if (prerequisitePairs.length) {
+
+                        (function insertPrerequisitePair(pairIndex) {
+                            console.log('inserting prerequisite pair at index:%d of array length:%d', pairIndex, prerequisitePairs.length);
+
+                            var pair = prerequisitePairs[pairIndex];
+                            addOrderedPairToBinaryRelation(prereqId, prereqRev, pair[0], pair[1], function(e,statusCode,rev) {
+                                if (201 != statusCode) {
+                                    console.log('error inserting prerequisite relation member: (e:"%s", statusCode:%d)', e, statusCode);
+                                    var nodes = _.filter(map.nodes, function(n) { return n.id == pair[0] || n.id == pair[1]; });
+                                    return;
+                                }
+                                prereqRev = rev;
+                                if (++pairIndex < prerequisitePairs.length) {
+                                    insertPrerequisitePair(pairIndex);
+                                } else {
+                                    console.log('all prerequisite pairs inserted');
+                                }
+                            });
+                        })(0);
+                    } else {
+                        console.log('no prerequisite links on graph');
+                        return;
+                    }
+                });
+            })(0);
+        });
+    } else {
+        console.log('no concept nodes on graph.');
+        return;
+    }
 }
 
 function createDB(callback) {
@@ -340,7 +349,7 @@ function createDB(callback) {
 
         if (r.statusCode == 412) {
             console.log('could not create database. Database with name "%s" already exists', databaseURI);
-            updateViews(callback);
+            updateDesignDoc(callback);
         } else if (r.statusCode != 201) {
             if (!e) e = 'error creating database';
             if ('function' == typeof callback) callback(e,r,b);
@@ -348,7 +357,7 @@ function createDB(callback) {
             return;
         } else {
             console.log('created database at uri:\nupdate views...', databaseURI);
-            updateViews(function(e,r,b) {
+            updateDesignDoc(function(e,r,b) {
                 console.log('insert "Prerequisite" binary relation...');
                 insertBinaryRelation('Prerequisite', 'is a prerequisite of', function(e,statusCode,b) {
                     if ('function' == typeof callback) {
@@ -409,8 +418,8 @@ function updateViewSettings(updatedSettings, callback) {
 }
 
 // Views
-function updateViews(callback) {
-    console.log('updating views on database:', databaseURI);
+function updateDesignDoc(callback) {
+    console.log('updating design doc:\t%s_design/', databaseURI, designDoc);
 
     var kcmViews = {
         _id: '_design/' + designDoc

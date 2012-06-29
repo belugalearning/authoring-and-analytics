@@ -252,31 +252,4 @@ var listen = function() {
     console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 };
 
-if (getAppLaunchOption('createdb')) {
-    console.log('creating content database');
-    model.content.createDB(function() {
-        model.kcm.createDB(listen);
-    });
-} else if (getAppLaunchOption('initdb')) {
-    console.log('initialising content database');
-    model.content.populateDBWithInitialContent(listen);
-} else {
-    if (getAppLaunchOption('updateviews')) {
-        console.log('updating views');
-        model.content.updateViews(function() {
-            model.kcm.updateViews(function(e,statusCode) {
-                if (201 != statusCode) {
-                    console.log('failed to update views on model.kcm. statusCode:"%s", error reported:"%s"', statusCode, e);
-                }
-                model.users.updateViews(function(e,statusCode) {
-                    if (201 != statusCode) {
-                        console.log('failed to update views on model.users. statusCode:"%s", error reported:"%s"', statusCode, e);
-                    }
-                    listen();
-                });
-            });
-        });
-    } else {
-        listen();
-    }
-}
+listen();

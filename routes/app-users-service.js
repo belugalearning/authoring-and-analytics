@@ -17,7 +17,6 @@ exports.syncUsers = function(req, res) {
 };
 
 exports.checkNickAvailable = function(req, res) {
-    console.log('got this far');
     var nick = req.body.nick;
     model.userMatchingNick(nick, function(e,r,b) {
         if (200 != r.statusCode) {

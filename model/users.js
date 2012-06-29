@@ -13,7 +13,7 @@ module.exports = function(config) {
     couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
     databaseURI = couchServerURI + config.usersDatabaseName + '/';
     designDocName = config.usersDatabaseDesignDoc;
-    console.log(util.format('users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDocName, databaseURI));
+    console.log(util.format('legacy users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDocName, databaseURI));
     
     return {
         queryView: queryView
@@ -27,7 +27,8 @@ function queryView(view, callback) {
 
 // Views
 function updateViews(callback) {
-    console.log('updating views on database:', databaseURI);
+    console.log('updating design doc:\t\t%s_design/%s', databaseURI, designDocName);
+    console.log('OLD USERS MODULE - DON\'T OVERWRITE DESIGN DOC - RETURNING');
 
     var designDoc = {
         _id: '_design/' + designDocName

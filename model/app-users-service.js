@@ -16,19 +16,30 @@ module.exports = function(config) {
     designDoc = config.usersDatabaseDesignDoc;
     databaseURI = couchServerURI + dbName + '/';
     viewsPath = databaseURI + '_design/' + designDoc + '/_view/'; 
-    console.log(util.format('appUsersService module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    console.log(util.format('appUsersService\t\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
 
-    updateDesignDoc(function(e,r,b) {
-        if (e || 201 != r.statusCode) {
-            console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode);
+    request({
+        method: 'PUT'
+        , uri: databaseURI
+        , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
+    }, function(e,r,b) {
+        if (201 != r.statusCode && 412 != r.statusCode) {
+            console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode);
+            return;
         }
+
+        updateDesignDoc(function(e,statusCode) {
+            if (e || 201 != statusCode) {
+                console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode);
+            }
+        });
+        
+        return {
+            syncUsers: syncUsers
+            , userMatchingNick: userMatchingNick
+            , userMatchingNickAndPassword: userMatchingNickAndPassword
+        };
     });
-    
-    return {
-        syncUsers: syncUsers
-        , userMatchingNick: userMatchingNick
-        , userMatchingNickAndPassword: userMatchingNickAndPassword
-    }
 };
 
 function syncUsers(clientDeviceUsers, device, callback) {
@@ -117,7 +128,7 @@ function userMatchingNickAndPassword(nick, password, callback) {
 };
 
 function updateDesignDoc(callback) {
-    console.log('updating design doc on database:', databaseURI);
+    console.log('updating design doc:\t%s_design/%s', databaseURI, designDoc);
 
     var dd = {
         _id: '_design/' + designDoc
@@ -151,7 +162,7 @@ function updateDesignDoc(callback) {
                 return;
             break;
         }
-        request(requestObj, callback);
+        request(requestObj, function(e,r,b) { callback(e,r.statusCode); });
     });
 }
 
