@@ -27,19 +27,17 @@ module.exports = function(config) {
             console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode);
             return;
         }
-
         updateDesignDoc(function(e,statusCode) {
             if (e || 201 != statusCode) {
                 console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode);
             }
         });
-        
-        return {
-            syncUsers: syncUsers
-            , userMatchingNick: userMatchingNick
-            , userMatchingNickAndPassword: userMatchingNickAndPassword
-        };
     });
+    return {
+        syncUsers: syncUsers
+        , userMatchingNick: userMatchingNick
+        , userMatchingNickAndPassword: userMatchingNickAndPassword
+    };
 };
 
 function syncUsers(clientDeviceUsers, device, callback) {

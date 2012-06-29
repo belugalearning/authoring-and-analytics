@@ -34,47 +34,45 @@ module.exports = function(config) {
             if (201 != statusCode) {
                 console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode);
             }
-
-            return {
-                databaseName: kcmDatabaseName
-                , generateUUID: generateUUID
-                , importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
-                , createDB: createDB
-                , pullReplicate: pullReplicate
-                , updateDesignDoc: updateDesignDoc
-                , queryView: queryView
-                , updateViewSettings: updateViewSettings
-                , updateExportSettings: updateExportSettings
-                , insertProblem: insertProblem
-                , insertConceptNode: insertConceptNode
-                , deleteConceptNode: deleteConceptNode
-                , updateConceptNodePosition: updateConceptNodePosition
-                , updateConceptNodeDescription: updateConceptNodeDescription
-                , insertConceptNodeTag: insertConceptNodeTag
-                , deleteConceptNodeTag: deleteConceptNodeTag
-                , editConceptNodeTag: editConceptNodeTag
-                , insertBinaryRelation: insertBinaryRelation
-                , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
-                , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
-                , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
-                , getDoc: getDoc
-                , getDocs: getDocs
-                , addNewPipelineToConceptNode: addNewPipelineToConceptNode
-                , deletePipeline: deletePipeline
-                , reorderConceptNodePipelines: reorderConceptNodePipelines
-                , appendProblemsToPipeline: appendProblemsToPipeline
-                , removeProblemFromPipeline: removeProblemFromPipeline
-                , updatePipelineSequence: updatePipelineSequence
-                , pipelineProblemDetails: pipelineProblemDetails
-                , reorderPipelineProblems: reorderPipelineProblems
-                , getAppContent: getAppContent
-                , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
-            };
         });
     });
-    //importGraffleMapIntoNewDB(2, 0, false);
+
+    return {
+        databaseName: kcmDatabaseName
+        , generateUUID: generateUUID
+        , importGraffleMapIntoNewDB: importGraffleMapIntoNewDB
+        , createDB: createDB
+        , pullReplicate: pullReplicate
+        , updateDesignDoc: updateDesignDoc
+        , queryView: queryView
+        , updateViewSettings: updateViewSettings
+        , updateExportSettings: updateExportSettings
+        , insertProblem: insertProblem
+        , insertConceptNode: insertConceptNode
+        , deleteConceptNode: deleteConceptNode
+        , updateConceptNodePosition: updateConceptNodePosition
+        , updateConceptNodeDescription: updateConceptNodeDescription
+        , insertConceptNodeTag: insertConceptNodeTag
+        , deleteConceptNodeTag: deleteConceptNodeTag
+        , editConceptNodeTag: editConceptNodeTag
+        , insertBinaryRelation: insertBinaryRelation
+        , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
+        , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
+        , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
+        , getDoc: getDoc
+        , getDocs: getDocs
+        , addNewPipelineToConceptNode: addNewPipelineToConceptNode
+        , deletePipeline: deletePipeline
+        , reorderConceptNodePipelines: reorderConceptNodePipelines
+        , appendProblemsToPipeline: appendProblemsToPipeline
+        , removeProblemFromPipeline: removeProblemFromPipeline
+        , updatePipelineSequence: updatePipelineSequence
+        , pipelineProblemDetails: pipelineProblemDetails
+        , reorderPipelineProblems: reorderPipelineProblems
+        , getAppContent: getAppContent
+        , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
+    };
 };
-    
 
 function replaceUUIDWithGraffleId() {
     var file = process.cwd() + '/resources/nc-graffle-import-notes.csv'
