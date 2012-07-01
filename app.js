@@ -2,7 +2,7 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var noAuthenticationPathnames = ['/login', '/logout', '/app-logging/upload', '/app-users/sync-users', '/app-users/check-nick-available', '/app-users/get-user-matching-nick-password']
+var noAuthenticationPathnames = ['/login', '/logout', /^app-logging\/.+/, /^app-users\/.+/]
   , express = require('express')
   , model = require('./model')
   , routes = require('./routes')(model)
@@ -37,9 +37,17 @@ app.configure('production', function(){
 });
 
 function checkAuthentication(req, res, next) {
-    var url = urlParser.parse(req.url);
-    //console.log(url.pathname);
-    if (~noAuthenticationPathnames.indexOf(url.pathname) || req.session.isAuthenticated) {
+    var pathname = urlParser.parse(req.url).pathname
+      , cache = arguments.callee.cache
+    ;
+
+    if (!cache) {
+        var regexps = _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn); });
+        var strings = _.difference(noAuthenticationPathnames, regexps);
+        cache = arguments.callee.cache = { regexps:regexps, strings:strings };
+    }
+    
+    if (req.session.isAuthenticated || ~cache.strings.indexOf(pathname) || _.find(cache.regexps, function(re) { return re.test(pathname); })) {
         next();
         return;
     }
@@ -57,13 +65,13 @@ app.get('/login', function(req,res) {
     res.render('sessions/login', { redir: req.query.redir || req.body.redir });
 });
 app.post('/login', function(req,res) {
-   if ('blauthors' == req.body.user && '1935-Bourbaki' == req.body.password) { 
-       req.session.isAuthenticated = true;
-       res.redirect(req.body.redir || '/');
-   } else {
-       if (req.session) req.session.destroy();
-       res.render('sessions/login', { redir:req.body.redir });
-   }
+    if ('blauthors' == req.body.user && '1935-Bourbaki' == req.body.password) { 
+        req.session.isAuthenticated = true;
+        res.redirect(req.body.redir || '/');
+    } else {
+        if (req.session) req.session.destroy();
+        res.render('sessions/login', { redir:req.body.redir });
+    }
 });
 app.get('/logout', function(req,res) {
     if (req.session) req.session.destroy();
