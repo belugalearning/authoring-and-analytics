@@ -41,7 +41,8 @@ start() {
 restart() {
     echo -n "Restarting $NAME node instance : "
     if [ "$foreverid" != "" ]; then
-        $forever restart -p $forever_dir
+        command="$forever restart -p $forever_dir"
+        su $USER -c "$command"
         RETVAL=$?
     else
         start
@@ -69,13 +70,10 @@ if [ "$pid" != "" ]; then
     sed1="s/\x1b\[[0-9]*m//g" # strip colours
     sed2="/$pid/p" # only line with pid
     sed3="s/.*\s\+$pid\s\+\([0-9]\+\).*/\1/" # forever id comes after pid
-    foreverid=`su blweb -c "forever list" | sed $sed1 | sed -n $sed2 | sed $sed3`
+    foreverid=`su $USER -c "forever list" | $sed $sed1 | $sed -n $sed2 | $sed $sed3`
 else
     foreverid=""
 fi
-
-echo pid: $pid
-echo foreverid: $foreverid
 
 case "$1" in
     start)
