@@ -1,4 +1,4 @@
 *.swp
-logging/errors.log
-logging/pending-batches/batch-*
-logging/error-batches/batch-*
+app_web_service/logging_service/errors.log
+app_web_service/logging_service/pending-batches/batch-*
+app_web_service/logging_service/error-batches/batch-*
