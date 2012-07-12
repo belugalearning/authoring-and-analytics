@@ -10,7 +10,6 @@ module.exports = function(c, m) {
     config = c;
     model = m;
     exports.kcm = require('./kcm')(config, model.kcm);
-    exports.appUsersService = require('./app-users-service')(model.appUsersService);
     return exports;
 };
 

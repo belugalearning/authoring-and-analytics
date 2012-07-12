@@ -17,9 +17,9 @@ var couchServerURI
 
 module.exports = function(config) {
     couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
-    designDoc = config.kcmDatabaseDesignDoc;
-    databaseURI = couchServerURI + config.kcmDatabaseName + '/';
-    console.log(util.format('legacy content module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    designDoc = config.authoring.kcmDatabaseDesignDoc;
+    databaseURI = couchServerURI + config.authoring.kcmDatabaseName + '/';
+    console.log(util.format('Authoring -> content (legacy)\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
     return {
         queryView: queryView

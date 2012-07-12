@@ -1,3 +1,5 @@
+// N.B. This module now exists purely as a reference and should be deleted when the code creating views in updateViews() is of no further use
+
 var fs = require('fs')
   , _ = require('underscore')
   , request = require('request')
@@ -9,18 +11,6 @@ var designDocName
   , databaseURI
 ;
 
-module.exports = function(config) {
-    couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
-    databaseURI = couchServerURI + config.usersDatabaseName + '/';
-    designDocName = config.usersDatabaseDesignDoc;
-    console.log(util.format('legacy users module:\tdesignDoc="%s"\tdatabaseURI="%s"', designDocName, databaseURI));
-    
-    return {
-        queryView: queryView
-        , updateViews: updateViews
-    };
-};
-
 function queryView(view, callback) {
     getDoc('_design/' + designDocName + '/_view/' + view, callback);
 };
@@ -29,6 +19,7 @@ function queryView(view, callback) {
 function updateViews(callback) {
     console.log('updating design doc:\t\t%s_design/%s', databaseURI, designDocName);
     console.log('OLD USERS MODULE - DON\'T OVERWRITE DESIGN DOC - RETURNING');
+    return;
 
     var designDoc = {
         _id: '_design/' + designDocName

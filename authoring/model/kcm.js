@@ -16,10 +16,10 @@ var kcmDatabaseName
 
 module.exports = function(config) {
     couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
-    kcmDatabaseName = config.kcmDatabaseName;
-    designDoc = config.kcmDatabaseDesignDoc;
+    kcmDatabaseName = config.authoring.kcmDatabaseName;
+    designDoc = config.authoring.kcmDatabaseDesignDoc;
     databaseURI = couchServerURI + kcmDatabaseName + '/';
-    console.log(util.format('kcm\t\t\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    console.log(util.format('Authoring -> kcm\t\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
     
     request({
         method: 'PUT'
@@ -421,7 +421,7 @@ function updateViewSettings(updatedSettings, callback) {
 
 // Views
 function updateDesignDoc(callback) {
-    console.log('updating design doc:\t%s_design/', databaseURI, designDoc);
+    console.log('Authoring -> kcm\t\tupdating design doc:\t%s_design/', databaseURI, designDoc);
 
     var kcmViews = {
         _id: '_design/' + designDoc

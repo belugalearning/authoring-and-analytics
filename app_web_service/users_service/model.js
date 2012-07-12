@@ -12,11 +12,11 @@ var couchServerURI
 
 module.exports = function(config) {
     couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/');
-    dbName = config.usersDatabaseName;
-    designDoc = config.usersDatabaseDesignDoc;
+    dbName = config.appWebService.usersService.databaseName;
+    designDoc = config.appWebService.usersService.databaseDesignDoc;
     databaseURI = couchServerURI + dbName + '/';
     viewsPath = databaseURI + '_design/' + designDoc + '/_view/'; 
-    console.log(util.format('appUsersService\t\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
+    console.log(util.format('AppWebService -> usersService\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI));
 
     request({
         method: 'PUT'
@@ -131,7 +131,7 @@ function userMatchingNickAndPassword(nick, password, callback) {
 };
 
 function updateDesignDoc(callback) {
-    console.log('updating design doc:\t%s_design/%s', databaseURI, designDoc);
+    console.log('AppWebService -> usersService\tupdating design doc:\t%s_design/%s', databaseURI, designDoc);
 
     var dd = {
         _id: '_design/' + designDoc

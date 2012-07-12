@@ -18,59 +18,9 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
 ;
 
-module.exports = function(config) {
-    couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/');
-    dbName = config.appLoggingDatabaseName;
-    dbURI = couchServerURI + dbName + '/';
-
-    return exports = {
-        uploadBatchRequestHandler: uploadBatchRequestHandler
-    };
-};
-
-function uploadBatchRequestHandler(req, res) {
-    var batchFilePath = req.files.batchData.path;
-    var md5 = crypto.createHash('md5');
-
-    fs.createReadStream(batchFilePath)
-        .on('data', function(d) { md5.update(d); })
-        .on('end', function() {
-            var hash = md5.digest('hex');
-            res.send(hash, 200);
-        })
-    ;
-
-    fs.readFile(batchFilePath, function(e, buffer) {
-        var lead0s = new Array(9).join('0')
-          , dWords = []
-        ;
-
-        for (var i=0; i<5; i++) {
-            dWords[i] = (lead0s + buffer.readUInt32BE(4 + 4*i).toString(16)).match(/([0-9a-f]{8})$/i)[1];
-        }
-
-        var batchDate = dWords[0];
-        var batchUUID = dWords.slice(1).join('');
-
-        zlib.unzip(buffer.slice(20), function(e, inflatedBuffer) {
-            fs.writeFile( util.format('%s/batch-%s-%s', pendingLogBatchesDir, batchDate, batchUUID), inflatedBuffer, function(e) {
-               if (e) console.log('failed to write log file. Will need to do something better than this very soon!!!'); // TODO: Handle
-            }); 
-        });
-    });
-}
-
-processPendingBatches(function(numProcessed) {
-    var f = arguments.callee;
-
-    if (numProcessed > 0) {
-        processPendingBatches(f);
-    } else {
-        setTimeout((function() { processPendingBatches(f); }), 5000);
-    }
-});
-
+// previously log batches were uploaded without batch uuid
 // edit pending log filenames from form: "batch-<DATE>" to form: "batch-<DATE>-<UUID>"
+// TODO: Delete when no longer required
 if (false) {
     (function() {
         fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
@@ -98,6 +48,60 @@ if (false) {
     })();
 }
 
+module.exports = function(config) {
+    couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/');
+    dbName = config.appWebService.loggingService.databaseName;
+    dbURI = couchServerURI + dbName + '/';
+
+    processPendingBatches(function(numProcessed) {
+        var f = arguments.callee;
+
+        if (numProcessed > 0) {
+            processPendingBatches(f);
+        } else {
+            setTimeout((function() { processPendingBatches(f); }), 5000);
+        }
+    });
+
+    return {
+        uploadBatchRequestHandler: uploadBatchRequestHandler
+    };
+};
+
+// http request handler handler
+function uploadBatchRequestHandler(req, res) {
+    var batchFilePath = req.files.batchData.path;
+    var md5 = crypto.createHash('md5');
+
+    fs.createReadStream(batchFilePath)
+        .on('data', function(d) { md5.update(d); })
+        .on('end', function() {
+            var hash = md5.digest('hex');
+            res.send(hash, 200);
+        })
+    ;
+
+    fs.readFile(batchFilePath, function(e, buffer) {
+        var lead0s = new Array(9).join('0')
+          , dWords = []
+        ;
+
+        for (var i=0; i<5; i++) {
+            dWords[i] = (lead0s + buffer.readUInt32BE(4 + 4*i).toString(16)).match(/([0-9a-f]{8})$/i)[1];
+        }
+
+        var batchDate = dWords[0];
+        var batchUUID = dWords.slice(1).join('');
+
+        zlib.unzip(buffer.slice(20), function(e, inflatedBuffer) {
+            fs.writeFile( util.format('%s/batch-%s-%s', pendingLogBatchesDir, batchDate, batchUUID), inflatedBuffer, function(e) {
+                if (e) console.log('failed to write log file. Will need to do something better than this very soon!!!'); // TODO: Handle
+            }); 
+        });
+    });
+}
+
+// daemon
 function processPendingBatches(callback) {
     fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
         var batches = _.filter(dirFiles, function(f) { return batchFileNameRE.test(f) })
