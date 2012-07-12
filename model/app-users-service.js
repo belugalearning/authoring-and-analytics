@@ -23,10 +23,15 @@ module.exports = function(config) {
         , uri: databaseURI
         , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
     }, function(e,r,b) {
+        if (!r) {
+            console.log('Error - could not connect to Couch Server testing for existence of database:"%s"', databaseURI);
+            return;
+        }
         if (201 != r.statusCode && 412 != r.statusCode) {
             console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode);
             return;
         }
+
         updateDesignDoc(function(e,statusCode) {
             if (e || 201 != statusCode) {
                 console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode);
