@@ -41,7 +41,7 @@ if (false) {
                 for (var i=0; i<len; i++) {
                     var oldPath = util.format('%s/%s', pendingLogBatchesDir, batchesToRename[i]);
                     var newPath = util.format('%s-%s', oldPath, uuids[i]);
-                    fs.rename(oldPath, newPath, function(e) { console.log('e:',e); });
+                    fs.rename(oldPath, newPath, function(e) { /*console.log('rename batch complete. error:',e);*/ });
                 }
             });
         });
@@ -56,7 +56,7 @@ module.exports = function(config) {
     processPendingBatches(function(numProcessed) {
         var f = arguments.callee;
 
-        console.log('processed %d batches at %s', numProcessed, new Date().toString());
+        //console.log('processed %d batches at %s', numProcessed, new Date().toString());
         if (numProcessed > 0) {
             processPendingBatches(f);
         } else {
