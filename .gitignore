@@ -1,2 +1,4 @@
 *.swp
-pending-logs/batch-*
+logging/errors.log
+logging/pending-batches/batch-*
+logging/error-batches/batch-*

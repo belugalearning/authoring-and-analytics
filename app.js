@@ -2,13 +2,15 @@
 // ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
 process.chdir(__dirname);
 
-var noAuthenticationPathnames = ['/login', '/logout', /^app-logging\/.+/, /^app-users\/.+/]
+var noAuthenticationPathnames = ['/login', '/logout', /^\/app-logging\/.+/, /^\/app-users\/.+/]
   , express = require('express')
-  , model = require('./model')
-  , routes = require('./routes')(model)
   , fs = require('fs')
   , _ = require('underscore')
   , urlParser = require('url')
+  , config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
+  , model = require('./model')
+  , routes = require('./routes')(model)
+  , logging = require('./logging')(config)
   , app = module.exports = express.createServer()
 ;
 
@@ -148,89 +150,7 @@ app.post('/app-users/sync-users', routes.appUsersService.syncUsers);
 app.post('/app-users/check-nick-available', routes.appUsersService.checkNickAvailable);
 app.post('/app-users/get-user-matching-nick-password', routes.appUsersService.getUserMatchingNickAndPassword);
 
-var crypto = require('crypto')
-  , zlib = require('zlib')
-  //, fs = require('fs')
-  //, _ = require('underscore')
-  , request = require('request')
-  , util = require('util')
-;
-app.post('/app-logging/upload', function(req, res) {
-    var batchFilePath = req.files.batchData.path;
-    var md5 = crypto.createHash('md5');
-
-    fs.createReadStream(batchFilePath)
-        .on('data', function(d) { md5.update(d); })
-        .on('end', function() {
-            var hash = md5.digest('hex');
-            res.send(hash, 200);
-        })
-    ;
-
-    fs.readFile(batchFilePath, function(e, buffer) {
-        var batchDate = buffer.readUInt32LE(0, false).toString(16);
-
-        zlib.unzip(buffer.slice(4), function(e, inflatedBuffer) {
-            fs.writeFile( util.format('%s/pending-logs/batch-%s', process.cwd(), batchDate), inflatedBuffer, function(e) {
-               if (e) console.log('failed to write log file. Will need to do something better than this very soon!!!');
-            }); 
-        });
-    });
-
-    return;
-
-    // in production should use input stream
-    var date = req.body.date
-      , rs1 = fs.createReadStream(req.files.batchData.path)
-      //, ws = fs.createWriteStream(process.cwd() + '/pending-logs/' + new Date().toString().replace(/^[a-z]+ ([a-z]+) (\d+) (\d+) ([0-9]+):([0-9]+):([0-9]+).*/i, 'batch_$3_$1$2_$4h$5m$6s'))
-      , ws = fs.createWriteStream(process.cwd() + '/pending-logs/batch-' + date)
-      , unzip = zlib.createUnzip()
-      , rs2 = fs.createReadStream(req.files.batchData.path)
-    ;
-
-
-    // write to disk
-    rs1.pipe(unzip).pipe(ws);
-
-    // md5
-    rs2
-        .on('data', function(d) { md5.update(d); })
-        .on('end', function() {
-        })
-    ;
-});
-
-/*/ process data
-var interSep = String.fromCharCode(parseInt('91', 16)) // unicode "private use one" UTF-8: 0xC291 - represented as 0x91 in javascript string
-  , intraSep = String.fromCharCode(parseInt('92', 16)) // unicode "private use two" UTF-8: 0xC292 - represented as 0x92 in javascript string 
-  , baseDir = process.cwd()
-  , dbURI = '192.168.56.101:5986/june2012-logging'
-  , util = require('util')
-;
-(function() {
-    // get list of files from pending-logs
-    var pendingFiles = ['inflated.data'];
-
-    _.each(pendingFiles, function(file) {
-        var file = fs.readFileSync(util.format('%s/%s', baseDir, fileName))
-          , records = _.map(
-              file.split(interSep)
-              , function(r) { return r.split(intraSep); }
-          )
-        ;
-
-        // files with .json suffix correspond to db records
-        var jsonRecords = records.filter(function(r) { return /\.json$/.test(r[0]); });
-        console.log(_.pluck(jsonRecords, 0));
-        return;
-
-        // which docs are inserts, which are updates?
-        request(
-            encodeURI(util.format('%s_all_docs?keys=%s', databaseURI, JSON.stringify(_.pluck(jsonRecords, 0))))
-        );
-    });
-})()
-//*/
+app.post('/app-logging/upload', logging.uploadBatchRequestHandler);
 
 var launchOptions = _.map(
     _.filter(
