@@ -2,12 +2,14 @@ var  _ = require('underscore')
   , exec = require('child_process').exec
   , fs = require('fs')
   , util = require('util')
+  , config
   , model
 ;
 
-module.exports = function(m) {
+module.exports = function(c, m) {
+    config = c;
     model = m;
-    exports.kcm = require('./kcm')(model.kcm);
+    exports.kcm = require('./kcm')(config, model.kcm);
     exports.appUsersService = require('./app-users-service')(model.appUsersService);
     return exports;
 };
@@ -557,7 +559,7 @@ function formatDateString(jsonDate) {
 
 function decompilePList(plist, callback) {
     var path = plist && plist.path || undefined
-      , command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path)
+      , command = util.format('perl %s/plutil.pl %s.plist', __dirname, path)
       , isBinary
     ;
 

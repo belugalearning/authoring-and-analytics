@@ -667,7 +667,7 @@ function addInitialTopicsModulesElements(callback) {
                 var syllabus = { id:JSON.parse(b).id, topics:[] }
                   , syllabusId = syllabus.id
                   , topics = syllabus.topics
-                  , s = fs.readFileSync(process.cwd() + '/resources/TopicsModulesElements.txt', 'UTF-8').trim();
+                  , s = fs.readFileSync(__dirname + '/../resources/TopicsModulesElements.txt', 'UTF-8').trim();
                 
                 _.each(
                     _.map(s.split('\n'), function(line) {
@@ -750,7 +750,7 @@ function addInitialTopicsModulesElements(callback) {
 
 // THIS FUNCTION NEEDS UPDATING OR DELETING (DELETION PROB BEST)
 function addInitialProblems(tools, elements, callback) {
-    var s = fs.readFileSync(process.cwd() + '/resources/Problems.txt', 'UTF-8').trim()
+    var s = fs.readFileSync(__dirname + '/../resources/Problems.txt', 'UTF-8').trim()
       , problems = []
     ;
 

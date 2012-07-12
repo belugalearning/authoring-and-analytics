@@ -79,7 +79,7 @@ module.exports = function(config) {
 };
 
 function replaceUUIDWithGraffleId() {
-    var file = process.cwd() + '/resources/nc-graffle-import-notes.csv'
+    var file = __dirname + '/../resources/nc-graffle-import-notes.csv'
       , notes = fs.readFileSync(file, 'UTF8')
       , graffleIdNodeMap = {}
     ;
@@ -114,8 +114,8 @@ function generateUUID(callback) {
 
 function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
     // files from which to import
-    var graffleDoc = '/resources/kcm-120420/kcm-120420-tools.graffle'
-      , svgDoc = '/resources/kcm-120420/kcm-120420-tools.svg'
+    var graffleDocPath = __dirname + '/../resources/kcm-120420/kcm-120420-tools.graffle'
+      , svgDocPath = __dirname + '/../resources/kcm-120420/kcm-120420-tools.svg'
     ;
 
     // check args
@@ -131,7 +131,7 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
     if (errors) return;
 
     var map = {}
-      , graffle = libxmljs.parseXmlString(fs.readFileSync(process.cwd() + graffleDoc, 'utf8'))
+      , graffle = libxmljs.parseXmlString(fs.readFileSync(graffleDocPath, 'utf8'))
       , graffleGraphicsElm = graffle.get('//key[text()="GraphicsList"]/following-sibling::array')
       , graffleConceptElms = graffleGraphicsElm.find('./dict' + 
                                                      '[child::key[text()="Layer"]/following-sibling::integer[text()="'+conceptNodeLayer+'"]]' +
@@ -140,7 +140,7 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
       , graffleLinkElms = graffleGraphicsElm.find('./dict' + 
                                                   '[child::key[text()="Layer"]/following-sibling::integer[text()="'+conceptNodeLayer+'"]]' +
                                                   '[child::key[text()="Class"]/following-sibling::string[text()="LineGraphic"]]')
-      , svg = libxmljs.parseXmlString(fs.readFileSync(process.cwd() + svgDoc, 'utf8'))
+      , svg = libxmljs.parseXmlString(fs.readFileSync(svgDocPath, 'utf8'))
       , svgConceptElms = svg.find('./g/g[child::title[text()="Concepts"]]/g[@id]')
       , svgToolElms = svg.find('./g/g[child::title[text()="Tool Coverage"]]/g[@id]')
     ;

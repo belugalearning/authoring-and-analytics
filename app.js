@@ -1,15 +1,11 @@
-// ******* make directory in which this file sits (application root directory) the working directory so that files in subdirectories can use paths relative to application root - i.e. they don't need to know their own path
-// ******* to find all instances where this convenience is used, search app files for 'process.cwd()'
-process.chdir(__dirname);
-
 var noAuthenticationPathnames = ['/login', '/logout', /^\/app-logging\/.+/, /^\/app-users\/.+/]
   , express = require('express')
   , fs = require('fs')
   , _ = require('underscore')
   , urlParser = require('url')
-  , config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
-  , model = require('./model')
-  , routes = require('./routes')(model)
+  , config = JSON.parse(fs.readFileSync(__dirname + '/config.json'))
+  , model = require('./model')(config)
+  , routes = require('./routes')(config, model)
   , logging = require('./logging')(config)
   , app = module.exports = express.createServer()
 ;

@@ -1,12 +1,13 @@
 var fs = require('fs')
-  , config = JSON.parse(fs.readFileSync(process.cwd() + '/config.json'))
   , _ = require('underscore')
   , util = require('util')
   , exec = require('child_process').exec
+  , config
   , kcmModel
 ;
 
-module.exports = function(kcm_model) {
+module.exports = function(appConfig, kcm_model) {
+    config = appConfig;
     kcmModel = kcm_model;
 
     return {
@@ -359,7 +360,7 @@ function pipelineSequenceViewData(plId, callback) {
 
 function decompileFormPList(plist, callback) {
     var path = plist && plist.path || undefined
-      , command = util.format('perl %s/routes/plutil.pl %s.plist', process.cwd(), path)
+      , command = util.format('perl %s/plutil.pl %s.plist', __dirname, path)
       , isBinary
     ;
 
