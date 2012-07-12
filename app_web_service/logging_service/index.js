@@ -39,7 +39,7 @@ if (false) {
                 var uuids = JSON.parse(b).uuids;
 
                 for (var i=0; i<len; i++) {
-                    var oldPath = util.format('%s/%s', pendingLogBatchesDir, batches[i]);
+                    var oldPath = util.format('%s/%s', pendingLogBatchesDir, batchesToRename[i]);
                     var newPath = util.format('%s-%s', oldPath, uuids[i]);
                     fs.rename(oldPath, newPath, function(e) { console.log('e:',e); });
                 }
@@ -56,6 +56,7 @@ module.exports = function(config) {
     processPendingBatches(function(numProcessed) {
         var f = arguments.callee;
 
+        console.log('processed %d batches at %s', numProcessed, new Date().toString());
         if (numProcessed > 0) {
             processPendingBatches(f);
         } else {
@@ -70,6 +71,7 @@ module.exports = function(config) {
 
 // http request handler handler
 function uploadBatchRequestHandler(req, res) {
+    console.log('logging route handler');
     var batchFilePath = req.files.batchData.path;
     var md5 = crypto.createHash('md5');
 
