@@ -1,0 +1,14 @@
+!!!
+html
+  head
+    title Beulga Learning Authoring
+  body
+    h1 Confirm Login
+    form(action='/confirm-login', method='POST')
+      input(type='hidden', name='redir', value=redir)
+      input(type='checkbox', name='confirm', id='confirm', style='display:none;')
+      p
+        | User "#{loggedInUser}" is currently logged in. If you continue this user will be logged out.
+      p
+        input(type='submit', value='Confirm', onClick='document.getElementById("confirm").checked = true;')
+        input(type='submit', value='Cancel', onClick='document.getElementById("confirm").checked = false;')

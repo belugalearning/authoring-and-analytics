@@ -1,18 +1,20 @@
 var express = require('express')
   , _ = require('underscore')
   , urlParser = require('url')
-  , model, routes
+  , session, model, routes
 ;
 
-var noAuthenticationPathnames = ['/login', '/logout']
-  , server = express.createServer()
+var server = express.createServer()
   , config
 ;
 
 module.exports = function(conf) {
     config = conf;
-    model = require('./model')(config)
-    routes = require('./routes')(config, model)
+    model = require('./model')(config);
+    routes = require('./routes')(config, model);
+    session = require('./session');
+
+    configServer();
     setupRoutes();
 
     var port = parseInt(config.authoring.port, 10) || 3001;
@@ -22,74 +24,31 @@ module.exports = function(conf) {
     return server;
 };
 
-// Configuration
-server.configure(function() {
-    server.set('views', __dirname + '/views');
-    server.set('view engine', 'jade');
-    server.set('view options', { layout: false });
-    
-    server.use(express.favicon());
-    server.use(express.bodyParser());
-    server.use(express.cookieParser());
-    server.use(express.session({ cookie:{ maxAge:600000 }, secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87' }));
-    server.use(checkAuthentication);
-    server.use(express.methodOverride());
-    server.use(server.router);
-    server.use(express.static(__dirname + '/public'));
-});
-server.configure('development', function(){
-    server.use(express.errorHandler({ dumpExceptions: true, showStack: true })); 
-});
-server.configure('production', function(){
-    server.use(express.errorHandler()); 
-});
-
-// auth
-function checkAuthentication(req, res, next) {
-    var pathname = urlParser.parse(req.url).pathname
-      , cache = arguments.callee.cache
-    ;
-
-    if (!cache) {
-        var regexps = _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn); });
-        var strings = _.difference(noAuthenticationPathnames, regexps);
-        cache = arguments.callee.cache = { regexps:regexps, strings:strings };
-    }
-    
-    if (req.session.isAuthenticated || ~cache.strings.indexOf(pathname) || _.find(cache.regexps, function(re) { return re.test(pathname); })) {
-        next();
-        return;
-    }
-
-    if (req.isXMLHttpRequest) {
-        res.send('You have been logged out', 401);
-    } else {
-        res.redirect('/login?redir=' + req.url);
-    }
+function configServer() {
+    server.configure(function() {
+        server.set('views', __dirname + '/views');
+        server.set('view engine', 'jade');
+        server.set('view options', { layout: false });
+        
+        server.use(express.favicon());
+        server.use(express.bodyParser());
+        server.use(express.cookieParser());
+        server.use(session(model.kcm));
+        server.use(express.methodOverride());
+        server.use(server.router);
+        server.use(express.static(__dirname + '/public'));
+    });
+    server.configure('development', function(){
+        server.use(express.errorHandler({ dumpExceptions: true, showStack: true })); 
+    });
+    server.configure('production', function(){
+        server.use(express.errorHandler()); 
+    });
 }
 
 // routes
 function setupRoutes() {
-    server.get('/login', function(req,res) {
-        res.render('sessions/login', { redir: req.query.redir || req.body.redir });
-    });
-    server.post('/login', function(req,res) {
-        if ('blauthors' == req.body.user && '1935-Bourbaki' == req.body.password) { 
-            req.session.isAuthenticated = true;
-            res.redirect(req.body.redir || '/');
-        } else {
-            if (req.session) req.session.destroy();
-            res.render('sessions/login', { redir:req.body.redir });
-        }
-    });
-    server.get('/logout', function(req,res) {
-        if (req.session) req.session.destroy();
-        res.redirect('/login');
-    });
-
-
     server.get('/', routes.index);
-
     server.get('/sitemap', routes.siteMap);
 
     server.get('/content/element-assessment-criteria', routes.content.elementAssessmentCriteriaPage);
