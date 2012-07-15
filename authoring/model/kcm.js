@@ -63,8 +63,6 @@ module.exports = function(config) {
         , getChainedBinaryRelationsWithMembers: getChainedBinaryRelationsWithMembers
         , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
         , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
-        , getDoc: getDoc
-        , getDocs: getDocs
         , addNewPipelineToConceptNode: addNewPipelineToConceptNode
         , deletePipeline: deletePipeline
         , reorderConceptNodePipelines: reorderConceptNodePipelines
@@ -75,6 +73,8 @@ module.exports = function(config) {
         , pipelineProblemDetails: pipelineProblemDetails
         , reorderPipelineProblems: reorderPipelineProblems
         , getAppContent: getAppContent
+        , getDoc: getDoc
+        , getDocs: getDocs
         , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
     };
 };
@@ -1489,7 +1489,7 @@ function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev
 
         if (!conceptNode.pipelines) conceptNode.pipelines = [];
 
-        insertDoc({ type:'pipeline', name:pipelineName, problems:[] }, function(e,r,b) {
+        insertDoc({ type:'pipeline', name:pipelineName, problems:[], workflowStatus:0 }, function(e,r,b) {
             if (201 != r.statusCode) {
                 callback(util.format('Failed to create pipeline. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode);
                 return;
@@ -1667,6 +1667,7 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
         }
 
         pl.problems.splice(problemIx, 1);
+        pl.workflowStatus = 0;
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {
@@ -1687,8 +1688,8 @@ function updatePipelineWorkflowStatus(pipelineId, pipelineRev, status, callback)
         return;
     }
 
-    if (status == null || isNaN(status) || parseInt(status, 10) !== Number(status)) {
-        callback('BAD ARG: integer required for status. The pipeline workflow status was not updated.', 500);
+    if (!/^\d+$/.test(status)) {
+        callback('BAD ARG: integer string required for status. The pipeline workflow status was not updated.', 500);
         return;
     }
 
@@ -1730,6 +1731,7 @@ function appendProblemsToPipeline(plId, problemIds, callback) {
 
         var pl = JSON.parse(b);
         pl.problems = pl.problems.concat(problemIds);
+        pl.workflowStatus = 0;
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {
@@ -1763,6 +1765,8 @@ function updatePipelineSequence(pipelineId, problemSequence, callback) {
         }
 
         pl.problems = problemSequence;
+        pl.workflowStatus = 0;
+
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) callback(util.format('The pipeline problem sequence failed to update. Database Error: "%s"', e), r.statusCode);
             else callback(null,201);
@@ -1855,6 +1859,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 
         pl.problems.splice(oldIndex,1);
         pl.problems.splice(newIndex,0,problemId);
+        pl.workflowStatus = 0;
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {

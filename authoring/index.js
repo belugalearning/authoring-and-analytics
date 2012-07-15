@@ -105,9 +105,10 @@ function setupRoutes() {
     server.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
     server.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
     server.post('/kcm/pipeline-problem-details', routes.kcm.pipelineProblemDetails);
-    server.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence);
+    server.post('/kcm/pipeline-sequence/update', routes.kcm.updatePipelineSequence); 
     server.post('/kcm/reorder-pipeline-problems', routes.kcm.reorderPipelineProblems);
     server.post('/kcm/update-concept-node-position', routes.kcm.updateConceptNodePosition);
     server.post('/kcm/add-problems-to-pipeline', routes.kcm.uploadProblems);
+    server.post('/kcm/pipeline/:pipelineId/:pipelineRev/problem/:problemId/remove', routes.kcm.removeProblemFromPipeline);
     server.get('/kcm/problem/:problemId', routes.content.editProblem.problemDetailPage);
 }

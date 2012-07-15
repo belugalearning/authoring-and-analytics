@@ -84,7 +84,7 @@
             .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
-            .on('change', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > select', updatePipelineWorkflowStatus)
+            .on('change', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > select.workflow-status', updatePipelineWorkflowStatus)
             .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
@@ -1195,6 +1195,7 @@
 
                 pl._rev = o.pipelineRev;
                 pl.problems = $.map(o.problemDetails, function(p) { return p.id; });
+                pl.workflowStatus = 0;
 
                 if ($trPLProbs.length) {
                     $trPLProbs
@@ -1204,6 +1205,9 @@
                         .find('tr.add-problems')
                             .before($.tmpl('plProblemTR', o.problemDetails));
                 }
+
+                // if pipeline still visible (i.e. its node is still selected) update its status select
+                $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0);
 
                 d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
             }
@@ -1223,15 +1227,17 @@
             ;
 
             $.ajax({
-                url: '/kcm/remove-problem-from-pipeline'
+                url: '/kcm/pipeline/' + pl._id + '/' + pl._rev + '/problem/' +  problemId + '/remove'
                 , type:'POST'
-                , contentType:'application/json'
-                , data:JSON.stringify({ pipelineId:pl._id, pipelineRev:pl._rev, problemId:problemId })
                 , success:function(plRev) {
                     var probIx = pl.problems.indexOf(problemId);
+                    pl.workflowStatus = 0;
                     pl.problems.splice(probIx, 1);
                     pl._rev = plRev;
                     $trProblem.remove();
+
+                    // if pipeline still visible (i.e. concept its node still selected), reset its workflow status
+                    $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0);
 
                     if (!pl.problems.length) {
                         var cn = $.grep(kcm.nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
@@ -1420,6 +1426,8 @@
                         , data:JSON.stringify({ pipelineId:pl._id, pipelineRev:pl._rev, problemId:$tr.attr('data-id'), oldIndex:index, newIndex:$tr.index() })
                         , success:function(plRev) {
                             pl._rev = plRev;
+                            pl.workflowStatus = 0;
+                            $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0);
                         }
                         , error:ajaxErrorHandler('error reordering pipeline problems')
                     });
@@ -1653,7 +1661,7 @@
                 <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
-                <select>\
+                <select class="workflow-status">\
                     <option value="0" {{if workflowStatus == 0}}selected="selected"{{/if}}>U</option>\
                     <option value="32" {{if workflowStatus == 32}}selected="selected"{{/if}}>T</option>\
                     <option value="64" {{if workflowStatus == 64}}selected="selected"{{/if}}>P</option>\

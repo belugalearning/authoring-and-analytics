@@ -148,7 +148,7 @@ module.exports = function(appConfig, kcm_model) {
             });
         }
         , removeProblemFromPipeline: function(req,res) {
-            kcmModel.removeProblemFromPipeline(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, function(e,statusCode,rev) {
+            kcmModel.removeProblemFromPipeline(req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {
                 res.send(e || rev, statusCode || 500);
             });
         }
