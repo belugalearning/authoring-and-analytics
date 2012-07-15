@@ -431,7 +431,7 @@ function updateDesignDoc(callback) {
                 map: (function(doc) { emit(doc.type, null); }).toString()
             }
             , 'users-by-credentials': {
-                map: (function(doc) { if ('User' == doc.type) emit([doc.name, doc.password], null); }).toString()
+                map: (function(doc) { if ('User' == doc.type) emit([doc.loginName, doc.password], null); }).toString()
             }
             , 'concept-nodes': {
                 map: (function(doc) { if (doc.type == 'concept node') emit(doc._id, null); }).toString()
