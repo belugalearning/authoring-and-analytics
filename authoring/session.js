@@ -5,7 +5,7 @@ var urlParser = require('url')
 ;
 
 module.exports = function session(kcm, noAuthenticatePathnames) {
-    var connectSession = ConnectSession({ cookie:{ maxAge:600000 }, secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87' });
+    var connectSession = ConnectSession({ key:'bl.authoring.sid', cookie:{ maxAge:600000 }, secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87' });
     var noAuthRegexps = noAuthenticatePathnames ? _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn); }) : [];
     var noAuthStrings = noAuthenticatePathnames ? _.difference(noAuthenticationPathnames, regexps) : [];
 
@@ -31,16 +31,16 @@ module.exports = function session(kcm, noAuthenticatePathnames) {
                                 res.render('sessions/login', { redir:req.body.redir });
                             } else {
                                 // correct credentials
-                                session.isAuthenticated = true;
                                 session.user = lastLoggedInUser = rows[0].doc;
 
                                 // is anyone else logged into the kcm?
+                                var now = new Date();
                                 var allSessions = req.sessionStore.sessions;
                                 var authenticatedSession;
                                 for (var id in allSessions) {
                                     if (id != req.sessionID) {
                                         var s = JSON.parse(allSessions[id]);
-                                        if (s.isAuthenticated) {
+                                        if (s.isAuthenticated && new Date(s.cookie.expires) > now) {
                                             authenticatedSession = s;
                                             break;
                                         }
@@ -53,6 +53,7 @@ module.exports = function session(kcm, noAuthenticatePathnames) {
                                     res.render('sessions/confirm-login', { redir:req.body.redir, loggedInUser:authenticatedSession.user.name });
                                 } else {
                                     // nobody else logged in, continue
+                                    session.isAuthenticated = true;
                                     res.redirect(req.body.redir || '/');
                                 }
                             }
@@ -71,13 +72,10 @@ module.exports = function session(kcm, noAuthenticatePathnames) {
                         for (var id in allSessions) {
                             if (id != req.sessionID) {
                                 var s = JSON.parse(allSessions[id]);
-                                if (s.isAuthenticated) {
-                                    req.sessionStore.destroy(id);
-                                    break;
-                                }
+                                if (s.isAuthenticated) req.sessionStore.destroy(id);
                             }
                         }
-
+                        session.isAuthenticated = true;
                         res.redirect(req.body.redir || '/');
                     } else {
                         // login cancelled - redirect to login page (& session will be destroyed)
