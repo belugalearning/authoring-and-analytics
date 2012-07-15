@@ -1636,6 +1636,11 @@
                 <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
+                <select>\
+                    <option value="0" {{if workflowStatus == 0}}selected="selected"{{/if}}>U</option>\
+                    <option value="32" {{if workflowStatus == 32}}selected="selected"{{/if}}>T</option>\
+                    <option value="64" {{if workflowStatus == 64}}selected="selected"{{/if}}>P</option>\
+                </select>\
             </td>\
             <td class="controls">\
                 <div class="gripper"/>\

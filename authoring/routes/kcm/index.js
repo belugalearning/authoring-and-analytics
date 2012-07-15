@@ -66,7 +66,10 @@ module.exports = function(appConfig, kcm_model) {
         , getMap: function(req, res) {
             var map = { pipelines:{}, nodes:[], prerequisites:[] };
             kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {
-                _.each(JSON.parse(b).rows, function(row) { map.pipelines[row.id] = row.doc; });
+                _.each(JSON.parse(b).rows, function(row) {
+                    if ('undefined' == typeof row.doc.workflowStatus) row.doc.workflowStatus = 0;
+                    map.pipelines[row.id] = row.doc;
+                });
                 kcmModel.queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
                     map.nodes = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
