@@ -71,6 +71,7 @@ module.exports = function(config) {
         , appendProblemsToPipeline: appendProblemsToPipeline
         , removeProblemFromPipeline: removeProblemFromPipeline
         , updatePipelineSequence: updatePipelineSequence
+        , updatePipelineWorkflowStatus: updatePipelineWorkflowStatus
         , pipelineProblemDetails: pipelineProblemDetails
         , reorderPipelineProblems: reorderPipelineProblems
         , getAppContent: getAppContent
@@ -1669,7 +1670,50 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {
-                callback(util.format('Error removing problem with id="%s" form pipeline with id="%s". Database reported error:"%s"', problemId, pipelineId, e), r.statusCode);
+                callback(util.format('Error removing problem with id="%s" from pipeline with id="%s". Database reported error:"%s"', problemId, pipelineId, e), r.statusCode);
+                return;
+            }
+            callback(null,201,JSON.parse(b).rev);
+        });
+    });
+}
+
+function updatePipelineWorkflowStatus(pipelineId, pipelineRev, status, callback) {
+    var argErrors = [];
+    if ('string' != typeof pipelineId) argErrors.push('pipelineId');
+    if ('string' != typeof pipelineRev) argErrors.push('pipelineRev');
+    if (argErrors.length) {
+        callback('BAD ARGS: strings required for ' + argErrors.join(' and ') +'. The pipeline workflow status was not updated.', 500);
+        return;
+    }
+
+    if (status == null || isNaN(status) || parseInt(status, 10) !== Number(status)) {
+        callback('BAD ARG: integer required for status. The pipeline workflow status was not updated.', 500);
+        return;
+    }
+
+    getDoc(pipelineId, function(e,r,b) {
+        if (200 != r.statusCode) {
+            callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline workflow status was not updated.',e), r.statusCode);
+            return;
+        }
+        var pl = JSON.parse(b);
+
+        if (pl._rev != pipelineRev) {
+            callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline workflow status was not updated.', pipelineRev, pl._rev), 500);
+            return;
+        }
+
+        if ('pipeline' != pl.type) {
+            callback(util.format('Error: Document with id="%s" is not a pipeline. The pipeline workflow status was not updated.',plId), 500);
+            return;
+        }
+
+        pl.workflowStatus = status;
+
+        updateDoc(pl, function(e,r,b) {
+            if (201 != r.statusCode) {
+                callback(util.format('Error updating workflow status for pipeline with id="%s". Database reported error:"%s"', pipelineId, e), r.statusCode);
                 return;
             }
             callback(null,201,JSON.parse(b).rev);

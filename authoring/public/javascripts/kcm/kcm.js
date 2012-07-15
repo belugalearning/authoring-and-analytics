@@ -84,6 +84,7 @@
             .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
             .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
+            .on('change', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > select', updatePipelineWorkflowStatus)
             .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
             .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
             .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
@@ -1243,6 +1244,22 @@
                 }
                 , error:ajaxErrorHandler('error removing problem from pipeline')
             });
+        });
+    }
+
+    function updatePipelineWorkflowStatus() {
+        var id = $(this).closest('tr').attr('data-id')
+          , status = $(this).val()
+          , pl = kcm.pipelines[id]
+        ;
+        $.ajax({
+            url: '/kcm/pipeline/' + id + '/' + pl._rev + '/update-workflow-status/' + status
+            , type:'PUT'
+            , success:function(rev) {
+                pl._rev = rev;
+                pl.workflowStatus = status;
+            }
+            , error:ajaxErrorHandler('error updating pipeline workflow status')
         });
     }
 

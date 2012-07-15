@@ -152,6 +152,11 @@ module.exports = function(appConfig, kcm_model) {
                 res.send(e || rev, statusCode || 500);
             });
         }
+        , updatePipelineWorkflowStatus: function(req,res) {
+            kcmModel.updatePipelineWorkflowStatus(req.params.id, req.params.rev, req.params.status, function(e, statusCode, rev) {
+                res.send(e || rev, statusCode || 500);
+            });
+        }
         , updatePipelineSequence: function(req, res) {
             kcmModel.updatePipelineSequence(req.body.pipelineId, req.body.problems, function(e,statusCode) {
                 res.send(e, statusCode || 500);

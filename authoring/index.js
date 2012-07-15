@@ -101,7 +101,7 @@ function setupRoutes() {
     server.post('/kcm/edit-concept-node-tag', routes.kcm.editConceptNodeTag);
     server.post('/kcm/insert-pipeline', routes.kcm.addNewPipelineToConceptNode);
     server.post('/kcm/delete-pipeline', routes.kcm.deletePipeline);
-    server.post('/kcm/remove-problem-from-pipeline', routes.kcm.removeProblemFromPipeline);
+    server.put('/kcm/pipeline/:id/:rev/update-workflow-status/:status', routes.kcm.updatePipelineWorkflowStatus);
     server.get('/kcm/pipelines/:pipelineId?', routes.kcm.pipelinePage);
     server.get('/kcm/pipeline-sequence-tables/', routes.kcm.pipelineSequenceTables);
     server.post('/kcm/pipeline-problem-details', routes.kcm.pipelineProblemDetails);
