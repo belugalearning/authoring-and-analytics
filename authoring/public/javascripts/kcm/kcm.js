@@ -371,18 +371,14 @@
         if (data) {
             $('table[data-panel="concept-node-data"]').removeClass('none-selected');
             $('#concept-db-id').text(data._id);
-            $('#concept-graffle-id').text(data.graffleId || '');
             $('#concept-description').val(data.nodeDescription).prop('disabled', '');
-            $('#concept-notes').val(data.notes).prop('disabled', '');
             $('#concept-tags').html($.tmpl('cnTagDIV', $.map(data.tags, function(tag) { return { tag:tag }; })));
             $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; })));
  
         } else {
             $('table[data-panel="concept-node-data"]').addClass('none-selected');
             $('#concept-db-id').text('');
-            $('#concept-graffle-id').text('');
             $('#concept-description').val('').prop('disabled', 'disabled');
-            $('#concept-notes').val('').prop('disabled', 'disabled');
             $('#concept-tags').html('');
         }
     }
