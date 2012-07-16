@@ -65,15 +65,15 @@ module.exports = function(appConfig, kcm_model) {
         }
         , getMap: function(req, res) {
             var map = { pipelines:{}, nodes:[], prerequisites:[] };
-            kcmModel.queryView(encodeURI('pipelines-by-name?include_docs=true'), function(e,r,b) {
+            kcmModel.queryView('pipelines-by-name', 'include_docs', true, function(e,r,b) {
                 _.each(JSON.parse(b).rows, function(row) {
                     if ('undefined' == typeof row.doc.workflowStatus) row.doc.workflowStatus = 0;
                     map.pipelines[row.id] = row.doc;
                 });
-                kcmModel.queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
+                kcmModel.queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
                     map.nodes = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
-                    kcmModel.queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
+                    kcmModel.queryView('relations-by-relation-type-name', 'startkey', ['binary'], 'endkey', ['binary',{}], 'include_docs', true, function(e,r,b) {
                         map.binaryRelations = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
                         kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
@@ -346,7 +346,7 @@ function pipelineSequenceViewData(plId, callback) {
 
         pl = JSON.parse(b);
 
-        kcmModel.queryView(encodeURI('by-type?include_docs=true&key="problem"'), function(e,r,b) {
+        kcmModel.queryView('by-type', 'include_docs', true, 'key', 'problem', function(e,r,b) {
             var probs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
 
             incl = _.sortBy(

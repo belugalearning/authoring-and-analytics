@@ -22,7 +22,7 @@ module.exports = function session(kcm, noAuthenticatePathnames) {
                 case '/login':
                     if ('POST' == req.method) {
                         // validate credentials
-                        kcm.queryView(encodeURI(util.format('users-by-credentials?key=["%s","%s"]&include_docs=true', req.body.user, req.body.password)), function(e,r,b) {
+                        kcm.queryView('users-by-credentials', 'key', [req.body.user, req.body.password], 'include_docs', true, function(e,r,b) {
                             var rows = JSON.parse(b).rows;
 
                             if (!rows.length) {

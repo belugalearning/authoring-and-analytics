@@ -85,7 +85,7 @@ function replaceUUIDWithGraffleId() {
       , graffleIdNodeMap = {}
     ;
 
-    queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
+    queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
         var nodes = JSON.parse(b).rows
           , docNodeIds = _.uniq(notes.match(/2e203[a-z0-9]+/ig))
         ;
@@ -274,7 +274,7 @@ function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
 
     //insert into db
     if (map.nodes.length) {
-        queryView(encodeURI('relations-by-name?key="Prerequisite"'), function(e,r,b) {
+        queryView('relations-by-name', 'key', 'Prerequisite', function(e,r,b) {
             var rows = r.statusCode == 200 && JSON.parse(b).rows
               , prereqId = rows && rows.length && rows[0].id
               , prereqRev = rows && rows.length && rows[0].rev
@@ -625,9 +625,53 @@ function updateDesignDoc(callback) {
     });
 }
 
-function queryView(view, callback) {
-    getDoc('_design/' + designDoc + '/_view/' + view, callback);
-};
+function queryView(view) {
+    var uri = util.format('%s_design/%s/_view/%s', databaseURI, designDoc, view);
+    var callbackIx = arguments.length - 1;
+    var callback = arguments[callbackIx];
+
+    if ('function' != typeof callback) return;
+
+    for (var i=1; i<callbackIx; i+=2) {
+        uri += i == 1 ? '?' : '&';
+
+        var field = arguments[i];
+        if ('string' != typeof field) {
+            callback(util.format('argument at index %d is not a string.', i));
+            return;
+        }
+        uri += field + '=';
+
+        var value = arguments[i+1];
+        uri += (function rec(val) {
+            var valType = Object.prototype.toString.call(val).match(/^\[object ([a-z]+)\]$/i)[1];
+
+            switch (valType) {
+                case 'Null':
+                case 'Undefined':
+                    return 'null';
+                case 'Number':
+                case 'Boolean':
+                    return val.toString();
+                case 'String':
+                    return '%22' + encodeURIComponent(val) + '%22';
+                case 'Array':
+                    return '%5B' + _.map(val, function(el) { return rec(el); }).join(',') + '%5D';
+                case 'Object':
+                    // Empty object comes after everything else, so is used for endkey. e.g. startkey=['A']&endkey=['A',{}] will return all keys with 'A' as first element
+                    return Object.keys(val).length === 0 ? '%7B%7D' : '#';
+                default:
+                    return '#';
+            }
+        })(value);
+
+        if (~uri.indexOf('#')) {
+            callback(util.format('argument at index %d is invalid.', i+1));
+            return;
+        }
+    }
+    request.get(uri, callback);
+}
 
 function insertProblem(plist, callback) {
     getProblemInfoFromPList(plist, function(e, plistString, problemDescription, toolId, internalDescription) {
@@ -716,7 +760,7 @@ function getProblemInfoFromPList(plist, callback) {
             );
             return;
         }
-        queryView(encodeURI('any-by-type-name?key=' + JSON.stringify(['tool',toolName])), function(e,r,b) {
+        queryView('any-by-type-name', 'key', ['tool',toolName], function(e,r,b) {
             var rows = !e && r && r.statusCode == 200 && JSON.parse(b).rows
               , toolId = rows && rows.length && rows[0].id
             ;
@@ -782,7 +826,7 @@ function deleteConceptNode(conceptNodeId, conceptNodeRev, callback) {
         // TODO: genericise
         // remove from binary relations
         
-        queryView(encodeURI('relations-by-relation-type-name?startkey='+JSON.stringify(['binary'])+'&endkey='+JSON.stringify(['binary',{}])+'&include_docs=true'), function(e,r,b) {
+        queryView('relations-by-relation-type-name', 'startkey', ['binary'], 'endkey', ['binary',{}], 'include_docs', true, function(e,r,b) {
             var updatedBinaryRelations = []
               , binaryRelations = 200 == r.statusCode && JSON.parse(b).rows
               , i
@@ -924,7 +968,7 @@ function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, 
         if ('mastery' != tagText) {
             insertTag();
         } else {
-            queryView(encodeURI('relations-by-name?key="Prerequisite"&include_docs=true'), function (e,r,b) {
+            queryView('relations-by-name', 'key', 'Prerequisite', 'include_docs', true, function (e,r,b) {
                 if (200 != r.statusCode) {
                     callback(util.format('Could not retrieve "Prerequisite" binary relation. Database Error:"%s"', e), r.statusCode || 500);
                     return;
@@ -1000,7 +1044,7 @@ function deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, 
         if ('mastery' != tagText) {
             deleteTag();
         } else {
-            queryView(encodeURI('relations-by-name?key="Mastery"&include_docs=true'), function (e,r,b) {
+            queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function (e,r,b) {
                 if (200 != r.statusCode) {
                     callback(util.format('Could not retrieve "Mastery" binary relation. Database Error:"%s"', e), r.statusCode || 500);
                     return;
@@ -1052,7 +1096,7 @@ function getChainedBinaryRelationsWithMembers(relationIds, callback) {
     if (relationIds) {
         request(encodeURI(databaseURI + '_all_docs?include_docs=true&keys=' + JSON.stringify(relationIds)), next);
     } else {
-        queryView(encodeURI('relations-by-relation-type?key="chained-binary"&include_docs=true'), next);
+        queryView('relations-by-relation-type', 'key', 'chained-binary', 'include_docs', true, next);
     }
 
     function next(e,r,b) {
@@ -1130,7 +1174,7 @@ function insertBinaryRelation(name, description, callback) {
         return;
     }
 
-    queryView(util.format('relations-by-name?key="%s"', o.name), function(e,r,b) {
+    queryView('relations-by-name', 'key', o.name, function(e,r,b) {
         if (200 == r.statusCode) {
             if ('function' == typeof callback) callback(util.format('could not insert relation - a relation with name "%s" already exists', 409));
             return;
@@ -1171,7 +1215,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
 
                 relation._rev = JSON.parse(b).rev;
 
-                queryView(encodeURI('relations-by-relation-type?include_docs=true&key="chained-binary"'), function(e,r,b) {
+                queryView('relations-by-relation-type', 'include_docs', true, 'key', 'chained-binary', function(e,r,b) {
                     if (200 != r.statusCode) { 
                         // don't throw error as it's not especially important
                         // TODO: this error however should be logged somewhere for developer attention
@@ -1255,7 +1299,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                             callback('Error: one or both concept nodes are tagged "mastery". The prerequisite relationship is invalid for mastery nodes.', 500);
                             return;
                         }
-                        queryView(encodeURI('relations-by-name?include_docs=true&key="Mastery"'), function(e,r,b) {
+                        queryView('relations-by-name', 'include_docs', true, 'key', 'Mastery', function(e,r,b) {
                             if (200 != r.statusCode) {
                                 callback(util.format('Error: could not retrieve relation named "Mastery" to check for implicit creation of bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
                                 return;
@@ -1311,7 +1355,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                             callback(util.format('Error: node id="%s" already contributes towards a mastery node.', cn1Id), 500);
                             return;
                         }
-                        queryView(encodeURI('relations-by-name?include_docs=true&key="Prerequisite"'), function(e,r,b) {
+                        queryView('relations-by-name', 'include_docs', true, 'key', 'Prerequisite', function(e,r,b) {
                             if (200 != r.statusCode) {
                                 callback(util.format('Error: could not retrieve relation named "Prerequisite" to check for bi-directional derived link between mastery nodes. Database reported error="%s"', e), r.statusCode);
                                 return;
@@ -1434,7 +1478,7 @@ function removeOrderedPairFromBinaryRelation(relationId, relationRev, pair, call
 
             var rev = JSON.parse(b).rev;
 
-            queryView(encodeURI('relations-by-relation-type?include_docs=true&key="chained-binary"'), function(e,r,b) {
+            queryView('relations-by-relation-type', 'include_docs', true, 'key', 'chained-binary', function(e,r,b) {
                 if (200 != r.statusCode) { 
                     // don't throw error as it's not especially important
                     // TODO: this error however should be logged somewhere for developer attention
@@ -1975,43 +2019,40 @@ function getAppContent(callback) {
             });
 
             function getPipelines(cb) {
-                var len = pipelineNames.length
+                var numPlNames = pipelineNames.length
                   , pipelines = {}
                 ;
 
-                if (!len) {
+                if (!numPlNames) {
                     cb('case when pipelineNames.length == 0 not handled', 500);
                     return;
                 }
 
                 (function getPipelinesMatchingNameAtIndex(i) {
-                    var name = pipelineNames[i]
-                      , qry = encodeURI('pipelines-with-problems-by-name?reduce=false&startkey=' + JSON.stringify([name]) + '&endkey=' + JSON.stringify([name,{}]))
-                    ;
-                    if (len) {
-                        queryView(qry, function(e,r,b) {
-                            if (200 != r.statusCode) {
-                                cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
-                                return;
-                            }
+                    var name = pipelineNames[i];
 
-                            var rows = JSON.parse(b).rows
-                              , row, key
-                              , len = rows.length, i
-                            ;
+                    queryView('pipelines-with-problems-by-name', 'reduce', false, 'startkey', [name], 'endkey' [name,{}], function(e,r,b) {
+                        if (200 != r.statusCode) {
+                            cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                            return;
+                        }
 
-                            for (i=0; i<len; i++) {
-                                row = rows[i];
-                                pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
-                            };
+                        var rows = JSON.parse(b).rows
+                          , row, key
+                          , len = rows.length, i
+                        ;
 
-                            if (++i < len) {
-                                getPipelinesMatchingNameAtIndex(i);
-                            } else {
-                                cb (null, 200, pipelines);
-                            }
-                        });
-                    }
+                        for (i=0; i<len; i++) {
+                            row = rows[i];
+                            pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
+                        };
+
+                        if (++i < len) {
+                            getPipelinesMatchingNameAtIndex(i);
+                        } else {
+                            cb (null, 200, pipelines);
+                        }
+                    });
                 })(0);
             }
 
@@ -2042,7 +2083,7 @@ function getAppContent(callback) {
 
                 function getNodeDocs(successCB) {
                     if (exportAllNodes) {
-                        queryView(encodeURI('concept-nodes?include_docs=true'), function(e,r,b) {
+                        queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
                             if (200 != r.statusCode) {
                                 cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
                                 return;
@@ -2060,7 +2101,7 @@ function getAppContent(callback) {
                 }
                 
                 function getNodesByPipeline(successCB) {
-                    queryView(encodeURI('concept-nodes-by-pipeline?include_docs=true&keys=' + JSON.stringify(pipelineIds)), function(e,r,b) {
+                    queryView('concept-nodes-by-pipeline', 'include_docs', true, 'keys', pipelineIds, function(e,r,b) {
                         if (200 != r.statusCode) {
                             cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
                             return;
@@ -2074,7 +2115,7 @@ function getAppContent(callback) {
                         successCB([]);
                         return;
                     }
-                    queryView(encodeURI(util.format('concept-node-tags?keys=%s&include_docs=true&reduce=false', JSON.stringify(nodeInclusionTags))), function(e,r,b) {
+                    queryView('concept-node-tags', 'keys', nodeInclusionTags, 'include_docs', true, 'reduce', false, function(e,r,b) {
                         if (200 != r.statusCode) {
                             cb(util.format('Error retrieving concept node tags. db reported error: "%s"', e), r.statusCode || 500);
                             return;
@@ -2085,7 +2126,7 @@ function getAppContent(callback) {
             }
 
             function getBinaryRelations(nodeIds, cb) {
-                queryView(encodeURI('relations-by-relation-type?include_docs=true&key="binary"'), function(e,r,b) {
+                queryView('relations-by-relation-type', 'include_docs', true, 'key', 'binary', function(e,r,b) {
                     if (200 != r.statusCode) {
                         cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500);
                         return;
