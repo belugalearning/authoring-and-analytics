@@ -491,7 +491,7 @@ function updateDesignDoc(callback) {
             , 'pipelines-with-problems-by-name': {
                 map: (function(doc) {
                     if (doc.type == 'pipeline' && doc.problems.length) {
-                        emit([doc.name, doc._id, doc._rev], doc.problems);
+                        emit([doc.name, doc._id, doc._rev, doc.workflowStatus], doc.problems);
                     }
                 }).toString()
                 , reduce: (function(keys, values, rereduce) {
@@ -1754,7 +1754,7 @@ function updatePipelineWorkflowStatus(pipelineId, pipelineRev, status, callback)
             return;
         }
 
-        pl.workflowStatus = status;
+        pl.workflowStatus = parseInt(status,10);
 
         updateDoc(pl, function(e,r,b) {
             if (201 != r.statusCode) {
@@ -1936,6 +1936,8 @@ function getAppContent(callback) {
           , exportLogWriteStream
         ;
 
+        var workflowStatusLevels = [0, 32,64];
+
         request(couchServerURI + '_uuids', function(e,r,b) {
             if (200 != r.statusCode) {
                 callback(e || 'error generating uuid', statusCode || 500);
@@ -1994,7 +1996,7 @@ function getAppContent(callback) {
                     jsonCallback(e || 'error retrieving pipelines', statusCode || 500);
                     return;
                 }
-                getNodes(_.keys(pipelines), function(e, statusCode, nodes) {
+                getNodes(pipelines, function(e, statusCode, nodes) {
                     if (200 != statusCode) {
                         jsonCallback(e || 'error retrieving concept nodes', statusCode || 500);
                         return;
@@ -2031,20 +2033,25 @@ function getAppContent(callback) {
                 (function getPipelinesMatchingNameAtIndex(i) {
                     var name = pipelineNames[i];
 
-                    queryView('pipelines-with-problems-by-name', 'reduce', false, 'startkey', [name], 'endkey' [name,{}], function(e,r,b) {
-                        if (200 != r.statusCode) {
-                            cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r.statusCode);
+                    queryView('pipelines-with-problems-by-name', 'reduce', false, 'startkey', [name], 'endkey', [name,{}], function(e,r,b) {
+                        if (!r || 200 != r.statusCode) {
+                            cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r && r.statusCode || 500);
                             return;
                         }
 
                         var rows = JSON.parse(b).rows
-                          , row, key
+                          , row, key, workflowStatus
                           , len = rows.length, i
                         ;
 
                         for (i=0; i<len; i++) {
                             row = rows[i];
-                            pipelines[row.id] = { id:row.id, rev:row.key[2], name:name, problems:row.value };
+                            key = row.key;
+                            wfStatus = key[3] || 0;
+
+                            if (~workflowStatusLevels.indexOf(wfStatus)) {
+                                pipelines[row.id] = { id:row.id, rev:key[2], name:name, workflowStatus:wfStatus, problems:row.value };
+                            }
                         };
 
                         if (++i < len) {
@@ -2056,13 +2063,19 @@ function getAppContent(callback) {
                 })(0);
             }
 
-            function getNodes(pipelineIds, cb) {
+            function getNodes(pipelines, cb) {
+                var plIds = _.keys(pipelines);
+
                 getNodeDocs(function(docs) {
                     var nodes = {}
                       , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)); })
                     ;
                     docs.forEach(function(doc) {
-                        var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, pipelineIds), x:doc.x, y:doc.y };
+                        var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, plIds), workflowStatus:0, x:doc.x, y:doc.y };
+
+                        if (n.pipelines.length) {
+                            n.workflowStatus = Math.min.apply(Math, _.map(n.pipelines, function(plId) { return pipelines[plId].workflowStatus; }));
+                        }
 
                         nodeTagsToBitCols.forEach(function(tag) {
                             n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0;
@@ -2101,7 +2114,7 @@ function getAppContent(callback) {
                 }
                 
                 function getNodesByPipeline(successCB) {
-                    queryView('concept-nodes-by-pipeline', 'include_docs', true, 'keys', pipelineIds, function(e,r,b) {
+                    queryView('concept-nodes-by-pipeline', 'include_docs', true, 'keys', plIds, function(e,r,b) {
                         if (200 != r.statusCode) {
                             cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500);
                             return;
@@ -2215,27 +2228,27 @@ function getAppContent(callback) {
                 var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag); }).join('');
                 var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix); }).join('');
                 exportLogWriteStream.write('\n================================================\nCREATE TABLE ConceptNodes\n');
-                var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
+                var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, workflowSatatus INTEGER, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs);
                 db.run(cnTableCreateScript);
 
                 exportLogWriteStream.write('\n================================================\nINSERT INTO ConceptNodes\n');
-                var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?%s)", new Array(nodeTagsToBitCols.length + nodeTagPrefixesToTextCols.length + 1).join(',?')));
+                var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?,?%s)", new Array(nodeTagsToBitCols.length + nodeTagPrefixesToTextCols.length + 1).join(',?')));
                 content.conceptNodes.forEach(function(n) {
                     exportLogWriteStream.write('['+n.id+']');
                     var tags = _.map(nodeTagsToBitCols.concat(nodeTagPrefixesToTextCols), function(tag) { return n[tag]; })
-                      , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.x, n.y].concat(tags)
+                      , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.workflowStatus, n.x, n.y].concat(tags)
                     ;
                     cnIns.run.apply(cnIns, cols);
                 });
                 cnIns.finalize();
 
                 exportLogWriteStream.write('\n================================================\nCREATE TABLE Pipelines\n');
-                db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, problems TEXT)");
+                db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, workflowStatus INTEGER, problems TEXT)");
                 exportLogWriteStream.write('\n================================================\nINSERT INTO Pipelines\n');
-                var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?)");
+                var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?,?)");
                 content.pipelines.forEach(function(pl) {
                     exportLogWriteStream.write('['+pl.id+']');
-                    plIns.run(pl.id, pl.rev, pl.name, JSON.stringify(pl.problems));
+                    plIns.run(pl.id, pl.rev, pl.name, pl.workflowStatus, JSON.stringify(pl.problems));
                 });
                 plIns.finalize();
 
