@@ -90,9 +90,9 @@ block wrapper
             | Pipeline Workflow Status:
             br
             select(data-key="pipelineWorkflowStatusOperator")
-              option(value="gt") >
-              option(value="eq") = 
-              option(value="lt") <
+              option(value="<=") <=
+              option(value="==") == 
+              option(value=">=") >=
             select(data-key="pipelineWorkflowStatusLevel")
               option(value="0") Untested
               option(value="32") In Testing
