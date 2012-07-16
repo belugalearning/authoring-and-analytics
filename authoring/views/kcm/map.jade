@@ -83,8 +83,20 @@ block wrapper
         tr.field(data-key="pipelineNames", data-type="tag")
           td
             div#add-pipeline-to-export.add-btn.panel-right-btn
-            | Pipelines:
+            | Pipeline Names:
             div#included-pipelines.tags-box.empty
+        tr.field(data-key="pipelineWorkflowStatus")
+          td
+            | Pipeline Workflow Status:
+            br
+            select(data-key="pipelineWorkflowStatusOperator")
+              option(value="gt") >
+              option(value="eq") = 
+              option(value="lt") <
+            select(data-key="pipelineWorkflowStatusLevel")
+              option(value="0") Untested
+              option(value="32") In Testing
+              option(value="64") Production-Ready
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")

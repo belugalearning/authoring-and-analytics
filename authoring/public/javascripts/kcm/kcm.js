@@ -72,6 +72,7 @@
             .on('change', 'table[data-panel="view-settings"] #links-view-settings input[type="checkbox"]', onLinkViewSettingsEdit)
             .on('keydown keyup focusout', 'table[data-panel="view-settings"] #links-view-settings input[type="text"]', onLinkViewSettingsEdit)
             .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
+            .on('change', 'table[data-panel="export-settings"] tr[data-key="pipelineWorkflowStatus"] select', changePipelineWorkflowStatusSetting)
             .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
             .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
             .on('dblclick', 'table[data-panel="export-settings"] .cn-tag', editExportSettingTag)
@@ -925,13 +926,28 @@
         saveExportSettings();
     }
 
+    function changePipelineWorkflowStatusSetting(e) {
+        var key = $(this).attr('data-key');
+        var val = $(this).val();
+        kcm.exportSettings[key] = isNaN(val) ? val : Number(val);
+        saveExportSettings();
+    }
+
     function updateExportSettingsDisplay() {
         var es = kcm.exportSettings;
+
+        // export all nodes checkbox
         $('#export-all-nodes').prop('checked', es.exportAllNodes === true);
+
+        // 'Export all nodes tagged', 'Tags to bit cols', 'Tag Prefixes to Text Cols', 'Pipeline Names'
         $.each($('.tags-box'), function() {
             $(this).html($.tmpl('cnTagDIV', $.map(es[$(this).closest('tr').attr('data-key')], function(tag) { return { tag:tag }; })))
             $(this).children().length ? $(this).removeClass('empty') : $(this).addClass('empty');
         });
+
+        // Pipeline workflow status
+        $('select[data-key="pipelineWorkflowStatusOperator"]').val(es.pipelineWorkflowStatusOperator);
+        $('select[data-key="pipelineWorkflowStatusLevel"]').val(es.pipelineWorkflowStatusLevel);
     }
 
     function addExportSettingTag(e) {
