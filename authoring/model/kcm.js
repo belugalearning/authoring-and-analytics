@@ -1930,13 +1930,28 @@ function getAppContent(callback) {
           , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
           , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
           , pipelineNames = exportSettings.pipelineNames
+          , pipelineWorkflowStatusLevels
           , path
           , dbPath
           , pdefsPath
           , exportLogWriteStream
         ;
 
-        var workflowStatusLevels = [0, 32,64];
+        var allWfStatusLevels = [0,32,64];
+        switch (exportSettings.pipelineWorkflowStatusOperator) {
+            case '<=':
+                pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel; });
+                break;
+            case '==':
+                pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l == exportSettings.pipelineWorkflowStatusLevel; });
+                break;
+            case '>=':
+                pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l >= exportSettings.pipelineWorkflowStatusLevel; });
+                break;
+            default:
+                callback(util.format('invalid pipeline workflow status operator:"%s"', exportSettings.pipelineWorkflowStatusOperator), 500);
+                return;
+        }
 
         request(couchServerURI + '_uuids', function(e,r,b) {
             if (200 != r.statusCode) {
@@ -2049,7 +2064,7 @@ function getAppContent(callback) {
                             key = row.key;
                             wfStatus = key[3] || 0;
 
-                            if (~workflowStatusLevels.indexOf(wfStatus)) {
+                            if (~pipelineWorkflowStatusLevels.indexOf(wfStatus)) {
                                 pipelines[row.id] = { id:row.id, rev:key[2], name:name, workflowStatus:wfStatus, problems:row.value };
                             }
                         };
