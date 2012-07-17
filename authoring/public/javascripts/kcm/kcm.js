@@ -320,7 +320,7 @@
 
         if (numProblems == 0) {
             return 'no-problems ' + classes;
-        } else if (numProblems >= 5) {
+        } else if (numProblems >= 15) {
             return 'enough-problems ' + classes;
         }
         return classes;
