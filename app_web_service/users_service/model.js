@@ -123,11 +123,11 @@ function syncUsers(clientDeviceUsers, device, callback) {
 };
 
 function userMatchingNick(nick, callback) {
-    queryView(util.format('users-by-nick?key="%s"&include_docs=true', nick), callback);
+    queryView('users-by-nick', 'key', nick, 'include_docs', true, callback);
 };
 
 function userMatchingNickAndPassword(nick, password, callback) {
-    queryView(util.format('users-by-nick-password?key=%s&include_docs=true', JSON.stringify([nick,password])), callback);
+    queryView('users-by-nick-password', 'key', [nick,password], 'include_docs', true, callback);
 };
 
 function updateDesignDoc(callback) {
@@ -176,9 +176,50 @@ function getDoc(id, callback) {
     }, callback);
 }
 
-function queryView(viewNameAndQueryString, callback) {
-    request({
-        uri: encodeURI(util.format('%s%s', viewsPath, viewNameAndQueryString))
-        , headers: { 'content-type':'application/json', accepts:'application/json' }
-    }, callback);
+function queryView(view) {
+    var uri = viewsPath + view;
+    var callbackIx = arguments.length - 1;
+    var callback = arguments[callbackIx];
+
+    if ('function' != typeof callback) return;
+
+    for (var i=1; i<callbackIx; i+=2) {
+        uri += i == 1 ? '?' : '&';
+
+        var field = arguments[i];
+        if ('string' != typeof field) {
+            callback(util.format('argument at index %d is not a string.', i));
+            return;
+        }
+        uri += field + '=';
+
+        var value = arguments[i+1];
+        uri += (function rec(val) {
+            var valType = Object.prototype.toString.call(val).match(/^\[object ([a-z]+)\]$/i)[1];
+
+            switch (valType) {
+                case 'Null':
+                case 'Undefined':
+                    return 'null';
+                case 'Number':
+                case 'Boolean':
+                    return val.toString();
+                case 'String':
+                    return '%22' + encodeURIComponent(val) + '%22';
+                case 'Array':
+                    return '%5B' + _.map(val, function(el) { return rec(el); }).join(',') + '%5D';
+                case 'Object':
+                    // Empty object comes after everything else, so is used for endkey. e.g. startkey=['A']&endkey=['A',{}] will return all keys with 'A' as first element
+                    return Object.keys(val).length === 0 ? '%7B%7D' : '#';
+                default:
+                    return '#';
+            }
+        })(value);
+
+        if (~uri.indexOf('#')) {
+            callback(util.format('argument at index %d is invalid.', i+1));
+            return;
+        }
+    }
+    request.get(uri, callback);
 }
