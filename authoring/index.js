@@ -87,6 +87,7 @@ function setupRoutes() {
     server.get('/kcm', routes.kcm.getMap);
     server.get('/kcm/pull-replicate', routes.kcm.pullReplicate); //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
     server.get('/kcm/get-app-content', routes.kcm.getAppContent);
+    server.get('/kcm/download-tokcm-dirs', routes.kcm.downloadToKCMDirs);
     server.post('/kcm/update-view-settings', routes.kcm.updateViewSettings);
     server.post('/kcm/update-export-settings', routes.kcm.updateExportSettings);
     server.get('/kcm/canned-database', routes.kcm.cannedDatabase);

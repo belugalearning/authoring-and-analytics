@@ -40,7 +40,7 @@ module.exports = function(config) {
             }
         });
     });
-
+    
     return {
         databaseName: kcmDatabaseName
         , generateUUID: generateUUID
@@ -104,7 +104,6 @@ function replaceUUIDWithGraffleId() {
 }
 
 function generateUUID(callback) {
-    console.log(couchServerURI);
     request({
         uri: couchServerURI + '_uuids'
         , headers: { 'content-type':'application/json', accepts:'application/json' }

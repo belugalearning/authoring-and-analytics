@@ -6,6 +6,8 @@ var fs = require('fs')
   , kcmModel
 ;
 
+var format = util.format;
+
 module.exports = function(appConfig, kcm_model) {
     config = appConfig;
     kcmModel = kcm_model;
@@ -33,9 +35,9 @@ module.exports = function(appConfig, kcm_model) {
             kcmModel.generateUUID(function(uuid) {
                 var dbPath = config.couchDatabasesDirectory
                   , dbName = kcmModel.databaseName
-                  , zipFile = util.format('/tmp/canned-db-%s.zip', uuid)
+                  , zipFile = format('/tmp/canned-db-%s.zip', uuid)
                 ;
-                exec(util.format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
+                exec(format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
                     if (e) {
                         res.send(e, 500);
                         return;
@@ -51,6 +53,202 @@ module.exports = function(appConfig, kcm_model) {
                     return;
                 }
                 res.download(contentZip, 'canned-content.zip');
+            });
+        }
+        , downloadToKCMDirs: function(req, res) {
+            kcmModel.queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function(e,r,b) {
+                if (!r) {
+                    res.send('failed to connect to database', 500);
+                    return;
+                }
+                if (200 != r.statusCode) {
+                    res.send(format('error retrieving "mastery" relation. Error: "%s"', e), r.statusCode || 500);
+                    return;
+                }
+
+                var rows = JSON.parse(b).rows
+                if (!rows.length) {
+                    res.send('Mastery relation not found', 500);
+                    return;
+                }
+
+                var mRel = rows[0].doc;
+
+                kcmModel.queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
+                    if (!r) {
+                        res.send('failed to connect to database', 500);
+                        return;
+                    }
+                    if (200 != r.statusCode) {
+                        res.send(format('error querying view "concept-nodes". Error: "%s"', e), r.statusCode || 500);
+                        return;
+                    }
+
+                    var nodes = JSON.parse(b).rows;
+                    var masteryNodes = {};
+                    var nonMasteryNodes = {};
+                    var regions = {};
+                    var regionRE = /^region:\s*(\S(?:.*\S)?)\s*$/;
+
+                    nodes.forEach(function(r) {
+                        var n = r.doc;
+
+                        if (!~n.tags.indexOf('mastery')) {
+                            nonMasteryNodes[n._id] = n;
+                            return;
+                        }
+
+                        // mastery node
+                        masteryNodes[n._id] = n;
+
+                        var numTags = n.tags.length;
+                        var region;
+                        for (var i=0; i<numTags; i++) {
+                            if (regionRE.test(n.tags[i])) {
+                                region = n.tags[i].match(regionRE)[1];
+                                break;
+                            }
+                        }
+
+                        if (!region) region = '_REGIONLESS_MASTERY_NODES_';
+
+                        if (!regions[region]) regions[region] = [];
+
+                        n.nodes = [];
+                        regions[region].push(n);
+                    });
+
+                    mRel.members.forEach(function(mbr) {
+                        var nm = nonMasteryNodes[mbr[0]];
+                        var m = masteryNodes[mbr[1]];
+
+                        if (nm && m) {
+                            m.nodes.push(nm);
+                            delete nonMasteryNodes[mbr[0]];
+                        }
+                    });
+
+                    kcmModel.generateUUID(function(uuid) {
+                        var uuidPath = '/tmp/' + uuid;
+                        var rootPath = format('%s/tokcm/Number', uuidPath);
+
+                        var errors = false;
+                        var onError = function(e, path, isDir) {
+                            if (!errors) {
+                                errors = true;
+                                res.send(format('error creating %s at path: "%s"  -->  "%s"', (isDir ? 'directory' : 'file'), path, e));
+                            }
+                        };
+
+                        exec(format('mkdir -p /tmp/%s/tokcm/Number/', uuid), function(e) {
+                            if (e) {
+                                onError(e, rootPath, true);
+                                return;
+                            }
+
+                            var regionNames = _.keys(regions);
+                            var regionsOutstanding = regionNames.length;
+                            var orphanedNodeIds = _.keys(nonMasteryNodes);
+                            var orphansOutstanding =  orphanedNodeIds.length;
+                            var numTopDirsOutstanding = regionsOutstanding + (orphansOutstanding > 0 ? 1 : 0);
+
+                            var onAllCreated = function() {
+                                var zipFile = format('%s/tokcm.zip', uuidPath);
+                                exec(format('zip -r %s tokcm', zipFile), { cwd:uuidPath }, function(e,stdout,stderr) {
+                                    if (e) {
+                                        res.send(e, 500);
+                                        return;
+                                    }
+                                    res.download(zipFile, 'tokcm.zip');
+                                });
+                            };
+
+                            if (numTopDirsOutstanding == 0) onAllCreated();
+
+                            if (orphansOutstanding) {
+                                var path = rootPath + '/_NODES_WITHOUT_MASTERY_';
+                                fs.mkdir(path, function(e) {
+                                    if (e) {
+                                        onError(e, path, true);
+                                        return;
+                                    }
+
+                                    orphanedNodeIds.forEach(function(id) {
+                                        var orphanDirPath = format('%s/%s', path, id);
+                                        fs.mkdir(orphanDirPath, function(e) {
+                                            if (e) {
+                                                onError(e, orphanDirPath, true);
+                                                return;
+                                            }
+                                            var filePath = orphanDirPath + '/.gitseedir';
+                                            fs.writeFile(filePath, function(e) {
+                                                if (e) {
+                                                    onError(e, filePath, true);
+                                                    return;
+                                                }
+                                                if (--orphansOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+
+                            if (regionsOutstanding) {
+                                regionNames.forEach(function(regName) {
+                                    var regionPath = format('%s/%s', rootPath, regName);
+                                    fs.mkdir(regionPath, function(e) {
+                                        if (e) {
+                                            onError(e, regionPath, true);
+                                            return;
+                                        }
+
+                                        var regionalMasteryNodes = regions[regName];
+                                        var numMasteryNodesOutstanding = regionalMasteryNodes.length;
+
+                                        regionalMasteryNodes.forEach(function(mastery) {
+                                            var masteryPath = format('%s/%s', regionPath, mastery.nodeDescription.trim().substring(0,64).replace(/[^a-z0-9\-]/ig, '_'));
+                                            fs.mkdir(masteryPath, function(e) {
+                                                if (e) {
+                                                    onError(e, masteryPath, true);
+                                                    return;
+                                                }
+                                                var numNodesOutstanding = mastery.nodes.length;
+                                                if (numNodesOutstanding == 0) {
+                                                    var filePath = masteryPath + '/.gitseedir';
+                                                    fs.writeFile(filePath, '', function(e) {
+                                                        if (e) {
+                                                            onError(e, filePath, false);
+                                                            return;
+                                                        }
+                                                        if (--numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
+                                                    });
+                                                } else {
+                                                    mastery.nodes.forEach(function(node) {
+                                                        var nodePath = format('%s/%s', masteryPath, node._id);
+                                                        fs.mkdir(nodePath, function(e) {
+                                                            if (e) {
+                                                                onError(e, nodePath, true);
+                                                                return;
+                                                            }
+                                                            var filePath = nodePath + '/.gitseedir';
+                                                            fs.writeFile(filePath, function(e) {
+                                                                if (e) {
+                                                                    onError(e, filePath, false);
+                                                                    return;
+                                                                }
+                                                                if (--numNodesOutstanding == 0 && --numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
+                                                            });
+                                                        });
+                                                    });
+                                                }
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                        });
+                    });
+                });
             });
         }
         , updateViewSettings: function(req, res) {
@@ -169,7 +367,7 @@ module.exports = function(appConfig, kcm_model) {
                 ;
 
                 if (200 != r.statusCode) {
-                    res.render(util.format('could not retrieve pipeline list: DB Error: "%s"',e) ,r.statusCode);
+                    res.render(format('could not retrieve pipeline list: DB Error: "%s"',e) ,r.statusCode);
                     return;
                 }
 
@@ -368,24 +566,24 @@ function pipelineSequenceViewData(plId, callback) {
 
 function decompileFormPList(plist, callback) {
     var path = plist && plist.path || undefined
-      , command = util.format('perl %s/plutil.pl %s.plist', __dirname, path)
+      , command = format('perl %s/plutil.pl %s.plist', __dirname, path)
       , isBinary
     ;
 
     if (!path) {
-        callback(util.format('plist not found at path "%s".\n\tplist:\n', path, plist));
+        callback(format('plist not found at path "%s".\n\tplist:\n', path, plist));
         return;
     }
 
     fs.rename(path, path + '.plist', function(e) {
         if (e) {
-            callback(util.format('error renaming file: "%s"',e));
+            callback(format('error renaming file: "%s"',e));
             return;
         }
 
         fs.readFile(path+'.plist', function(e,data) {
             if (e) {
-                callback(util.format('error reading file - error reported: "%s"',e));
+                callback(format('error reading file - error reported: "%s"',e));
                 return;
             }
 
@@ -398,7 +596,7 @@ function decompileFormPList(plist, callback) {
 
             exec(command, function(err, stdout, stderr) {
                 if (err) {
-                    callback(util.format('plutil was unable to process the file. error: "%s"', err));
+                    callback(format('plutil was unable to process the file. error: "%s"', err));
                     return;
                 }
 
