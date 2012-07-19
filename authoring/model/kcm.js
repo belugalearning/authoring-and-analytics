@@ -508,6 +508,9 @@ function updateDesignDoc(callback) {
                 }).toString()
             }
 
+            , 'problems-by-tool': {
+                map: (function(doc) { if (doc.type == 'problem') emit(doc.toolId, null); }).toString()
+            }
             , 'relations-by-name': {
                 map: (function(doc) { if (doc.type == 'relation') emit(doc.name, null); }).toString()
             }
