@@ -90,6 +90,8 @@ module.exports = function(appConfig, kcm_model) {
                     var regions = {};
                     var regionRE = /^region:\s*(\S(?:.*\S)?)\s*$/;
 
+                    var makeDirName = function(s) { return s.trim().substring(0,128).replace(/[^a-z0-9\-]+/ig, '_'); }
+
                     nodes.forEach(function(r) {
                         var n = r.doc;
 
@@ -195,7 +197,7 @@ module.exports = function(appConfig, kcm_model) {
 
                             if (regionsOutstanding) {
                                 regionNames.forEach(function(regName) {
-                                    var regionPath = format('%s/%s', rootPath, regName);
+                                    var regionPath = format('%s/%s', rootPath, makeDirName(regName));
                                     fs.mkdir(regionPath, function(e) {
                                         if (e) {
                                             onError(e, regionPath, true);
@@ -206,7 +208,7 @@ module.exports = function(appConfig, kcm_model) {
                                         var numMasteryNodesOutstanding = regionalMasteryNodes.length;
 
                                         regionalMasteryNodes.forEach(function(mastery) {
-                                            var masteryPath = format('%s/%s', regionPath, mastery.nodeDescription.trim().substring(0,64).replace(/[^a-z0-9\-]/ig, '_'));
+                                            var masteryPath = format('%s/%s', regionPath, makeDirName(mastery.nodeDescription));
                                             fs.mkdir(masteryPath, function(e) {
                                                 if (e) {
                                                     onError(e, masteryPath, true);
