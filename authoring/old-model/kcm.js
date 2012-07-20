@@ -427,7 +427,11 @@ function updateDesignDoc(callback) {
         _id: '_design/' + designDoc
         , views: {
             'by-type': {
-                map: (function(doc) { emit(doc.type, null); }).toString()
+                map: (function(doc) { if (doc.type) emit(doc.type, null); }).toString()
+                , reduce: (function(keys, values, rereduce) {
+                    if (!rereduce) return values.length;
+                    return sum(values);
+                }).toString()
             }
             , 'users-by-credentials': {
                 map: (function(doc) { if ('User' == doc.type) emit([doc.loginName, doc.password], null); }).toString()
@@ -523,80 +527,8 @@ function updateDesignDoc(callback) {
             , 'tools-by-name': {
                 map: (function(doc) { if (doc.type == 'tool') emit(doc.name, null); }).toString()
             }
-            , 'num-per-type': {
-                map: (function(doc) {
-                    emit (doc.type || doc._id, null);
-                }).toString().replace(/\s+/g, ' ')
-                , reduce: (function(keys, values, rereduce) {
-                    if (!rereduce) {
-                        return values.length;
-                    } else {
-                        return sum(values);
-                    }
-                }).toString().replace(/\s+/g, ' ')
-            }
-
-
-            // TODO: The following is copied from content. Sort out
-            , 'any-by-type-name': {
-                map: (function(doc) { if (doc.type && doc.name) emit([doc.type, doc.name], null); }).toString()
-            }
-            , 'syllabi-by-name': {
-                map: (function(doc) { if (doc.type == 'syllabus') emit(doc.name, null); }).toString()
-            }
-            , 'topics-modules-elements': {
-                map: (function(doc) {
-                    switch(doc.type) {
-                        case 'syllabus':
-                            emit(doc._id, doc.topics);
-                            break;
-                        case 'topic':
-                            emit(doc._id, doc.modules);
-                            break;
-                        case 'module':
-                            emit(doc._id, doc.elements);
-                            break;
-                        default:
-                            break;
-                    }
-                }).toString()
-            }
             , 'names-types-by-id': {
                 map: (function(doc) { emit(doc._id, [doc.name, doc.type]); }).toString()
-            }
-            , 'topics': {
-                map: (function(doc) { if (doc.type == 'topic') emit(doc._id, doc.name); }).toString()
-            }
-            , 'topics-by-name': {
-                map: (function(doc) { if (doc.type == 'topic') emit(doc.name, null); }).toString()
-            }
-            , 'modules': {
-                map: (function(doc) { if (doc.type == 'module') emit(doc._id, doc.name); }).toString()
-            }
-            , 'modules-by-topicid-name': {
-                map: (function(doc) { if (doc.type == 'module') emit([doc.topicId, doc.name], null); }).toString()
-            }
-            , 'elements': {
-                map: (function(doc) { if (doc.type == 'element') emit(doc._id, doc.name); }).toString()
-            }
-            , 'elements-by-moduleid-name': {
-                map: (function(doc) { if (doc.type == 'element') emit([doc.moduleId, doc.name], null); }).toString()
-            }
-            , 'assessment-criteria-by-element': {
-                map: (function(doc) { if (doc.type == 'assessment criterion') emit([doc.elementId, doc.name], null); }).toString()
-            }
-            , 'assessment-criteria': {
-                map: (function(doc) { if (doc.type == 'assessment criterion') emit(doc._id, doc.name); }).toString()
-            }
-            , 'assessment-criteria-problems': {
-                map: (function(doc) {
-                    if (doc.type == 'problem') {
-                        for (var i = 0; i < doc.assessmentCriteria.length; i++) {
-                            var c = doc.assessmentCriteria[i];
-                            emit([c.id, doc.problemDescription], c);
-                        }
-                    }
-                }).toString()
             }
             , 'problem-descriptions': {
                 map: (function(doc) { if (doc.type == 'problem') emit(doc._id, doc.problemDescription); }).toString()
