@@ -10,7 +10,7 @@ var server = express.createServer()
 
 module.exports = function(conf) {
     config = conf;
-    model = require('./model')(config);
+    model = require('./old-model')(config);
     routes = require('./routes')(config, model);
     session = require('./session');
 

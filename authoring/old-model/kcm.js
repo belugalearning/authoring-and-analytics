@@ -40,7 +40,7 @@ module.exports = function(config) {
             }
         });
     });
-    
+
     return {
         databaseName: kcmDatabaseName
         , generateUUID: generateUUID
