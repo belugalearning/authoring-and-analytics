@@ -45,7 +45,7 @@ exports.createService = function createSessionService(kcm, noAuthenticatePathnam
                 if (req.session) req.session.destroy()
                 res.render('sessions/login', { redir:req.body.redir })
               } else { // correct credentials
-                req.session.user = lastLoggedInUser = rows[0].doc
+                req.session.user = rows[0].doc
 
                 // is anyone else logged into the kcm?
                 var now = new Date()
