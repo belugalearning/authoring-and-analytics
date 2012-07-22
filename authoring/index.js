@@ -1,20 +1,18 @@
 var express = require('express')
   , _ = require('underscore')
   , urlParser = require('url')
-  , initModel = require('./old-model')
+  , initOldModel = require('./old-model')
   , sessionService = require('./session-service')
   , routeHandlers = require('./routes')
   , kcmWebSocketServer = require('./kcm-websocket-server')
 
 var server = express.createServer()
-  , model
-  , routes
 
 module.exports = function(config) {
   server.config = config
-  model = initModel(config)
-  server.sessionService = sessionService.createService(model.kcm)
-  server.routeHandlers = routeHandlers.init(config, model)
+  oldModel = initOldModel(config)
+  server.sessionService = sessionService.createService(oldModel.kcm)
+  server.routeHandlers = routeHandlers.init(config, oldModel)
   
   kcmWebSocketServer.create(server, config)
 
