@@ -695,13 +695,13 @@ function getProblemInfoFromPList(plist, callback) {
       )
       return
     }
-    queryView('any-by-type-name', 'key', ['tool',toolName], function(e,r,b) {
+    queryView('tools-by-name', 'key', toolName, function(e,r,b) {
       var rows = !e && r && r.statusCode == 200 && JSON.parse(b).rows
       , toolId = rows && rows.length && rows[0].id
 
 
       if (toolId || isMetaQuestion || isNumberPicker) callback(null, plistString, problemDescription, toolId, internalDescription)
-      else callback(util.format('invalid plist. Could not retrieve tool with name %s. -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode))
+      else callback(util.format('invalid plist. Could not retrieve tool with name "%s". -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode))
     })
   })
 }
