@@ -2,26 +2,26 @@ var  _ = require('underscore')
   , exec = require('child_process').exec
   , fs = require('fs')
   , util = require('util')
-  , config
-  , model
 ;
 
-module.exports = function(c, m) {
-    config = c;
-    model = m;
-    exports.kcm = require('./kcm')(config, model.kcm);
-    return exports;
-};
+var routeHandlers = {}
 
-exports.index = function(req, res){
+exports.init = function(config, model) {
+  routeHandlers.kcm = require('./kcm')(config, model.kcm)
+  routeHandlers.content.model = model
+  routeHandlers.userPortal.model = model
+  return routeHandlers
+}
+
+routeHandlers.index = function(req, res){
     res.redirect('/sitemap');
 };
 
-exports.siteMap = function(req, res) {
+routeHandlers.siteMap = function(req, res) {
     res.render('sitemap', { title:'Site Map' });
 };
 
-exports.zubiImage = function(req, res){
+routeHandlers.zubiImage = function(req, res){
     var userId = req.params.id.match(/^zubi(.+)\.png$/)[1];
     model.getZubiForDocId(userId, function(e,r,b) {
       if (e) {
@@ -33,7 +33,7 @@ exports.zubiImage = function(req, res){
     });
 };  
 
-exports.content = {
+routeHandlers.content = {
     moduleOptionsForTopic: function(req, res) {
         var topicId = req.params.topicId;
         model.content.getDoc(topicId, function(e,r,b) {
@@ -504,7 +504,7 @@ exports.content = {
     })()
 };
 
-exports.userPortal = {
+routeHandlers.userPortal = {
     userList: function(req, res) {
         var queryURI = '/users-by-nick-name?include_docs=true';
         model.users.queryView(queryURI, function(e,r,b) {

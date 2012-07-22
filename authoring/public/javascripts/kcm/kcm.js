@@ -64,7 +64,15 @@
         });
     }
 
+    var ws
     $(function() {
+
+      ws = new WebSocket('ws://' + window.document.location.host)
+      ws.onmessage = function (event) {
+        console.log(event)
+        console.log(JSON.parse(event.data))
+      }
+
         $('form#upload-pdefs').ajaxForm();
 
         $(window)

@@ -1,14 +1,32 @@
 var urlParser = require('url')
   , _ = require('underscore')
   , util = require('util')
-  , ConnectSession = require('express').session
+  , connect = require('connect')
+  , cookie = require('cookie')
 
-module.exports = function session(kcm, noAuthenticatePathnames) {
-  var connectSession = ConnectSession({ key:'bl.authoring.sid', cookie:{ maxAge:600000 }, secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87' })
-    , noAuthRegexps = noAuthenticatePathnames ? _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn) }) : []
+var sidKey = 'bl.authoring.sid'
+  , sessionStore = new connect.session.MemoryStore
+  , parseCookie = connect.cookieParser()
+
+var connectSession = connect.session({
+  store: sessionStore
+  , key: sidKey
+  , cookie: { maxAge:600000 }
+  , secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87'
+})
+
+exports.createService = function createSessionService(kcm, noAuthenticatePathnames) {
+  var noAuthRegexps = noAuthenticatePathnames ? _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn) }) : []
     , noAuthStrings = noAuthenticatePathnames ? _.difference(noAuthenticationPathnames, regexps) : []
 
-  return function session(req, res, next) {
+  var get = function(req, fn) {
+    parseCookie(req, null, function(e) {
+      if (e) fn(e)
+      else sessionStore.get(req.cookies[sidKey], fn)
+    })
+  }
+
+  var httpRequestHandler = function httpRequestHandler(req, res, next) {
     connectSession(req, res, function() {
       var pathname = urlParser.parse(req.url).pathname
       
@@ -94,5 +112,10 @@ module.exports = function session(kcm, noAuthenticatePathnames) {
           break
       }
     })
+  }
+
+  return {
+    get: get
+    , httpRequestHandler: httpRequestHandler
   }
 }
