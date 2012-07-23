@@ -41,20 +41,17 @@ function KCM(config) {
         return
       }
 
-      self.seq = JSON.parse(b).update_seq
+      self.update_seq = JSON.parse(b).update_seq
 
-      couchDBStream = new CouchDBStream(self.dbURI, self.seq)
+      couchDBStream = new CouchDBStream(self.dbURI, self.update_seq)
       couchDBStream.on('change', function(change) {
         self.seq = change.seq
         
         var store = self.docStore(change.doc)
         if (store) {
-          if (change.delete === true) {
-            delete store[change.doc._id]
-          } else {
-            store[change.doc._id] = change.doc
-            self.emit('change', change)
-          }
+          if (change.delete === true) delete store[change.doc._id]
+          else store[change.doc._id] = change.doc
+          self.emit('change', change)
         }
       })
     })

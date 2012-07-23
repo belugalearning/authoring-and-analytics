@@ -66,11 +66,14 @@
 
     var ws
     $(function() {
-
       ws = new WebSocket('ws://' + window.document.location.host)
-      ws.onmessage = function (event) {
-        console.log(event)
-        console.log(JSON.parse(event.data))
+      ws.onopen = function(event) {
+        console.log('open:', event)
+        console.log('update_seq:', kcm.update_seq)
+        ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
+      }
+      ws.onmessage = function(message) {
+        console.log(message)
       }
 
         $('form#upload-pdefs').ajaxForm();

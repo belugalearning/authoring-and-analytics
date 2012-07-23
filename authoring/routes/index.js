@@ -7,9 +7,9 @@ var  _ = require('underscore')
 var routeHandlers = {}
   , model
 
-exports.init = function(config, model_) {
+exports.init = function(config, model_, kcm) {
   model = model_
-  routeHandlers.kcm = require('./kcm')(config, model.kcm)
+  routeHandlers.kcm = require('./kcm')(config, model.kcm, kcm)
   routeHandlers.content.model = model
   routeHandlers.userPortal.model = model
   return routeHandlers
