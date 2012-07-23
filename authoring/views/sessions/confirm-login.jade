@@ -8,7 +8,7 @@ html
       input(type='hidden', name='redir', value=redir)
       input(type='checkbox', name='confirm', id='confirm', style='display:none;')
       p
-        | User "#{loggedInUser}" is currently logged in. If you continue this user will be logged out.
+        | User "#{loggedInUser}" is already logged in. If you continue the other session will be ended.
       p
         input(type='submit', value='Confirm', onClick='document.getElementById("confirm").checked = true;')
         input(type='submit', value='Cancel', onClick='document.getElementById("confirm").checked = false;')

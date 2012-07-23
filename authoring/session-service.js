@@ -39,32 +39,36 @@ exports.createService = function createSessionService(kcm, noAuthenticatePathnam
             // validate credentials
             kcm.queryView('users-by-credentials', 'key', [req.body.user, req.body.password], 'include_docs', true, function(e,r,b) {
               var rows = JSON.parse(b).rows
+                , now = new Date
+                , allSessions = req.sessionStore.sessions
+                , preExistingUserSession
 
               if (!rows.length) { // incorrect credentials
                 if (req.session) req.session.destroy()
                 res.render('sessions/login', { redir:req.body.redir })
               } else { // correct credentials
                 req.session.user = rows[0].doc
+                console.log('\nThis session:\n',req.session)
 
-                // is anyone else logged into the kcm?
+                // is user already logged in?
                 var now = new Date()
                   , allSessions = req.sessionStore.sessions
-                  , authenticatedSession
 
                 for (var id in allSessions) {
                   if (id != req.sessionID) {
                     var sess = JSON.parse(allSessions[id])
-                    if (sess.isAuthenticated && new Date(sess.cookie.expires) > now) {
-                      authenticatedSession = sess
+                    console.log('\nOther Session:\n',sess)
+                    if (sess.user._id == req.session.user._id) {
+                      preExistingUserSession = sess
                       break
                     }
                   }
                 }
 
-                if (authenticatedSession) {
-                  // there's someone else logged in. For current user to continue (s)he needs to force log out the other user logged in.
+                if (preExistingUserSession) {
+                  // user is already logged on. To continue (s)he needs to force end other session.
                   req.session.pendingLoginConfirmation = true
-                  res.render('sessions/confirm-login', { redir:req.body.redir, loggedInUser:authenticatedSession.user.name })
+                  res.render('sessions/confirm-login', { redir:req.body.redir, loggedInUser:preExistingUserSession.user.name })
                 } else {
                   // nobody else logged in, continue
                   req.session.isAuthenticated = true
