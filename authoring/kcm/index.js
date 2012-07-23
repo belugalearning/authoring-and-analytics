@@ -45,7 +45,7 @@ function KCM(config) {
 
       couchDBStream = new CouchDBStream(self.dbURI, self.update_seq)
       couchDBStream.on('change', function(change) {
-        self.seq = change.seq
+        self.update_seq = change.seq
         
         var store = self.docStore(change.doc)
         if (store) {
