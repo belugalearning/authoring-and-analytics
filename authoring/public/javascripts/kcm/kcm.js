@@ -106,6 +106,7 @@
             .on('mousemove', updateMousePos)
             .on('keydown keyup', keyCommandListener)
             .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
+            .on('focusin', 'tr.pipeline input[type="text"]', onFocusPipelineNameInput)
         ;
 
         svg = d3.select("#wrapper")
@@ -564,12 +565,13 @@
         }
     }
 
-    function ajaxErrorHandler(firstline) {
+    function ajaxErrorHandler(firstline, callback) {
         return function(e) {
             if (401 == e.status) {
                 self.location = '/login?redir=' + self.location.pathname + self.location.search
             } else {
                 alert(firstline + '\n' + e.responseText + '\n' + [].slice.call(arguments, 1).join('\n'));
+                if (typeof callback == 'function') callback()
             }
         }
     }
@@ -712,6 +714,56 @@
                 }
             break;
         }
+    }
+
+    function onFocusPipelineNameInput() {
+      var $input = $(this)
+        , pl = kcm.pipelines[$(this).closest('tr').attr('data-id')]
+
+      var keyUp = function(e) {
+        if (e.keyCode == 13) {
+          endEdit()
+          $input.blur()
+        } else if (e.keyCode == 27) {
+          endEdit(true)
+          $input.blur()
+        }
+      }
+
+      var undoEdit = function() { $input.val(pl.name) }
+
+      var endEdit = function(forceUndoEdit) {
+        var name = $input.val().trim()
+
+        $input
+          .off('keyup', keyUp)
+          .off('focusout', endEdit)
+
+        if (name == pl.name || !name.length || true === forceUndoEdit) {
+          undoEdit()
+          return
+        }
+        showConfirmCancelModal('Save changes to pipeline name?', function(saveChange) {
+          if (saveChange) {
+
+            $.ajax({
+              url: '/kcm/pipeline/' + pl._id + '/' + pl._rev + '/update-name/' + name
+              , type: 'PUT'
+              , success: function(rev) {
+                pl.name = name
+                pl._rev = rev
+              }
+              , error: ajaxErrorHandler('Error updating pipeline name', function() { $input.val(pl.name) })
+            });
+          } else {
+            undoEdit()
+          }
+        })
+      }
+        
+      $input
+        .on('keyup', keyUp)
+        .on('focusout', endEdit)
     }
 
     function onFocusConceptDescriptionTA() {

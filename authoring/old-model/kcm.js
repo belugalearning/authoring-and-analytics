@@ -70,6 +70,7 @@ module.exports = function(config) {
     , removeProblemFromPipeline: removeProblemFromPipeline
     , updatePipelineSequence: updatePipelineSequence
     , updatePipelineWorkflowStatus: updatePipelineWorkflowStatus
+    , updatePipelineName: updatePipelineName
     , pipelineProblemDetails: pipelineProblemDetails
     , reorderPipelineProblems: reorderPipelineProblems
     , getAppContent: getAppContent
@@ -1700,6 +1701,45 @@ function updatePipelineWorkflowStatus(pipelineId, pipelineRev, status, callback)
     updateDoc(pl, function(e,r,b) {
       if (201 != r.statusCode) {
         callback(util.format('Error updating workflow status for pipeline with id="%s". Database reported error:"%s"', pipelineId, e), r.statusCode)
+        return
+      }
+      callback(null,201,JSON.parse(b).rev)
+    })
+  })
+}
+
+function updatePipelineName(id, rev, name, callback) {
+  var argErrors = []
+  if ('string' != typeof id) argErrors.push('id')
+  if ('string' != typeof rev) argErrors.push('rev')
+  if ('string' != typeof name) argErrors.push('name')
+  if (argErrors.length) {
+    callback('BAD ARGS: strings required for ' + argErrors.join(' and ') +'. The pipeline name was not updated.', 500)
+    return
+  }
+
+  getDoc(id, function(e,r,b) {
+    if (200 != r.statusCode) {
+      callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline name was not updated.',e), r.statusCode)
+      return
+    }
+    var pl = JSON.parse(b)
+
+    if (pl._rev != rev) {
+      callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline name was not updated.', rev, pl._rev), 500)
+      return
+    }
+
+    if ('pipeline' != pl.type) {
+      callback(util.format('Error: Document with id="%s" is not a pipeline. The pipeline name was not updated.',plId), 500)
+      return
+    }
+
+    pl.name = name
+
+    updateDoc(pl, function(e,r,b) {
+      if (201 != r.statusCode) {
+        callback(util.format('Error updating name for pipeline with id="%s". Database reported error:"%s"', id, e), r.statusCode)
         return
       }
       callback(null,201,JSON.parse(b).rev)

@@ -348,6 +348,11 @@ module.exports = function(config, kcm_model, kcm) {
             res.send(e || rev, statusCode || 500);
         });
     }
+    , updatePipelineName: function(req,res) {
+        kcmModel.updatePipelineName(req.params.id, req.params.rev, req.params.name, function(e, statusCode, rev) {
+            res.send(e || rev, statusCode || 500);
+        });
+    }
     , updatePipelineSequence: function(req, res) {
         kcmModel.updatePipelineSequence(req.body.pipelineId, req.body.problems, function(e,statusCode) {
             res.send(e, statusCode || 500);
