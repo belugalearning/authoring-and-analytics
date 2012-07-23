@@ -68,8 +68,6 @@
     $(function() {
       ws = new WebSocket('ws://' + window.document.location.host)
       ws.onopen = function(event) {
-        console.log('open:', event)
-        console.log('update_seq:', kcm.update_seq)
         ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
       }
       ws.onmessage = function(message) {
@@ -78,7 +76,21 @@
         if (data.seq <= kcm.update_seq) return
         kcm.update_seq = data.seq
 
-        console.log(data)
+        switch(data.doc.type) {
+          case 'concept node':
+            for (var i=0; i<kcm.nodes.length; i++) {
+              if (kcm.nodes[i]._id == data.doc._id) {
+                kcm.nodes.splice(i, 1, data.doc)
+                console.log('docid:', data.doc._id)
+                console.log('node:', kcm.nodes[i])
+                updateMapNodes()
+                updateMapLinks()
+                if (inFocus && $(inFocus).attr('id') == data.doc._id) setFocus($('g#'+data.doc._id)[0])
+                break
+              }
+            }  
+            break
+        }
       }
 
         $('form#upload-pdefs').ajaxForm();
@@ -319,7 +331,7 @@
     function nodeWithId(id) {
         var len = kcm.nodes.length, i;
         for (i=0; i<len; i++) {
-            if (kcm.nodes[i].id == id) return kcm.nodes[i];
+            if (kcm.nodes[i]._id == id) return kcm.nodes[i];
         }
         return null;
     }
@@ -1062,117 +1074,140 @@
         });
     }
 
-    function addNewTagToConceptNode(e) {
-        var cn = d3.select(inFocus).data()[0];
-        
-        e.stopPropagation();
-        e.preventDefault();
+  function addNewTagToConceptNode(e) {
+    var cn = d3.select(inFocus).data()[0]
 
-        showSingleInputModal('Enter Tag:', function(tag) {
-            if (tag) {
-                $.ajax({
-                    url:'/kcm/insert-concept-node-tag'
-                    , type:'POST'
-                    , contentType:'application/json'
-                    , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
-                    , success: function(cnRev) {
-                        cn.tags.push(tag);
-                        cn._rev = cnRev;
-                        displayConceptNodeProperties(cn);
-                        d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                    }
-                    , error: ajaxErrorHandler('Error adding new tag to concept node')
-                });
+    e.stopPropagation()
+    e.preventDefault()
+
+    showSingleInputModal('Enter Tag:', function(tag) {
+      if (tag) {
+        cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+        if (!cn) {
+          alert('node not found. it may have been deleted by another user.')
+        } else {
+          $.ajax({
+            url:'/kcm/insert-concept-node-tag'
+            , type:'POST'
+            , contentType:'application/json'
+            , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
+            , success: function(rev) {
+              var oldRev = cn._rev
+              cn = nodeWithId(cn)
+              if (cn && cn._rev == oldRev) {
+                cn._rev = rev
+                cn.tags.push(tag)
+                d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour) // e.g. mastery tag can determine colour
+                if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
+              }
             }
-        });
-    }
+            , error: ajaxErrorHandler('Error adding new tag to concept node')
+          })
+        }
+      }
+    })
+  }
 
-    function deleteConceptNodeTag(e) {
-        var tag = $(this).closest('div.cn-tag')
-          , cn = d3.select(inFocus).data()[0]
-        ;
-        
-        e.stopPropagation();
-        e.preventDefault();
+  function deleteConceptNodeTag(e) {
+    var $tag = $(this).closest('div.cn-tag')
+      , cn = d3.select(inFocus).data()[0]
 
-        showConfirmCancelModal('You are about to delete a tag from a concept node. Are you sure?', function(confirmation) {
-            if (!confirmation) return;
+    e.stopPropagation()
+    e.preventDefault()
 
-            $.ajax({
-                url: '/kcm/delete-concept-node-tag'
-                , type: 'POST'
-                , contentType: 'application/json'
-                , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tag.index(), tagText:tag.text() })
-                , success: function(cnRev) {
-                    cn._rev = cnRev;
-                    cn.tags.splice(tag.index(), 1);
-                    displayConceptNodeProperties(cn);
-                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                }
-                , error: ajaxErrorHandler('error deleting concept node tag')
-            });
-        });
-    }
+    showConfirmCancelModal('You are about to delete a tag from a concept node. Are you sure?', function(confirmation) {
+      if (!confirmation) return
+
+      cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+      if (!cn) {
+        alert('node not found. it may have been deleted by another user.')
+      } else {
+        $.ajax({
+          url: '/kcm/delete-concept-node-tag'
+          , type: 'POST'
+          , contentType: 'application/json'
+          , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:$tag.index(), tagText:$tag.text() })
+          , success: function(rev) {
+            var oldRev = cn._rev
+            cn = nodeWithId(cn)
+            if (cn && cn._rev == oldRev) {
+              cn._rev = rev
+              cn.tags.splice($tag.index(), 1)
+              d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour) // e.g. mastery tag can determine colour
+              if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
+            }
+          }
+          , error: ajaxErrorHandler('error deleting concept node tag')
+        })
+      }
+    })
+  }
     
-    function editConceptNodeTag(e) {
-        var cn = d3.select(inFocus).data()[0];
-        editTag(e, cn.tags, function(tagText, tagIx, undoCallback) {
-            $.ajax({
-                url: '/kcm/edit-concept-node-tag'
-                , type: 'POST'
-                , contentType: 'application/json'
-                , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:cn.tags[tagIx], newText:tagText})
-                , success: function(cnRev) {
-                    cn._rev = cnRev;
-                    cn.tags.splice(tagIx, 1, tagText);
-                    displayConceptNodeProperties(cn);
-                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                }
-                , error: function() {
-                    undoCallback();
-                    ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments));
-                }
-            });
-        });
-    }
+  function editConceptNodeTag(e) {
+    var cn = d3.select(inFocus).data()[0]
+    editTag(e, cn.tags, function(tagText, tagIx, undoCallback) {
+      cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+      if (!cn) {
+        alert('node not found. it may have been deleted by another user.')
+      } else {
+        $.ajax({
+          url: '/kcm/edit-concept-node-tag'
+          , type: 'POST'
+          , contentType: 'application/json'
+          , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:cn.tags[tagIx], newText:tagText})
+          , success: function(rev) {
+            var oldRev = cn._rev
+            cn = nodeWithId(cn)
+            if (cn && cn._rev == oldRev) {
+              cn._rev = rev
+              cn.tags.splice(tagIx, 1, tagText)
+              displayConceptNodeProperties(cn)
+              if (inFocus && $(inFocus).attr('id') == cn._id) d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
+            }
+          }
+          , error: function() {
+            undoCallback()
+            ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments))
+          }
+        })
+      }
+    })
+  }
 
-    function editTag(e, array, callback) {
-        var $tag = $(e.target).closest('div.cn-tag')
-          , tagIx = $tag.index()
-          , $parent = $tag.parent()
-          , $editTag = $.tmpl('cnEditTagDIV', { tag:array[tagIx] })
-          , $input = $editTag.children('input')
-        ;
-        e.stopPropagation();
-        e.preventDefault();
+  function editTag(e, array, callback) {
+    var $tag = $(e.target).closest('div.cn-tag')
+      , tagIx = $tag.index()
+      , $parent = $tag.parent()
+      , $editTag = $.tmpl('cnEditTagDIV', { tag:array[tagIx] })
+      , $input = $editTag.children('input')
+    
+    e.stopPropagation()
+    e.preventDefault()
 
-        $tag.replaceWith($editTag);
+    $tag.replaceWith($editTag)
 
-        $input
-            .focus()
-            .on('focusout', function() {
-                $editTag.replaceWith($tag);
-            })
-            .keydown(function(e) {
-                switch(e.keyCode) {
-                    case 27:
-                        $editTag.replaceWith($tag);
-                        break;
-                    case 13:
-                        if ($input.val() == $tag.text()) {
-                            $editTag.replaceWith($tag);
-                        } else if ($input.val().length) {
-                            $editTag.remove();
-                            callback($input.val(), tagIx, function() {
-                                if (tagIx == 0) $parent.prepend($tag);
-                                else $parent.children().eq(tagIx-1).after($tag);
-                            });
-                        }
-                        break;
-                }
-            })
-        ;
-    }
+    $input
+      .focus()
+      .on('focusout', function() { $editTag.replaceWith($tag) })
+      .keydown(function(e) {
+        switch(e.keyCode) {
+          case 27:
+            $editTag.replaceWith($tag)
+            break
+          case 13:
+            if ($input.val() == $tag.text()) {
+              $editTag.replaceWith($tag)
+            } else if ($input.val().length) {
+              $editTag.remove()
+              callback($input.val(), tagIx, function() {
+                if (tagIx == 0) $parent.prepend($tag)
+                else $parent.children().eq(tagIx-1).after($tag)
+              })
+            }
+            break
+        }
+      })
+  }
 
     function addNewPipelineToConceptNode(e) {
         var cn = d3.select(inFocus).data()[0];
@@ -1693,10 +1728,12 @@
             };
             endInteractionNext = function() {
                 var pos = d3.transform(n.attr('transform')).translate;
-                if (data.x == pos[0] && data.y == pos[1]) return;
+                pos[0] = parseInt(pos[0], 10);
+                pos[1] = parseInt(pos[1], 10);
 
-                data.x = pos[0];
-                data.y = pos[1];
+                if (data.x == pos[0] && data.y == pos[1]) return;
+                data.x = pos[0]
+                data.y = pos[1]
 
                 $.ajax({
                     url: '/kcm/update-concept-node-position'
