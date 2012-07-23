@@ -48,7 +48,6 @@ exports.createService = function createSessionService(kcm, noAuthenticatePathnam
                 res.render('sessions/login', { redir:req.body.redir })
               } else { // correct credentials
                 req.session.user = rows[0].doc
-                console.log('\nThis session:\n',req.session)
 
                 // is user already logged in?
                 var now = new Date()
@@ -57,8 +56,7 @@ exports.createService = function createSessionService(kcm, noAuthenticatePathnam
                 for (var id in allSessions) {
                   if (id != req.sessionID) {
                     var sess = JSON.parse(allSessions[id])
-                    console.log('\nOther Session:\n',sess)
-                    if (sess.user._id == req.session.user._id) {
+                    if (sess.user._id == req.session.user._id && new Date(sess.cookie.expires) > now) {
                       preExistingUserSession = sess
                       break
                     }
