@@ -17,7 +17,7 @@ function KCMWebSocketServer(kcm, sessionService, options, callback) {
 
     self.kcmStreamSubscribers(function(subscribers) {
       subscribers.forEach(function(ws) {
-        ws.send(change)
+        ws.send(JSON.stringify(change))
       })
     })
   })

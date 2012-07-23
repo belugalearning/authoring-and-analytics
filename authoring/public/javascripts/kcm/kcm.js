@@ -73,7 +73,7 @@
         ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
       }
       ws.onmessage = function(message) {
-        console.log(message)
+        console.log(JSON.parse(message.data))
       }
 
         $('form#upload-pdefs').ajaxForm();
