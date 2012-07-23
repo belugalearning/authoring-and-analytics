@@ -17,10 +17,13 @@ function KCM(config) {
   self.databaseName = config.authoring.kcmDatabaseName.match(/^(.+[^\/])\/?$/)[1]
   self.dbURI = format('%s/%s', self.couchServerURI, self.databaseName)
 
-  self.nodes = {}
-  self.pipelines = {}
-  self.relations = {}
-  self.tools = {}
+  self.docStores = {
+    nodes: {}
+    , pipelines: {}
+    , problems: {}
+    , relations: {}
+    , tools: {}
+  }
 
   request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
     if (!r || r.statusCode != 200) {
@@ -45,14 +48,27 @@ function KCM(config) {
 
       couchDBStream = new CouchDBStream(self.dbURI, self.update_seq)
       couchDBStream.on('change', function(change) {
+        var store
+
         self.update_seq = change.seq
         
-        var store = self.docStore(change.doc)
-        if (store) {
-          if (change.delete === true) delete store[change.doc._id]
-          else store[change.doc._id] = change.doc
-          self.emit('change', change)
+        if (change.deleted === true) {
+          for (var key in self.docStores) {
+            store = self.docStores[key]
+            if (store[change.id]) {
+              store[change.id]._rev = change.doc._rev
+              store[change.id]._deleted = true
+              change.doc = store[change.id]
+              delete store[change.id]
+              break
+            }
+          }
+        } else {
+          store = self.docStore(change.doc)
+          if (store) store[change.id] = change.doc
         }
+
+        if (store) self.emit('change', change)
       })
     })
   })
@@ -60,10 +76,10 @@ function KCM(config) {
 
 KCM.prototype.docStore = function(doc) {
   return ({
-    'concept node': this.nodes
-    , 'pipeline': this.pipelines
-    , 'problem': this.problems
-    , 'relation': this.relations
-    , 'tool': this.tools
+    'concept node': this.docStores.nodes
+    , 'pipeline': this.docStores.pipelines
+    , 'problem': this.docStores.problems
+    , 'relation': this.docStores.relations
+    , 'tool': this.docStores.tools
   })[doc.type]
 }

@@ -73,7 +73,12 @@
         ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
       }
       ws.onmessage = function(message) {
-        console.log(JSON.parse(message.data))
+        data = JSON.parse(message.data)
+        
+        if (data.seq <= kcm.update_seq) return
+        kcm.update_seq = data.seq
+
+        console.log(data)
       }
 
         $('form#upload-pdefs').ajaxForm();

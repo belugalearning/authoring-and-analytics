@@ -263,12 +263,12 @@ module.exports = function(config, kcm_model, kcm) {
     }
     , getMap: function(req, res) {
       // TODO: update all pipelines to have workflowStatus set then delete this
-      _.each(kcm.pipelines, function(pl) {
+      _.each(kcm.docStores.pipelines, function(pl) {
         if (typeof pl.workflowStatus === 'undefined') pl.workflowStatus = 0 
       })
 
-      var map = { pipelines:kcm.pipelines, nodes:_.values(kcm.nodes), update_seq:kcm.update_seq }
-      map.binaryRelations = _.filter(_.values(kcm.relations), function(r) { return r.relationType == 'binary' })
+      var map = { pipelines:kcm.docStores.pipelines, nodes:_.values(kcm.docStores.nodes), update_seq:kcm.update_seq }
+      map.binaryRelations = _.filter(_.values(kcm.docStores.relations), function(r) { return r.relationType == 'binary' })
 
       kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
         map.chainedBinaryRelations = chainedBinaryRelations
