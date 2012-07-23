@@ -4,7 +4,6 @@
   "private": true,
   "dependencies": {
     "connect": "1.x",
-    "cookie": "0.0.x",
     "express": "2.5.x",
     "jade": ">= 0.0.1",
     "libxmljs": "0.5.x",

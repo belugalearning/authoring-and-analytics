@@ -2,7 +2,6 @@ var urlParser = require('url')
   , _ = require('underscore')
   , util = require('util')
   , connect = require('connect')
-  , cookie = require('cookie')
 
 var sidKey = 'bl.authoring.sid'
   , sessionStore = new connect.session.MemoryStore
