@@ -392,7 +392,7 @@ function pullReplicate(source, filter, continuous, cancel) {
 }
 
 function updateExportSettings(updatedSettings, callback) {
-  if (!updatedSettings || 'kcm-export-settings' != updatedSettings._id) {
+  if (!updatedSettings || 'ExportSettings' != updatedSettings.type) {
     callback('invalid export settings document', 500)
     return
   }
@@ -406,7 +406,7 @@ function updateExportSettings(updatedSettings, callback) {
 }
 
 function updateViewSettings(updatedSettings, callback) {
-  if (!updatedSettings || 'kcm-view-settings' != updatedSettings._id) {
+  if (!updatedSettings || 'ViewSettings' != updatedSettings.type) {
     callback('invalid view settings document', 500)
     return
   }
@@ -426,12 +426,18 @@ function updateDesignDoc(callback) {
   var kcmViews = {
     _id: '_design/' + designDoc
     , views: {
-      'by-type': {
+      'any-by-type-name': {
+        map: (function (doc) { if (doc.type && doc.name) emit([doc.type, doc.name], null); }).toString()
+      }
+      , 'by-type': {
         map: (function(doc) { if (doc.type) emit(doc.type, null) }).toString()
         , reduce: (function(keys, values, rereduce) {
           if (!rereduce) return values.length
             return sum(values)
         }).toString()
+      }
+      , 'by-user-type': {
+        map: (function(doc) { if (doc.type && doc.user) emit([doc.user,doc.type], null) }).toString()
       }
       , 'users-by-credentials': {
         map: (function(doc) { if ('User' == doc.type) emit([doc.loginName, doc.password], null) }).toString()

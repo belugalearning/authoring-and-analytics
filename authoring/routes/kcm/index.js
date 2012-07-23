@@ -270,11 +270,10 @@ module.exports = function(config, kcm_model, kcm) {
       var map = { pipelines:kcm.pipelines, nodes:_.values(kcm.nodes), update_seq:kcm.update_seq }
       map.binaryRelations = _.filter(_.values(kcm.relations), function(r) { return r.relationType == 'binary' })
 
-
       kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
         map.chainedBinaryRelations = chainedBinaryRelations
 
-        kcmModel.getDocs(['kcm-export-settings','kcm-view-settings'], function(e,r,b) {
+        kcmModel.queryView('by-user-type', 'keys', [[req.session.user._id,'ExportSettings'], [req.session.user._id,'ViewSettings']], 'include_docs', true, function(e,r,b) {
           var rows = JSON.parse(b).rows
           map.exportSettings = rows[0].doc
           map.viewSettings = rows[1].doc
