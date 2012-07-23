@@ -32,11 +32,13 @@ module.exports = function(config) {
       console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode)
       return
     }
-    updateDesignDoc(function(e, statusCode) {
-      if (201 != statusCode) {
-        console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode)
-      }
-    })
+    if (false) {
+              updateDesignDoc(function(e, statusCode) {
+                if (201 != statusCode) {
+                  console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode)
+                }
+              })
+    }
   })
 
   return {
