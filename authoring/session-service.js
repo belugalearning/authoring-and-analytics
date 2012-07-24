@@ -56,7 +56,7 @@ exports.createService = function createSessionService(kcm, noAuthenticatePathnam
                 for (var id in allSessions) {
                   if (id != req.sessionID) {
                     var sess = JSON.parse(allSessions[id])
-                    if (sess.user._id == req.session.user._id && new Date(sess.cookie.expires) > now) {
+                    if (sess.user && sess.user._id == req.session.user._id && new Date(sess.cookie.expires) > now) {
                       preExistingUserSession = sess
                       break
                     }
