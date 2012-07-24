@@ -71,24 +71,28 @@
         ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
       }
       ws.onmessage = function(message) {
-        data = JSON.parse(message.data)
+        var data = JSON.parse(message.data)
         
         if (data.seq <= kcm.update_seq) return
         kcm.update_seq = data.seq
 
         switch(data.doc.type) {
           case 'concept node':
-            for (var i=0; i<kcm.nodes.length; i++) {
-              if (kcm.nodes[i]._id == data.doc._id) {
-                kcm.nodes.splice(i, 1, data.doc)
-                console.log('docid:', data.doc._id)
-                console.log('node:', kcm.nodes[i])
-                updateMapNodes()
-                updateMapLinks()
-                if (inFocus && $(inFocus).attr('id') == data.doc._id) setFocus($('g#'+data.doc._id)[0])
+            var i
+            for (i=0; i<kcm.nodes.length; i++) {
+              if (kcm.nodes[i]._id == data.id) {
+                if (data.deleted) kcm.nodes.splice(i, 1)
+                else kcm.nodes.splice(i, 1, data.doc) 
                 break
               }
             }  
+            if (!data.deleted && i == kcm.nodes.length) kcm.nodes[i] = data.doc
+            updateMapNodes()
+            updateMapLinks()
+            break
+          case 'pipeline':
+            if (data.deleted) delete kcm.pipelines[data.id]
+            else kcm.pipelines[data.id] = data.doc
             break
         }
       }
@@ -247,6 +251,10 @@
         ;
 
         nodes.exit().remove();
+
+        if (inFocus && /\bnode\b/.test(d3.select(inFocus).attr('class'))) {
+          setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
+        }
     }
 
     function updateMapLinks() {
@@ -326,6 +334,10 @@
         });
 
         $('g.link').arrowRedraw();
+
+        if (inFocus && /\blink\b/.test(d3.select(inFocus).attr('class'))) {
+          setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
+        }
     }
 
     function nodeWithId(id) {
@@ -861,7 +873,6 @@
                         cn._rev = cnRev;
                         kcm.nodes.push(cn);
                         updateMapNodes();
-                        setFocus($('g#'+cn._id)[0]);
                         $('#concept-description').select();
                     }
                     , error: ajaxErrorHandler('Error adding tag "mastery" to new mastery node')
@@ -880,7 +891,6 @@
             , success:function(cn) {
                 kcm.nodes.push(cn);
                 updateMapNodes();
-                setFocus($('g#'+cn._id)[0]);
                 $('#concept-description').select();
             }
             , error:ajaxErrorHandler('Error inserting new concept node')
@@ -1161,8 +1171,8 @@
             if (cn && cn._rev == oldRev) {
               cn._rev = rev
               cn.tags.splice(tagIx, 1, tagText)
-              displayConceptNodeProperties(cn)
-              if (inFocus && $(inFocus).attr('id') == cn._id) d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
+              d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
+              if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
             }
           }
           , error: function() {
@@ -1209,33 +1219,42 @@
       })
   }
 
-    function addNewPipelineToConceptNode(e) {
-        var cn = d3.select(inFocus).data()[0];
-        
-        e.stopPropagation();
-        e.preventDefault();
+  function addNewPipelineToConceptNode(e) {
+    var cn = d3.select(inFocus).data()[0]
 
-        showSingleInputModal('Enter name for new pipeline:', function(name) {
-            if (name) {
-                $.ajax({
-                    url:'/kcm/insert-pipeline'
-                    , type:'POST'
-                    , contentType:'application/json'
-                    , data:JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, pipelineName:name })
-                    , success:function(d) {
-                        var pl = d.pipeline
-                          , cnRev = d.conceptNodeRev
-                        ;
-                        kcm.pipelines[pl._id] = pl;
-                        cn.pipelines.push(pl._id);
-                        cn._rev = cnRev;
-                        displayConceptNodeProperties(cn);
-                    }
-                    , error:ajaxErrorHandler('Error adding new pipeline')
-                });
+    e.stopPropagation()
+    e.preventDefault()
+
+    showSingleInputModal('Enter name for new pipeline:', function(name) {
+      if (name) {
+        cn = nodeWithId(cn._id)
+        if (!cn) {
+          alert('node not found. it may have been deleted by another user.')
+        } else {
+          $.ajax({
+            url:'/kcm/insert-pipeline'
+            , type:'POST'
+            , contentType:'application/json'
+            , data:JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, pipelineName:name })
+            , success:function(d) {
+              var oldRev = cn._rev
+                , rev = d.conceptNodeRev
+                , pl = d.pipeline
+
+              if (!kcm.pipelines[pl._id]) kcm.pipelines[pl._id] = pl
+              cn = nodeWithId(cn._id)
+              if (cn && cn._rev == oldRev) {
+                cn._rev = rev
+                cn.pipelines.push(pl._id)
+                if (inFocus && $(inFocus).att('id') == cn._id) displayConceptNodeProperties(cn)
+              }
             }
-        });
-    }
+            , error:ajaxErrorHandler('Error adding new pipeline')
+          })
+        }
+      }
+    })
+  }
 
     function deleteConceptNodePipeline(e) {
         var plId = $(this).closest('tr').attr('data-id')
@@ -1699,8 +1718,6 @@
                         , contentType:'application/json'
                         , data: JSON.stringify({ conceptNodeId:data._id, conceptNodeRev:data._rev })
                         , success: function(updatedBinaryRelations) {
-                            setFocus(null);
-
                             $.each(updatedBinaryRelations, function(i,updated) {
                                 var old = $.grep(kcm.binaryRelations, function(br) { return br._id == updated._id; })[0]
                                   , ix = kcm.binaryRelations.indexOf(old)
