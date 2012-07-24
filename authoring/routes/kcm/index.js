@@ -45,7 +45,7 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , getAppContent: function(req, res) {
-        kcmModel.getAppContent(function(e, statusCode, contentZip) {
+        kcmModel.getAppContent(req.session.user._id, function(e, statusCode, contentZip) {
             if (200 != statusCode) {
                 res.send(e || 'error retrieving canned application content');
                 return;

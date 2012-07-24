@@ -1896,16 +1896,18 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
-function getAppContent(callback) {
+function getAppContent(userId, callback) {
   var writeLog = true
 
-  getDoc('kcm-export-settings', function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback('Could not retrieve export settings', 500)
+  queryView('by-user-type', 'key', [userId, 'ExportSettings'], 'include_docs', true, function(e,r,b) {
+    var rows = r && r.statusCode == 200 && JSON.parse(b).rows
+
+    if (!rows || !rows.length) {
+      callback(util.format('Could not retrieve export settings. Database error:"%s"', e), r && r.statusCode != 200 ? r.statusCode : 500)
       return
     }
 
-    var exportSettings = JSON.parse(b)
+    var exportSettings = rows[0].doc
       , exportAllNodes  = exportSettings.exportAllNodes === true
       , nodeInclusionTags = exportSettings.nodeInclusionTags
       , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
