@@ -1847,19 +1847,19 @@
             break
           case 71: if (!e.ctrlKey) break // CTRL + 'g'
           case 13: // RETURN
+            if (!matches.length) search()
             if (e.shiftKey) prevMatch()
             else nextMatch()
             break;
           case 16: // SHIFT
           case 17: // CTRL
           case 18: // ALT
-          case 91: // CMD
-          case 93: // CMD
             break
           default:
             search()
             break
         }
+        console.log(e.keyCode)
       })
 
     $('#command-strip #prev-match').on('click', prevMatch)
