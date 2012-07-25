@@ -1044,7 +1044,7 @@ function getChainedBinaryRelationsWithMembers(relationIds, callback) {
   }
 
   function next(e,r,b) {
-    if (200 != r.statusCode) {
+    if (!r || 200 != r.statusCode) {
       callback(util.format('could not retrieve chained relations. Database reported error: "%s"', e), r.statusCode || 500)
       return
     }

@@ -705,45 +705,49 @@
         }
     }
 
-    function keyCommandListener(e) {
-        var focus = $(':focus');
-        if (e.type == 'keydown' && focus.length && ~['input','textarea'].indexOf(focus[0].tagName.toLowerCase())) return;
-        
-        switch(String.fromCharCode(e.keyCode).toLowerCase()) {
-            case 'b':
-                switch (e.type) {
-                    case 'keydown':
-                        if (!~mouseInteractionModifiers.indexOf('(drawlink)')) mouseInteractionModifiers += '(drawlink)';
-                    break;
-                    case 'keyup':
-                        mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(drawlink\)/g, '');
-                    break;
-                }
-            break;
-            case 'd':
-                switch (e.type) {
-                    case 'keydown':
-                        $('#wrapper').addClass('delete-mode');
-                        if (!~mouseInteractionModifiers.indexOf('(delete)')) mouseInteractionModifiers += '(delete)';
-                    break;
-                    case 'keyup':
-                        $('#wrapper').removeClass('delete-mode');
-                        mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(delete\)/g, '');
-                    break;
-                }
-            break;
-            case 'm':
-                if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
-                    insertMasteryNode(mouse.xmap, mouse.ymap);
-                }
-            break;
-            case 'n':
-                if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
-                    insertConceptNode(mouse.xmap, mouse.ymap);
-                }
-            break;
+  function keyCommandListener(e) {
+    var focus = $(':focus')
+    if (e.type == 'keydown' && focus.length && ~['input','textarea'].indexOf(focus[0].tagName.toLowerCase())) return
+
+    switch(e.keyCode) {
+      case 66: // 'b'
+        switch (e.type) {
+          case 'keydown':
+            if (!~mouseInteractionModifiers.indexOf('(drawlink)')) mouseInteractionModifiers += '(drawlink)'
+            break
+          case 'keyup':
+            mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(drawlink\)/g, '')
+            break
         }
+        break
+      case 68: // 'd'
+        switch (e.type) {
+          case 'keydown':
+            $('#wrapper').addClass('delete-mode')
+            if (!~mouseInteractionModifiers.indexOf('(delete)')) mouseInteractionModifiers += '(delete)'
+            break
+          case 'keyup':
+            $('#wrapper').removeClass('delete-mode')
+            mouseInteractionModifiers = mouseInteractionModifiers.replace(/\(delete\)/g, '')
+            break
+        }
+        break
+      case 77: // 'm'
+        if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
+          insertMasteryNode(mouse.xmap, mouse.ymap)
+        }
+        break
+      case 78: // 'n'
+        if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
+          insertConceptNode(mouse.xmap, mouse.ymap)
+        }
+        break
+      case 70: if (!e.ctrlKey) break // ctrl + 'f'
+      case 191: // '/'
+        if (e.type == 'keyup' && !$('body > #modal-bg').length) displayMapSearch()
+        break
     }
+  }
 
     function onFocusPipelineNameInput() {
       var $input = $(this)
@@ -1767,6 +1771,101 @@
         mouseInteractionModifiers = '';
     }
 
+  function displayMapSearch() {
+    var matches = []
+      , currMatchIx = -1
+
+    var highlightNode = function() {
+      var n = matches[currMatchIx]
+        , g = $('g#'+n._id)[0]
+        , tx = $('svg').width() / 2 - n.x
+        , ty = $('svg').height() / 2 - n.y
+
+      $('#map-search-numbers').text( (1+currMatchIx) + ' / ' + matches.length )
+
+      gZoom.attr('transform', 'scale(1)translate('+tx+','+ty+')')
+      svg.calibrateToTransform(d3.transform(gZoom.attr('transform')))
+
+      setFocus(g)
+      $('input#map-search').focus()
+    }
+
+    var search = function() {
+      var currMatch = matches[currMatchIx]
+        , s = $('input#map-search').val()
+
+      if (s.length) {
+        matches = $.grep(kcm.nodes, function(n) { return ~n._id.indexOf(s) || ~n.nodeDescription.indexOf(s) })
+      } else {
+        matches = []
+      }
+      
+      if (matches.length) {
+        if (currMatch) currMatchIx = matches.indexOf(currMatch)
+        if (!~currMatchIx) currMatchIx = 0
+        highlightNode()
+      } else {
+        currMatchIx = -1
+        $('#map-search-numbers').text('0 / 0')
+        setFocus(null)
+        $('input#map-search').focus()
+      }
+    }
+
+    var prevMatch = function() {
+      if (!matches.length) return
+      currMatchIx = (matches.length + currMatchIx - 1) % matches.length
+      highlightNode()
+    }
+    var nextMatch = function() {
+      if (!matches.length) return
+      currMatchIx = (currMatchIx + 1) % matches.length
+      highlightNode()
+    }
+    
+    var sel = function(e) {
+      $('#map-search').select()
+      if (e.type == 'mousedown') $(window).on('mouseup', sel)
+      else $(window).off('mouseup', sel)
+    }
+
+    if ($('input#map-search').length) {
+      $('input#map-search').focus()
+      return
+    }
+
+    $.tmpl('mapSearchDIV').appendTo('body')
+
+    $('#command-strip').on('mousedown', sel)
+
+    $('input#map-search')
+      .focus()
+      .on('keyup', function(e) {
+        switch(e.keyCode) {
+          case 27: // ESC
+            $('#command-strip').remove()
+            break
+          case 13: // RETURN
+          case 71: if (!e.ctrlKey) break // CTRL + 'g'
+            if (e.shiftKey) prevMatch()
+            else nextMatch()
+            break;
+          case 16: // SHIFT
+          case 17: // CTRL
+          case 18: // ALT
+          case 91: // CMD
+          case 93: // CMD
+            break
+          default:
+            search()
+            break
+        }
+      })
+
+    $('#command-strip #prev-match').on('click', prevMatch)
+    $('#command-strip #next-match').on('click', nextMatch)
+  }
+
     $.template("brViewSettingsTR",
         '<tr data-id="{{html _id}}">\
             <td class="br-name">{{html name}}</td>\
@@ -1846,31 +1945,41 @@
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
 
-    $.template("newLinkConfigDIV",
-        '<div>\
-            <div class="warning"/>\
-            <input type="radio" name="mode" value="existing" checked="checked" /><span class="radio-label">Existing Relation</span>\
-            <input type="radio" name="mode" value="new" /><span class="radio-label">New Relation</span><br/>\
-            <div class = "relation-name">\
-                <select id="binary-relations">\
-                    {{each relations}}\
-                        <option value="${$value._id}">${$value.name}</option>\
-                    {{/each}}\
-                </select>\
-                <input type="text" id="new-binary-relation-name"/>\
-            </div>\
-            <div class="new-link-node new-link-node-l">\
-                <h3>Concept Node with description:</h3>\
-                <div data-id="{{html cn1Data._id}}">{{html cn1Data.nodeDescription}}</div>\
-            </div>\
-            <div class="new-link-node new-link-node-r">\
-                <h3>Concept Node with description:</h3>\
-                <div data-id="{{html cn2Data._id}}">{{html cn2Data.nodeDescription}}</div>\
-            </div>\
-            <div class="relation-desc">\
-                <span id="binary-relation-desc">{{html relations[0].relationDescription}}</span>\
-                <input type="text" id="new-binary-relation-desc"/>\
-            </div>\
-            <div class="reverse-btn"><input type="button" value="<- reverse relationship ->"/> </div>\
-        </div>'.replace(/(>|}})\s+/g, '$1'));
+  $.template("newLinkConfigDIV",
+    '<div>\
+      <div class="warning"/>\
+      <input type="radio" name="mode" value="existing" checked="checked" /><span class="radio-label">Existing Relation</span>\
+      <input type="radio" name="mode" value="new" /><span class="radio-label">New Relation</span><br/>\
+      <div class = "relation-name">\
+        <select id="binary-relations">\
+          {{each relations}}\
+            <option value="${$value._id}">${$value.name}</option>\
+          {{/each}}\
+        </select>\
+        <input type="text" id="new-binary-relation-name"/>\
+      </div>\
+      <div class="new-link-node new-link-node-l">\
+        <h3>Concept Node with description:</h3>\
+        <div data-id="{{html cn1Data._id}}">{{html cn1Data.nodeDescription}}</div>\
+      </div>\
+      <div class="new-link-node new-link-node-r">\
+        <h3>Concept Node with description:</h3>\
+        <div data-id="{{html cn2Data._id}}">{{html cn2Data.nodeDescription}}</div>\
+      </div>\
+      <div class="relation-desc">\
+        <span id="binary-relation-desc">{{html relations[0].relationDescription}}</span>\
+        <input type="text" id="new-binary-relation-desc"/>\
+      </div>\
+      <div class="reverse-btn"><input type="button" value="<- reverse relationship ->"/> </div>\
+    </div>'.replace(/(>|}})\s+/g, '$1'))
+
+  $.template('mapSearchDIV',
+    '<div id="command-strip" style="position:absolute; left:0; top:0; width:500px; background-color:#d5d5d5; padding:4px 0 2px 4px;">\
+      <table style="width:100%;"><tr>\
+        <td style="width:1px; padding-right:5px; vertical-align:middle;">Search:</td>\
+        <td><input id="map-search" type="text" style="width:100%"/></td>\
+        <td id="map-search-numbers" nowrap style="padding-left:14px; width:1px; text-align:left; vertical-align:middle; white-space:nowrap;">0 / 0</td>\
+        <td style="width:70px; text-align:center;"><input id="prev-match" type="button" value="<"><input id="next-match" type="button" value=">"></td>\
+      </tr></table>\
+    </div>'.replace(/(>|}})\s+/g, '$1'));
 //})(jQuery);
