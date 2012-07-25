@@ -1859,7 +1859,6 @@
             search()
             break
         }
-        console.log(e.keyCode)
       })
 
     $('#command-strip #prev-match').on('click', prevMatch)
