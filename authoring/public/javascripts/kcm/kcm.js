@@ -1845,8 +1845,8 @@
           case 27: // ESC
             $('#command-strip').remove()
             break
-          case 13: // RETURN
           case 71: if (!e.ctrlKey) break // CTRL + 'g'
+          case 13: // RETURN
             if (e.shiftKey) prevMatch()
             else nextMatch()
             break;
