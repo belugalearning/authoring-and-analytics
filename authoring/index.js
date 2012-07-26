@@ -10,27 +10,30 @@ var express = require('express')
 var server = express.createServer()
 
 module.exports = function(config) {
-  var oldModel = initOldModel(config)
   server.kcm = new KCM(config)
-  server.routeHandlers = routeHandlers.init(config, oldModel, server.kcm)
-  server.sessionService = sessionService.createService(oldModel.kcm)
-  server.kcmWSS = new KCMWebSocketServer(server.kcm, server.sessionService, {
-    server: server
-    , verifyClient: function(ws, callback) {
-      server.sessionService.get(ws.req, function(e, session) {
-        callback(session)
-      })
-    }
+
+  server.kcm.once('initialised', function() {
+    console.log(server.kcm)
+    var oldModel = initOldModel(config, server.kcm)
+    server.routeHandlers = routeHandlers.init(config, oldModel, server.kcm)
+    server.sessionService = sessionService.createService(oldModel.kcm)
+    server.kcmWSS = new KCMWebSocketServer(server.kcm, server.sessionService, {
+      server: server
+      , verifyClient: function(ws, callback) {
+        server.sessionService.get(ws.req, function(e, session) {
+          callback(session)
+        })
+      }
+    })
+    server.config = config
+
+    configServer()
+    setupRoutes()
+
+    var port = parseInt(config.authoring.port, 10) || 3001
+    server.listen(port)
+    console.log("Authoring Express server listening on port %d in %s mode", server.address().port, server.settings.env)
   })
-  server.config = config
-
-  configServer()
-  setupRoutes()
-
-  var port = parseInt(config.authoring.port, 10) || 3001
-  server.listen(port)
-  console.log("Authoring Express server listening on port %d in %s mode", server.address().port, server.settings.env)
-
   return server
 }
 
