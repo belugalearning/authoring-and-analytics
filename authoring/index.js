@@ -13,7 +13,6 @@ module.exports = function(config) {
   server.kcm = new KCM(config)
 
   server.kcm.once('initialised', function() {
-    console.log(server.kcm)
     var oldModel = initOldModel(config, server.kcm)
     server.routeHandlers = routeHandlers.init(config, oldModel, server.kcm)
     server.sessionService = sessionService.createService(oldModel.kcm)
