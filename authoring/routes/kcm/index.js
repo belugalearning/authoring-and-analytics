@@ -267,7 +267,7 @@ module.exports = function(config, kcm_model, kcm) {
         if (typeof pl.workflowStatus === 'undefined') pl.workflowStatus = 0 
       })
 
-      var map = { pipelines:kcm.docStores.pipelines, nodes:_.values(kcm.docStores.nodes), update_seq:kcm.update_seq }
+      var map = { user:req.session.user._id, pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, update_seq:kcm.update_seq }
       map.binaryRelations = _.filter(_.values(kcm.docStores.relations), function(r) { return r.relationType == 'binary' })
 
       kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
@@ -282,22 +282,24 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , insertConceptNode: function(req, res) {
-        kcmModel.insertConceptNode({ nodeDescription:req.body.nodeDescription, x:req.body.x, y:req.body.y }, function(e, statusCode, conceptNode) {
-            res.send(e || conceptNode, statusCode || 500);
-        });
+      kcmModel.insertConceptNode(
+        req.session.user._id
+        , { nodeDescription:req.body.nodeDescription
+          , x:req.body.x
+          , y:req.body.y
+          , nodeDescription:req.body.nodeDescription || 'NEW CONCEPT NODE'
+          , tags: req.body.tags || []
+        }
+        , function(e, statusCode) { res.send(e, statusCode || 500) }
+      )
     }
     , deleteConceptNode: function(req, res) {
-        kcmModel.deleteConceptNode(req.params.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode, updatedBinaryRelations) {
-            if (200 != statusCode) {
-                if (updatedBinaryRelations && updatedBinaryRelations.length) {
-                    e += ' You will need to refresh the page to bring back an up-to-date version of the map.';
-                }
-                res.send(e, statusCode || 500);
-                return;
-            }
-
-            res.send(updatedBinaryRelations);
-        });
+      kcmModel.deleteConceptNode(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
+        if (201 != statusCode) {
+          e += ' You will need to refresh the page to bring back an up-to-date version of the map.'
+        }
+        res.send(e, statusCode || 500)
+      })
     }
     , updateConceptNodeDescription: function(req, res) {
         kcmModel.updateConceptNodeDescription(req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode, conceptNodeRevision) {
@@ -459,7 +461,7 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , updateConceptNodePosition: function(req,res) {
-        kcmModel.updateConceptNodePosition(req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
+        kcmModel.updateConceptNodePosition(req.session.user._id, req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
             res.send(e || nodeRevision, statusCode || 500);
         });
     }

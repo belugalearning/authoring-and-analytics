@@ -1,352 +1,348 @@
 //(function($) {
-    var nodeEnoughProblems = 5
-      , windowPadding = 4, genPadding = 6
-      , svg, gZoom, gWrapper, gLinks, gNodes
-      , relIdContainerDict = {}
-      , inFocus = null
-      , l = 400
-      , nodeTextPadding = 5
-      , rControlsWidth = 350
-      , mouseInteractionModifiers = ''
-      , cnInteractionInProgress = false
-      , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
-      , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
-    ;
+  var nodeEnoughProblems = 5
+    , windowPadding = 4, genPadding = 6
+    , svg, gZoom, gWrapper, gLinks, gNodes
+    , relIdContainerDict = {}
+    , inFocus = null
+    , l = 400
+    , nodeTextPadding = 5
+    , rControlsWidth = 350
+    , mouseInteractionModifiers = ''
+    , cnInteractionInProgress = false
+    , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
+    , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
 
-    function nodesWithDescriptionsContaining(text) {
-        return $.grep(kcm.nodes, function(n) { return ~n.nodeDescription.indexOf(text); });
-    }
+  function nodesWithDescriptionsContaining(text) {
+    var nodes = $.map(kcm.nodes, function(n) { return n })
+    return $.grep(nodes, function(n) { return ~n.nodeDescription.indexOf(text) })
+  }
 
-    $.fn.arrowRedraw = function() {
-        $.each(this, function() {
-            var gArrow = d3.select(this)
-              , gHead = d3.select( $('g#' + $(this).attr('data-head-node'))[0] )
-              , gTail = d3.select( $('g#' + $(this).attr('data-tail-node'))[0] )
-              , head = gHead.select('rect')
-              , tail = gTail.select('rect')
-              , hw = parseInt(head.attr("width"))
-              , hh = parseInt(head.attr("height"))
-              , hx = d3.transform(gHead.attr("transform")).translate[0]
-              , hy = d3.transform(gHead.attr("transform")).translate[1]
-              , tx = d3.transform(gTail.attr("transform")).translate[0]
-              , ty = d3.transform(gTail.attr("transform")).translate[1]
-              , len = Math.sqrt(Math.pow(tx-hx,2) + Math.pow(ty-hy,2))
-              , grad = (ty-hy) / (tx-hx)
-              , theta = hx == tx
-                  ? (hy > ty ? 1.5 : 0.5) * Math.PI
-                  : Math.atan(grad) + (hx > tx ? Math.PI : 0)
-              , ahr // arrow-head radius polar coord
-            ;
+  $.fn.arrowRedraw = function() {
+    $.each(this, function() {
+      var gArrow = d3.select(this)
+        , gHead = d3.select( $('g#' + $(this).attr('data-head-node'))[0] )
+        , gTail = d3.select( $('g#' + $(this).attr('data-tail-node'))[0] )
+        , head = gHead.select('rect')
+        , tail = gTail.select('rect')
+        , hw = parseInt(head.attr("width"))
+        , hh = parseInt(head.attr("height"))
+        , hx = d3.transform(gHead.attr("transform")).translate[0]
+        , hy = d3.transform(gHead.attr("transform")).translate[1]
+        , tx = d3.transform(gTail.attr("transform")).translate[0]
+        , ty = d3.transform(gTail.attr("transform")).translate[1]
+        , len = Math.sqrt(Math.pow(tx-hx,2) + Math.pow(ty-hy,2))
+        , grad = (ty-hy) / (tx-hx)
+        , theta = hx == tx
+            ? (hy > ty ? 1.5 : 0.5) * Math.PI
+            : Math.atan(grad) + (hx > tx ? Math.PI : 0)
+        , ahr // arrow-head radius polar coord
 
-            if (Math.abs(grad) < Math.abs(hh/hw)) {
-                // arrow-head against left or right side of head rect
-                var adj = 0.5 * hw * (hx < tx ? 1 : -1);
-                ahr = adj / Math.cos(theta);
-            } else {
-                // arrow-head against top or bottom of head rect
-                var opp = 0.5 * hh * (hy < ty ? 1 : -1);
-                ahr = opp / Math.sin(theta);
-            }
-
-            gArrow
-                .attr("transform", "translate("+hx+","+hy+")rotate("+(theta*180/Math.PI)+")")
-                .select(".arrow-stem")
-                    .attr("transform", "scale("+len+",1)")
-            ;
-            gArrow
-                .select(".arrow-stem-bg")
-                    .attr("transform", "scale("+len+",1)")
-            ;
-            gArrow
-                .select(".arrow-head")
-                    .attr("transform", "translate("+ahr+",0)")
-            ;
-        });
-    }
-
-    var ws
-    $(function() {
-      ws = new WebSocket('ws://' + window.document.location.host)
-      ws.onopen = function(event) {
-        ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
+      if (Math.abs(grad) < Math.abs(hh/hw)) {
+        // arrow-head against left or right side of head rect
+        var adj = 0.5 * hw * (hx < tx ? 1 : -1)
+        ahr = adj / Math.cos(theta)
+      } else {
+        // arrow-head against top or bottom of head rect
+        var opp = 0.5 * hh * (hy < ty ? 1 : -1)
+        ahr = opp / Math.sin(theta)
       }
-      ws.onmessage = function(message) {
-        var data = JSON.parse(message.data)
-        
-        if (data.seq <= kcm.update_seq) return
-        kcm.update_seq = data.seq
 
-        switch(data.doc.type) {
-          case 'concept node':
-            var i
-            for (i=0; i<kcm.nodes.length; i++) {
-              if (kcm.nodes[i]._id == data.id) {
-                if (data.deleted) kcm.nodes.splice(i, 1)
-                else kcm.nodes.splice(i, 1, data.doc) 
+      gArrow
+        .attr("transform", "translate("+hx+","+hy+")rotate("+(theta*180/Math.PI)+")")
+        .select(".arrow-stem")
+        .attr("transform", "scale("+len+",1)")
+      
+      gArrow
+        .select(".arrow-stem-bg")
+        .attr("transform", "scale("+len+",1)")
+      
+      gArrow
+        .select(".arrow-head")
+        .attr("transform", "translate("+ahr+",0)")
+      
+      })
+  }
+
+  var ws
+  $(function() {
+    ws = new WebSocket('ws://' + window.document.location.host)
+    ws.onopen = function(event) {
+      ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
+    }
+    ws.onmessage = function(message) {
+      var data = JSON.parse(message.data)
+        , ix
+      console.log('message data:', data) // ----------- !!!!!!!!!!!!!!!!!!!!!!!!
+      
+      if (data.seq <= kcm.update_seq) return
+      kcm.update_seq = data.seq
+
+      switch(data.doc.type) {
+        case 'concept node':
+          if (data.deleted) {
+            delete kcm.nodes[data.id]
+            for (var i=0; i<mouse.overNodes; i++) {
+              if ($(mouse.overNodes[i]).attr('id') == data.id) {
+                mouse.overNodes.splice(i,1)
                 break
               }
-            }  
-            if (!data.deleted && i == kcm.nodes.length) kcm.nodes[i] = data.doc
+            }
             updateMapNodes()
             updateMapLinks()
-            break
-          case 'pipeline':
-            if (data.deleted) delete kcm.pipelines[data.id]
-            else kcm.pipelines[data.id] = data.doc
-            break
-        }
+            if ($(inFocus).attr('id') == data.id) setFocus(null)
+          } else if (kcm.nodes[data.id]) {
+            updateMapNodes()
+            updateMapLinks()
+            if ($(inFocus).attr('id') == data.id) setFocus($('g#'+data.id)[0])
+          } else {
+            kcm.nodes[data.id] = data.doc
+            updateMapNodes()
+            if (data.doc.currentVersion.user == kcm.user) {
+              setFocus($('g#'+data.id)[0])
+              $('#concept-description').select();
+            }
+          }
+          break
+        case 'pipeline':
+          if (data.deleted) delete kcm.pipelines[data.id]
+          else kcm.pipelines[data.id] = data.doc
+          break
+        case 'relation':
+          ix = $.grep(kcm.binaryRelations, function(r) { return r._id == data.id })
+          if (data.deleted) {
+            if (~ix) {
+              kcm.binaryRelations.splice(ix,1) 
+            }
+          } else {
+            if (!~ix) kcm.binaryRelations.push(data.doc)
+          }
+          updateMapNodes()
+          updateMapLinks()
+          break
+      }
+    }
+
+      $('form#upload-pdefs').ajaxForm();
+
+      $(window)
+          .resize(layoutControls)
+          .on('change', 'table[data-panel="view-settings"] #links-view-settings input[type="checkbox"]', onLinkViewSettingsEdit)
+          .on('keydown keyup focusout', 'table[data-panel="view-settings"] #links-view-settings input[type="text"]', onLinkViewSettingsEdit)
+          .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
+          .on('change', 'table[data-panel="export-settings"] tr[data-key="pipelineWorkflowStatus"] select', changePipelineWorkflowStatusSetting)
+          .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
+          .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
+          .on('dblclick', 'table[data-panel="export-settings"] .cn-tag', editExportSettingTag)
+          .on('click', '#insert-tag-btn', addNewTagToConceptNode)
+          .on('click', 'table[data-panel="concept-node-data"] .del-tag', deleteConceptNodeTag)
+          .on('dblclick', 'table[data-panel="concept-node-data"] .cn-tag', editConceptNodeTag)
+          .on('click', '#insert-pipeline-btn', addNewPipelineToConceptNode)
+          .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
+          .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.del-btn', deleteConceptNodePipeline)
+          .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
+          .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
+          .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
+          .on('change', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > select.workflow-status', updatePipelineWorkflowStatus)
+          .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
+          .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
+          .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
+          .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
+          .on('mouseover mouseout', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', updateMouseOverLink)
+          .on('mousedown', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', mouseDownLink)
+          .on('mousemove', updateMousePos)
+          .on('keydown keyup', keyCommandListener)
+          .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
+          .on('focusin', 'tr.pipeline input[type="text"]', onFocusPipelineNameInput)
+      ;
+
+      svg = d3.select("#wrapper")
+          .append("svg")
+              .attr("data-type", "svg")
+              .attr("data-focusable", "true")
+              .on("mousedown", clickGainFocus)
+              .call(d3.behavior.zoom().on("zoom", zoom))
+      ;
+      gZoom = svg.append("g");
+      gWrapper = gZoom
+          .append("g")
+          .attr("data-type", "wrapper")
+          .attr("data-focusable", "true")
+          .on("mousedown", clickGainFocus)
+      ;
+      gLinks = gWrapper.append("g");
+      gNodes = gWrapper.append("g");
+
+      $(window).resize();
+
+      updateMapNodes();
+      updateMapLinks();
+
+      updateExportSettingsDisplay();
+      updateViewSettingsDisplay();
+
+      // scale map to fit screen and translate to centre it
+      var w = $('svg').width()
+        , h = $('svg').height()
+        , bbox = gWrapper.node().getBBox()
+        , scale = 1 / Math.max(bbox.width/w, bbox.height/h)
+        , tx = w/(2*scale) - (bbox.x + bbox.width/2)
+        , ty = h/(2*scale) - (bbox.y + bbox.height/2)
+      ;
+      gZoom.attr('transform', 'scale('+scale+')translate('+tx+','+ty+')');
+      svg.calibrateToTransform(d3.transform(gZoom.attr('transform')));
+  });
+
+  function zoom() {
+    gZoom.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")")
+  }
+
+  function layoutControls() {
+    var w = $(window).width() - 2 * windowPadding
+      , h = $(window).height() - 2 * windowPadding
+
+    mapPos.width = w - rControlsWidth - genPadding
+    mapPos.height = h
+
+    $('#wrapper')
+      .css('left', windowPadding)
+      .css('top', windowPadding)
+
+    $('#right-panel')
+      .css('left', w - rControlsWidth)
+      .css('width', rControlsWidth)
+      .css('height', mapPos.height)
+
+    svg.attr('style', 'width:'+mapPos.width+'px; height:'+mapPos.height+'px;')
+
+    setMapBorder()
+  }
+
+  function setMapBorder() {
+    var mapFocus = $(inFocus).attr('data-type') == 'svg'
+    d3.select('svg').attr('class', mapFocus ? 'emphasis' : '')
+  }
+
+  function updateMapNodes() {
+    // TODO: UPDATE - code below is now dependent on all nodes being removed / recreated
+    // TODO: Find out what's wrong with (my understanding of) d3.js. This line should not be necessary. Without next line, nodes do not update after changes, incorrect nodes removed after deletions
+    $('[data-type="concept-node"]').remove()
+
+    var gN = gNodes.selectAll('g.node')
+      .data($.map(kcm.nodes, function(n) { return n }))
+    
+    gN
+      .enter()
+      .append('g')
+        .attr('id', function(d) { return d._id })
+        .attr('data-type', 'concept-node')
+        .attr('class', 'node')
+        .attr('class', setNodeColour)
+        .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")" })
+        .attr("data-focusable", "true")
+        .on("mousedown", clickGainFocus)
+        .each(function(d,i) {
+          d3.select(this).append('rect')
+            .attr('class', 'node-bg')
+        })
+        .each(function(d,i) {
+          d3.select(this).append('text')
+          .attr('class', 'node-description')
+          .each(function(d,i) {
+            d3.select(this).selectAll('tspan')
+              .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
+              .enter()
+              .append('tspan')
+                .attr('x', 0)
+                .attr('y', function(d, i) { return 12 + 14 * i }) // text height 12px, 2px padding between lines
+                .text(String)
+          })
+          .attr('transform', function() {
+            var bbox = d3.select(this).node().getBBox()
+            return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')'
+          })
+        })
+        .each(function(d,i) {
+          var bbox = d3.select(this).select('text.node-description').node().getBBox()
+          d3.select(this).select('rect.node-bg')
+            .attr('width', bbox.width + 2 * nodeTextPadding)
+            .attr('height', bbox.height + 2 * nodeTextPadding)
+            .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
+        })
+  }
+
+  function updateMapLinks() {
+    $('[data-type="binary-relation-pair"]').remove()
+
+    $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
+      if (!kcm.viewSettings.links[br._id]) {
+        kcm.viewSettings.links[br._id] = { visible:true, colour:'000' }
       }
 
-        $('form#upload-pdefs').ajaxForm();
+      var vs = kcm.viewSettings.links[br._id]
+        , g = relIdContainerDict[br._id]
+        , validMembers = $.grep(br.members, function(p) { return kcm.nodes[p[0]] && kcm.nodes[p[1]] })
+        , links
 
-        $(window)
-            .resize(layoutControls)
-            .on('change', 'table[data-panel="view-settings"] #links-view-settings input[type="checkbox"]', onLinkViewSettingsEdit)
-            .on('keydown keyup focusout', 'table[data-panel="view-settings"] #links-view-settings input[type="text"]', onLinkViewSettingsEdit)
-            .on('change', 'table[data-panel="export-settings"] #export-all-nodes', changeExportAllNodes)
-            .on('change', 'table[data-panel="export-settings"] tr[data-key="pipelineWorkflowStatus"] select', changePipelineWorkflowStatusSetting)
-            .on('click', 'table[data-panel="export-settings"] .panel-right-btn', addExportSettingTag)
-            .on('click', 'table[data-panel="export-settings"] .del-tag', deleteExportSettingTag)
-            .on('dblclick', 'table[data-panel="export-settings"] .cn-tag', editExportSettingTag)
-            .on('click', '#insert-tag-btn', addNewTagToConceptNode)
-            .on('click', 'table[data-panel="concept-node-data"] .del-tag', deleteConceptNodeTag)
-            .on('dblclick', 'table[data-panel="concept-node-data"] .cn-tag', editConceptNodeTag)
-            .on('click', '#insert-pipeline-btn', addNewPipelineToConceptNode)
-            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div', expandCollapsePipeline)
-            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.del-btn', deleteConceptNodePipeline)
-            .on('click', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] td.remove-problem > div.del-btn', removeProblemFromPipeline)
-            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > div.gripper', dragReorderPipelines)
-            .on('mousedown', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.problem div.gripper', dragReorderPipelineProblems)
-            .on('change', 'table[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td > select.workflow-status', updatePipelineWorkflowStatus)
-            .on('click', 'tr.add-problems div.add-btn', populateHiddenUploadProblemInputs)
-            .on('change', 'input[type="file"][name="pdefs"]', uploadProblemsToPipeline)
-            .on('mouseover mouseout', '[data-type="concept-node"]', updateMouseOverNodes)
-            .on('mousedown', '[data-type="concept-node"]', beginMouseInteractionWithNode)
-            .on('mouseover mouseout', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', updateMouseOverLink)
-            .on('mousedown', '[data-relation-type="binary"] [data-type="binary-relation-pair"]', mouseDownLink)
-            .on('mousemove', updateMousePos)
-            .on('keydown keyup', keyCommandListener)
-            .on('focusin', '#concept-description', onFocusConceptDescriptionTA)
-            .on('focusin', 'tr.pipeline input[type="text"]', onFocusPipelineNameInput)
-        ;
+      vs.visible = vs.visible !== false
+      vs.color = /^([0-9a-f]{3,3}){1,2}$/i.test(vs.colour) && vs.colour || '000'
 
-        svg = d3.select("#wrapper")
-            .append("svg")
-                .attr("data-type", "svg")
-                .attr("data-focusable", "true")
-                .on("mousedown", clickGainFocus)
-                .call(d3.behavior.zoom().on("zoom", zoom))
-        ;
-        gZoom = svg.append("g");
-        gWrapper = gZoom
-            .append("g")
-            .attr("data-type", "wrapper")
-            .attr("data-focusable", "true")
-            .on("mousedown", clickGainFocus)
-        ;
-        gLinks = gWrapper.append("g");
-        gNodes = gWrapper.append("g");
+      if (!g) {
+        g = relIdContainerDict[br._id] = gLinks.append("g")
+          .attr('data-type', 'relation')
+          .attr('data-relation-type', function() { return br.relationType })
+          .attr('data-id', br._id)
+      }
+      $(g[0]).css('visibility', vs.visible ? 'visible' : 'hidden')
 
-        $(window).resize();
+      links = g.selectAll('g.link').data(validMembers)
 
-        updateMapNodes();
-        updateMapLinks();
+      links
+        .enter()
+        .append('g')
+          .attr('class', 'link')
+          .attr("data-focusable", "true")
+          .attr('data-type', function() { return 'binary-relation-pair' })
+          .attr("data-head-node", function(d) { return d[1] })
+          .attr("data-tail-node", function(d) { return d[0] })                
+          .on("mousedown", clickGainFocus)
 
-        updateExportSettingsDisplay();
-        updateViewSettingsDisplay();
+      g.selectAll('g.link').selectAll('rect.arrow-stem-bg')
+        .data(function(d) { return [d] })
+        .enter()
+          .append("rect")
+          .attr("class", "arrow-stem-bg")
+          .attr("x", 0)
+          .attr("y", -5)
+          .attr("width", 1)
+          .attr("height", 10)
+          
+      g.selectAll('g.link').selectAll('rect.arrow-stem')
+        .data(function(d) { return [d] })
+        .enter()
+          .append("rect")
+          .attr("class", "arrow-stem")
+          .attr("x", 0)
+          .attr("y", -1.5)
+          .attr("width", 1)
+          .attr("height", 3)
+      
+      g.selectAll('g.link').selectAll('path.arrow-head')
+        .data(function(d) { return [d] })
+        .enter()
+            .append('path') 
+            .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
+            .attr("class", "arrow-head")
+      
 
-        // scale map to fit screen and translate to centre it
-        var w = $('svg').width()
-          , h = $('svg').height()
-          , bbox = gWrapper.node().getBBox()
-          , scale = 1 / Math.max(bbox.width/w, bbox.height/h)
-          , tx = w/(2*scale) - (bbox.x + bbox.width/2)
-          , ty = h/(2*scale) - (bbox.y + bbox.height/2)
-        ;
-        gZoom.attr('transform', 'scale('+scale+')translate('+tx+','+ty+')');
-        svg.calibrateToTransform(d3.transform(gZoom.attr('transform')));
-    });
+      g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ vs.colour +"" })
+      g.selectAll('path.arrow-head').attr('style', function() { return 'fill:#'+ vs.colour +' stroke-width:0' })
+    })
 
-    function zoom() {
-        gZoom.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+    $('g.link').arrowRedraw()
+    if (inFocus && /\blink\b/.test(d3.select(inFocus).attr('class'))) {
+      setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
     }
-
-    function layoutControls() {
-        var w = $(window).width() - 2 * windowPadding
-          , h = $(window).height() - 2 * windowPadding
-        ;
-
-        mapPos.width = w - rControlsWidth - genPadding
-        mapPos.height = h
-
-        $('#wrapper')
-            .css('left', windowPadding)
-            .css('top', windowPadding)
-        ;
-
-        $('#right-panel')
-            .css('left', w - rControlsWidth)
-            .css('width', rControlsWidth)
-            .css('height', mapPos.height)
-        ;
-
-        svg.attr('style', 'width:'+mapPos.width+'px; height:'+mapPos.height+'px;');
-
-        setMapBorder();
-    }
-
-    function setMapBorder() {
-        var mapFocus = $(inFocus).attr('data-type') == 'svg';
-        d3.select('svg').attr('class', mapFocus ? 'emphasis' : '');
-    }
-
-    function updateMapNodes() {
-        // TODO: Find out what's wrong with (my understanding of) d3.js. This line should not be necessary. Without next line, nodes do not update after changes, incorrect nodes removed after deletions
-        gNodes.selectAll('g.node').data([]).exit().remove();
-
-        var nodes = gNodes.selectAll('g.node')
-            .data(kcm.nodes)
-        ;
-        nodes
-            .enter()
-            .append('g')
-                .attr('id', function(d) { return d._id; })
-                .attr('data-type', 'concept-node')
-                .attr('class', 'node')
-                .attr('class', setNodeColour)
-                .attr("transform", function(d) { return "translate("+ d.x +","+ d.y +")"; })
-                .attr("data-focusable", "true")
-                .on("mousedown", clickGainFocus)
-                .each(function(d,i) {
-                    d3.select(this).append('rect')
-                        .attr('class', 'node-bg')
-                })
-                .each(function(d,i) {
-                    d3.select(this).append('text')
-                        .attr('class', 'node-description')
-                        .each(function(d,i) {
-                            d3.select(this).selectAll('tspan')
-                                .data(d.nodeDescription.match(/\S[\s\S]{0,59}(\s|$)/g))
-                                .enter()
-                                .append('tspan')
-                                    .attr('x', 0)
-                                    .attr('y', function(d, i) { return 12 + 14 * i; }) // text height 12px, 2px padding between lines
-                                    .text(String)
-                            ;
-                        })
-                        .attr('transform', function() {
-                            var bbox = d3.select(this).node().getBBox();
-                            return 'translate('+(-bbox.width/2)+','+(-bbox.height/2)+')';
-                        })
-                    ;
-                })
-                .each(function(d,i) {
-                    var bbox = d3.select(this).select('text.node-description').node().getBBox();
-                    d3.select(this).select('rect.node-bg')
-                        .attr('width', bbox.width + 2 * nodeTextPadding)
-                        .attr('height', bbox.height + 2 * nodeTextPadding)
-                        .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
-                    ;
-                })
-        ;
-
-        nodes.exit().remove();
-
-        if (inFocus && /\bnode\b/.test(d3.select(inFocus).attr('class'))) {
-          setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
-        }
-    }
-
-    function updateMapLinks() {
-        // TODO: find out how d3 enter/exit actually work
-        // What does NOT seem to happen is linking of data with svg elements. E.g. remove element from data array, add different element to data array...
-        // ... - now I would expect exit() to return array with 1 non-null element, and enter to return array with 1 non-null element, corresponding respectively with removed/added data objects
-        // however arrays returned by both enter() and exit() are all nulls - i.e. it is as if the data is unchanged.
-        // for the same reason, removing an element from the middle of an array does not result in the corresponding svg element from being removed, instead the last svg element is removed.
-        // WTF???????
-        // workaround - delete all svg elements when entering this function
-        $('[data-type="binary-relation-pair"]').remove();
-
-        $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
-            if (!kcm.viewSettings.links[br._id]) kcm.viewSettings.links[br._id] = { visible:true, colour:'000' };
-
-            var brVS = kcm.viewSettings.links[br._id]
-              , g = relIdContainerDict[br._id]
-            ;
-
-            brVS.visible = brVS.visible !== false;
-            brVS.color = /^([0-9a-f]{3,3}){1,2}$/i.test(brVS.colour) && brVS.colour || '000';
-
-            if (!g) {
-                g = relIdContainerDict[br._id] = gLinks.append("g")
-                    .attr('data-type', 'relation')
-                    .attr('data-relation-type', function() { return br.relationType; })
-                    .attr('data-id', br._id)
-                ;
-            }
-            $(g[0]).css('visibility', brVS.visible ? 'visible' : 'hidden');
-
-            var links = g.selectAll('g.link').data(br.members);
-
-            links
-                .enter()
-                .append('g')
-                    .attr('class', 'link')
-                    .attr("data-focusable", "true")
-                    .attr('data-type', function() { return 'binary-relation-pair' })
-                    .attr("data-head-node", function(d) { return d[1]; })
-                    .attr("data-tail-node", function(d) { return d[0]; })                
-                    .on("mousedown", clickGainFocus)
-            ;
-
-            links.exit().remove();
-
-            g.selectAll('g.link').selectAll('rect.arrow-stem-bg')
-                .data(function(d) { return [d]; })
-                .enter()
-                .append("rect")
-                    .attr("class", "arrow-stem-bg")
-                    .attr("x", 0)
-                    .attr("y", -5)
-                    .attr("width", 1)
-                    .attr("height", 10)
-            ;
-            g.selectAll('g.link').selectAll('rect.arrow-stem')
-                .data(function(d) { return [d]; })
-                .enter()
-                .append("rect")
-                    .attr("class", "arrow-stem")
-                    .attr("x", 0)
-                    .attr("y", -1.5)
-                    .attr("width", 1)
-                    .attr("height", 3)
-            ;
-            g.selectAll('g.link').selectAll('path.arrow-head')
-                .data(function(d) { return [d]; })
-                .enter()
-                .append('path') 
-                    .attr('d', 'M 0 -0.5 l 0 1 l 16 7.5 l 0 -16 z')
-                    .attr("class", "arrow-head")
-            ;
-
-            g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ brVS.colour +";"; })
-            g.selectAll('path.arrow-head').attr('style', function() { return 'fill:#'+ brVS.colour +'; stroke-width:0;'; })
-        });
-
-        $('g.link').arrowRedraw();
-
-        if (inFocus && /\blink\b/.test(d3.select(inFocus).attr('class'))) {
-          setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
-        }
-    }
-
-    function nodeWithId(id) {
-        var len = kcm.nodes.length, i;
-        for (i=0; i<len; i++) {
-            if (kcm.nodes[i]._id == id) return kcm.nodes[i];
-        }
-        return null;
-    }
+  }
 
     function setNodeColour(cn) {
         var classes = d3.select(this).attr('class').replace(/\s*(no-problems|enough-problems|mastery)\b/g, '')
@@ -734,12 +730,12 @@
         break
       case 77: // 'm'
         if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
-          insertMasteryNode(mouse.xmap, mouse.ymap)
+          insertConceptNode(mouse.xmap, mouse.ymap, 'NEW MASTERY NODE', ['mastery'])
         }
         break
       case 78: // 'n'
         if (e.type=='keyup' && mouse.isOverMap && !mouse.overNodes.length && $(inFocus).attr('data-type') == 'svg') {
-          insertConceptNode(mouse.xmap, mouse.ymap)
+          insertConceptNode(mouse.xmap, mouse.ymap, 'NEW CONCEPT NODE')
         }
         break
       case 70: if (!e.ctrlKey) break // ctrl + 'f'
@@ -859,46 +855,16 @@
         }
     }
 
-    function insertMasteryNode(x, y) {
-        $.ajax({
-            url:'/kcm/concept-nodes/insert'
-            , type:'POST'
-            , contentType:'application/json'
-            , data:JSON.stringify({ nodeDescription:'[NEW CONCEPT NODE]', x:x, y:y })
-            , success:function(cn) {
-                var tag = 'mastery';
-                $.ajax({
-                    url:'/kcm/insert-concept-node-tag'
-                    , type:'POST'
-                    , contentType:'application/json'
-                    , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
-                    , success: function(cnRev) {
-                        cn.tags.push(tag);
-                        cn._rev = cnRev;
-                        kcm.nodes.push(cn);
-                        updateMapNodes();
-                        $('#concept-description').select();
-                    }
-                    , error: ajaxErrorHandler('Error adding tag "mastery" to new mastery node')
-                });
-            }
-            , error:ajaxErrorHandler('Error inserting new mastery node')
-        });
-    }
-
-    function insertConceptNode(x, y) {
-        $.ajax({
-            url:'/kcm/concept-nodes/insert'
-            , type:'POST'
-            , contentType:'application/json'
-            , data:JSON.stringify({ nodeDescription:'[NEW CONCEPT NODE]', x:x, y:y })
-            , success:function(cn) {
-                kcm.nodes.push(cn);
-                updateMapNodes();
-                $('#concept-description').select();
-            }
-            , error:ajaxErrorHandler('Error inserting new concept node')
-        });
+    function insertConceptNode(x, y, nodeDescription, tags) {
+      if (typeof nodeDescription != 'string' ) nodeDescription = 'NEW CONCEPT NODE'
+      if (Object.prototype.toString.call(tags) != '[object Array]') tags = []
+      $.ajax({
+        url:'/kcm/concept-nodes/insert'
+        , type:'POST'
+        , contentType:'application/json'
+        , data:JSON.stringify({ nodeDescription:'[NEW CONCEPT NODE]', x:x, y:y, nodeDescription:nodeDescription, tags:tags })
+        , error:ajaxErrorHandler('Error inserting new concept node')
+      });
     }
 
     function onLinkViewSettingsEdit(e) {
@@ -1096,7 +1062,7 @@
 
     showSingleInputModal('Enter Tag:', function(tag) {
       if (tag) {
-        cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+        cn = kcm.nodes[cn._id] // may have been edited/deleted by another user whilst adding tag
         if (!cn) {
           alert('node not found. it may have been deleted by another user.')
         } else {
@@ -1107,7 +1073,7 @@
             , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
             , success: function(rev) {
               var oldRev = cn._rev
-              cn = nodeWithId(cn)
+              cn = kcm.nodes[cn._id]
               if (cn && cn._rev == oldRev) {
                 cn._rev = rev
                 cn.tags.push(tag)
@@ -1132,7 +1098,7 @@
     showConfirmCancelModal('You are about to delete a tag from a concept node. Are you sure?', function(confirmation) {
       if (!confirmation) return
 
-      cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+      cn = kcm.nodes[cn._id] // may have been edited/deleted by another user whilst adding tag
       if (!cn) {
         alert('node not found. it may have been deleted by another user.')
       } else {
@@ -1143,7 +1109,7 @@
           , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:$tag.index(), tagText:$tag.text() })
           , success: function(rev) {
             var oldRev = cn._rev
-            cn = nodeWithId(cn)
+            cn = kcm.nodes[cn._id]
             if (cn && cn._rev == oldRev) {
               cn._rev = rev
               cn.tags.splice($tag.index(), 1)
@@ -1160,7 +1126,7 @@
   function editConceptNodeTag(e) {
     var cn = d3.select(inFocus).data()[0]
     editTag(e, cn.tags, function(tagText, tagIx, undoCallback) {
-      cn = nodeWithId(cn._id) // may have been edited/deleted by another user whilst adding tag
+      cn = kcm.nodes[cn._id] // may have been edited/deleted by another user whilst adding tag
       if (!cn) {
         alert('node not found. it may have been deleted by another user.')
       } else {
@@ -1171,7 +1137,7 @@
           , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:cn.tags[tagIx], newText:tagText})
           , success: function(rev) {
             var oldRev = cn._rev
-            cn = nodeWithId(cn)
+            cn = kcm.nodes[cn._id]
             if (cn && cn._rev == oldRev) {
               cn._rev = rev
               cn.tags.splice(tagIx, 1, tagText)
@@ -1231,7 +1197,7 @@
 
     showSingleInputModal('Enter name for new pipeline:', function(name) {
       if (name) {
-        cn = nodeWithId(cn._id)
+        cn = kcm.nodes[cn._id]
         if (!cn) {
           alert('node not found. it may have been deleted by another user.')
         } else {
@@ -1246,7 +1212,7 @@
                 , pl = d.pipeline
 
               if (!kcm.pipelines[pl._id]) kcm.pipelines[pl._id] = pl
-              cn = nodeWithId(cn._id)
+              cn = kcm.nodes[cn._id]
               if (cn && cn._rev == oldRev) {
                 cn._rev = rev
                 cn.pipelines.push(pl._id)
@@ -1328,11 +1294,13 @@
     }
 
     function uploadProblemsToPipeline(e) {
+      // TODO: This is either retarded for not setting cn and pl here, or it's retarded cos there's no comment explaining why. Or I shouldn't TODO my code after drinking
         $('form#upload-pdefs').ajaxSubmit({
             success: function(o) { 
                 var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]')
                   , pl = kcm.pipelines[o.pipelineId]
-                  , cn = $.grep(kcm.nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
+                  , nodes = $.map(kcm.nodes, function(n) { return n })
+                  , cn = $.grep(nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
                 ;
 
                 pl._rev = o.pipelineRev;
@@ -1382,7 +1350,8 @@
                     $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0);
 
                     if (!pl.problems.length) {
-                        var cn = $.grep(kcm.nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
+                        var nodes = $.map(kcm.nodes, function(n) { return n })
+                          , cn = $.grep(nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
                           , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
                         ;
                         if (!plWithProbs.length) {
@@ -1721,22 +1690,6 @@
                         , type:'POST'
                         , contentType:'application/json'
                         , data: JSON.stringify({ conceptNodeId:data._id, conceptNodeRev:data._rev })
-                        , success: function(updatedBinaryRelations) {
-                            $.each(updatedBinaryRelations, function(i,updated) {
-                                var old = $.grep(kcm.binaryRelations, function(br) { return br._id == updated._id; })[0]
-                                  , ix = kcm.binaryRelations.indexOf(old)
-                                ;
-                                kcm.binaryRelations.splice(ix, 1, updated);
-                            });
-                            
-                            updateMapLinks();
-
-                            ix = mouse.overNodes.indexOf($('g#'+data._id)[0]);
-                            if (~ix) mouse.overNodes.splice(ix,1);
-
-                            kcm.nodes.splice(kcm.nodes.indexOf(data), 1);
-                            updateMapNodes();
-                        }
                         , error: ajaxErrorHandler('Error deleting concept node.')
                     });
                 }
@@ -1793,9 +1746,10 @@
     var search = function() {
       var currMatch = matches[currMatchIx]
         , s = $('input#map-search').val()
+        , nodes = $.map(kcm.nodes, function(n) { return n })
 
       if (s.length) {
-        matches = $.grep(kcm.nodes, function(n) { return ~n._id.indexOf(s) || ~n.nodeDescription.indexOf(s) })
+        matches = $.grep(nodes, function(n) { return ~n._id.indexOf(s) || ~n.nodeDescription.indexOf(s) })
       } else {
         matches = []
       }

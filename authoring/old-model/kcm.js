@@ -7,12 +7,14 @@ var fs = require('fs')
   , sqlite3 = require('sqlite3').verbose()
 
 var kcmDatabaseName
+  , kcm // new model - gradually transition to retrieving docs from here & updating/deleting via its controllers
   , designDoc
   , couchServerURI
   , databaseURI
   , relationTypes = ['binary']
 
-module.exports = function(config) {
+module.exports = function(config, kcmModel) {
+  kcm = kcmModel
   couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/')
   kcmDatabaseName = config.authoring.kcmDatabaseName
   designDoc = config.authoring.kcmDatabaseDesignDoc
@@ -40,6 +42,38 @@ module.exports = function(config) {
               })
     }
   })
+
+  if (false) {
+  queryView('by-type', 'keys', ['concept node','pipeline','problem','relation','tool'], 'include_docs', true, 'reduce', false, function(e,r,b) {
+    console.log('get docs by-type: e="%s" statusCode="%d"', e, r.statusCode)
+    var docs = _.pluck(JSON.parse(b).rows, 'doc')
+    console.log('docs len:', docs.length)
+    var updates = []
+    docs.forEach(function(d) {
+      var needsUpdate = false
+      if (d.revisions) {
+        delete d.revisions
+        needsUpdate = true
+      }
+      if (!d.versions) {
+        d.versions = []
+        needsUpdate = true
+      }
+      if (needsUpdate) updates.push(d)
+    })
+    console.log('updates.length =', updates.length)
+    if (updates.length > 0) {
+      request({
+        method:'POST'
+        , uri: databaseURI + '_bulk_docs'
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+        , body: JSON.stringify({ docs:updates })
+      }, function(e,r,b) {
+        console.log('bulk update add revisions array callback. e="%s" statusCode=%d', e, r.statusCode)
+      })
+    }
+  })
+  }
 
   return {
     databaseName: kcmDatabaseName
@@ -78,6 +112,36 @@ module.exports = function(config) {
     , getDocs: getDocs
     , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
   }
+}
+
+function firstVersion(user, action, actionData) {
+  return {
+    currentVersion: {
+      user: user
+      , date: new Date
+      , action: action
+      , actionData: actionData
+    }
+    , versions: []
+  }
+}
+
+function nextVersion(doc, user, action, actionData) {
+    var b64 = new Buffer(JSON.stringify(doc)).toString('base64')
+
+    if (!doc._attachments) doc._attachments = {}
+    doc._attachments[doc._rev] = { "content_type":"application\/json", "data":new Buffer(JSON.stringify(doc)).toString('base64') }
+
+    if (!doc.versions) doc.versions = []
+    var lastVersion = doc.currentVersion || {}
+    doc.versions.push({ rev:doc._rev, user:lastVersion.user, date:lastVersion.date, action:lastVersion.action })
+
+    doc.currentVersion = {
+      user: user
+      , date: new Date
+      , action: action
+      , actionData: actionData
+    }
 }
 
 function replaceUUIDWithGraffleId() {
@@ -580,7 +644,7 @@ function queryView(view) {
 
     var field = arguments[i]
     if ('string' != typeof field) {
-      callback(util.format('argument at index %d is not a string.', i))
+      callback(util.format('argument at index %d is not a string.', i), 412)
       return
     }
     uri += field + '='
@@ -609,7 +673,7 @@ function queryView(view) {
     })(value)
 
     if (~uri.indexOf('#')) {
-      callback(util.format('argument at index %d is invalid.', i+1))
+      callback(util.format('argument at index %d is invalid.', i+1), 412)
       return
     }
   }
@@ -624,7 +688,7 @@ function insertProblem(plist, callback) {
     }
     request({ method:'GET', uri:couchServerURI+'_uuids' }, function(e,r,b) {
       if (r.statusCode != 200) {
-        callback(util.format('could not generate uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b))
+        callback(util.format('could not generate uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b), r.statusCode)
         return
       }
       var now = (new Date()).toJSON()
@@ -710,12 +774,12 @@ function getProblemInfoFromPList(plist, callback) {
 
 
       if (toolId || isMetaQuestion || isNumberPicker) callback(null, plistString, problemDescription, toolId, internalDescription)
-      else callback(util.format('invalid plist. Could not retrieve tool with name "%s". -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode))
+      else callback(util.format('invalid plist. Could not retrieve tool with name "%s". -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode), r.statusCode)
     })
   })
 }
 
-function insertConceptNode(o, callback) {
+function insertConceptNode(user, o, callback) {
   var errors = ''
   if (typeof o.nodeDescription != 'string' || !o.nodeDescription.length) errors += 'String value required for "nodeDescription". "'
   if (isNaN(o.x)) errors += 'Float value required for "x". '
@@ -726,134 +790,106 @@ function insertConceptNode(o, callback) {
     return
   }
 
-  o.type = 'concept node'
-  o.pipelines = []
-  o.tags = []
-  o.taggedNotes = {}
+  var doc = firstVersion(user, 'insertConceptNode', null)
+  doc.nodeDescription = o.nodeDescription
+  doc.x = o.x
+  doc.y = o.y
+  doc.tags = o.tags || []
+  doc.type = 'concept node'
+  doc.pipelines = []
 
-  insertDoc(o, function(e,r,b) {
-    if (201 != r.statusCode) {
-      callback(util.format('Error inserting concept node. Database reported error:"%s"',e), r.statusCode)
-      return
+  insertDoc(doc, function(e,r,b) {
+    if (!r || 201 != r.statusCode) {
+      e = util.format('Error inserting concept node. Database reported error:"%s"', e)
     }
-
-    getDoc(JSON.parse(b).id, function(e,r,b) {
-      if (200 != r.statusCode)  {
-        callback(util.format('Error retrieving newly created concept node. Database reported error: "%s"',e), r.statusCode)
-      } else {
-        callback(null, 201, JSON.parse(b))
-      }
-    })
+    callback(e, r && r.statusCode)
   })
 }
 
-function deleteConceptNode(conceptNodeId, conceptNodeRev, callback) {
-  getDoc(conceptNodeId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node was not deleted.', e), r.statusCode)
-      return
+function deleteConceptNode(user, id, rev, callback) {
+  var node = kcm.getDocClone(id, 'concept node')
+  var relUpdates = []
+  var relations = _.chain(kcm.docStores.relations)
+    .values()
+    .filter(function(r) { return r.relationType == 'binary' })
+    .map(function(r) { return JSON.parse(JSON.stringify(r)) })
+    .value()
+
+  if (!node) {
+    callback(util.format('concept node with id="%s" not found. The concept node was not deleted.', id), 404)
+    return
+  }
+
+  if (node._rev != rev) {
+    callback(util.format('Concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node was not deleted.', rev, node._rev), 409)
+    return
+  }
+
+  if (node.pipelines.length) {
+    callback('Concept node contains pipelines. The concept node was not deleted.', 412)
+    return
+  }
+
+  relations.forEach(function(r) {
+    var pair
+      , deletedPairs = []
+
+    for (var i=0, numPairs=r.members.length; i<numPairs; i++) {
+      if (~r.members[i].indexOf(id)) {
+        deletedPairs.push(r.members[i])
+        r.members.splice(i,1)
+        numPairs--
+      }
     }
 
-    var node = JSON.parse(b)
-
-    if (node._rev != conceptNodeRev) {
-      callback(util.format('Concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node was not deleted.', conceptNodeRev, node._rev), 500)
-      return
+    if (deletedPairs.length) {
+      nextVersion(r, user, 'deleteConceptNode:'+id, deletedPairs)
+      relUpdates.push(r)
     }
+  })
 
-    if (node.pipelines.length) {
-      callback('Concept node contains pipelines. The concept node was not deleted.', 500)
-      return
+  nextVersion(node, user, 'deleteConceptNode')
+  node._deleted = true
+      
+  request({
+    method:'POST'
+    , uri: databaseURI + '_bulk_docs'
+    , headers: { 'content-type':'application/json', accepts:'application/json' }
+    , body: JSON.stringify({ docs:relUpdates.concat(node) })
+  }, function(e,r,b) {
+    if (!r || 201 != r.statusCode) {
+      e = util.format('Error deleting concept node / updating binary relations featuring concept node. Database reported error: "%s"', e)
     }
-
-    // N.B. if/when relations other than binary relations come into being, this function will need updating
-    // TODO: genericise
-    // remove from binary relations
-
-    queryView('relations-by-relation-type-name', 'startkey', ['binary'], 'endkey', ['binary',{}], 'include_docs', true, function(e,r,b) {
-      var updatedBinaryRelations = []
-      , binaryRelations = 200 == r.statusCode && JSON.parse(b).rows
-      , i
-      , len = binaryRelations && binaryRelations.length
-      , relation, extantRelationPairs
-      , ix
-
-
-      if (200 != r.statusCode) {
-        callback(util.format('error retrieving binary relations. Datbase reported error: "%s". The concept node was not deleted.', e), r.statusCode)
-        return
-      }
-
-      for (i=0; i<len; i++) {
-        relation = binaryRelations[i].doc
-        extantRelationPairs = _.filter(relation.members, function(pair) { return !~pair.indexOf(conceptNodeId) })
-        if (extantRelationPairs.length < relation.members.length) {
-          relation.members = extantRelationPairs
-          updatedBinaryRelations.push(relation)
-        }
-      } 
-
-      if (updatedBinaryRelations.length) {
-        request({
-          method:'POST'
-          , uri: databaseURI + '_bulk_docs'
-          , headers: { 'content-type':'application/json', accepts:'application/json' }
-          , body: JSON.stringify({ docs:updatedBinaryRelations })
-        }, function(e,r,b) {
-          if (201 != r.statusCode) {
-            callback(util.format('error updating binary relations featuring concept node. Database reported error: "%s". The concept node was not deleted.', e), r.statusCode)
-            return
-          }
-
-          _.each(JSON.parse(b), function(update) {
-            _.find(updatedBinaryRelations, function(rel) { return rel._id == update.id })._rev = update.rev
-          })
-
-          delCN()
-        })
-      } else {
-        delCN()
-      }
-
-      function delCN() {
-        deleteDoc(conceptNodeId, conceptNodeRev, function(e,r,b) {
-          if (200 != r.statusCode) {
-            callback(util.format('error deleting concept node. Database reported error: "%s". The node was removed from all binary relations but not deleted', e), r.statusCode, updatedBinaryRelations)
-            return
-          }
-          callback(null,200,updatedBinaryRelations)
-        })
-      }
-    })
+    callback(e, r && r.statusCode)
   })
 }
 
-function updateConceptNodePosition(id, rev, x, y, callback) {
-  getDoc(id, function(e,r,b) {
-    if (isNaN(x) || isNaN(y)) {
-      callback(util.format('BAD ARGS: numeric values required for x and y. Supplied: "%s" and "%s". The concept node position was not updated.', x, y), 500)
+function updateConceptNodePosition(user, id, rev, x, y, callback) {
+  var node = kcm.getDocClone(id, 'concept node')
+
+  if (isNaN(x) || isNaN(y)) {
+    callback(util.format('BAD ARGS: numeric values required for x and y. Supplied: "%s" and "%s". The concept node position was not updated.', x, y), 412)
+    return
+  }
+
+  if (!node) {
+    callback(util.format('concept node with id="%s" not found. The concept node position was not updated.', id), 404)
+    return
+  }
+
+  if (node._rev != rev) {
+      callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', rev, node._rev), 409)
       return
-    }
+  }
 
-    if (r.statusCode != 200) {
-      callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node position was not updated.', e), r.statusCode)
-      return
-    }
+  node.x = parseInt(x, 10)
+  node.y = parseInt(y, 10)
 
-    var node = JSON.parse(b)
+  nextVersion(node, user, 'updateConceptNodePosition')
 
-    if (node._rev != rev) {
-      callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node position was not updated.', rev, node._rev), 500)
-      return
-    }
-
-    node.x = x
-    node.y = y
-
-    updateDoc(node, function(e,r,b) {
-      if (r.statusCode != 201) e = util.format('Error updating concept node position. Database Error: "%s"', e)
-      callback(e, r.statusCode, JSON.parse(b).rev)
-    })
+  updateDoc(node, function(e,r,b) {
+    if (!r || r.statusCode != 201) e = util.format('Error updating concept node position. Database Error: "%s"', e)
+      callback(e, r && r.statusCode || null, JSON.parse(b).rev)
   })
 }
 
@@ -886,7 +922,7 @@ function updateConceptNodeDescription(id, rev, desc, callback) {
 
 function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
   if ('string' != typeof tagText) {
-    callback('tag supplied is not a string', 500)
+    callback('tag supplied is not a string', 412)
     return
   }
 
@@ -1120,7 +1156,7 @@ function insertBinaryRelation(name, description, callback) {
 
   queryView('relations-by-name', 'key', o.name, function(e,r,b) {
     if (200 == r.statusCode) {
-      if ('function' == typeof callback) callback(util.format('could not insert relation - a relation with name "%s" already exists', 409))
+      if ('function' == typeof callback) callback(util.format('could not insert relation - a relation with name "%s" already exists', name), 409)
       return
     }
     insertDoc({
@@ -1367,7 +1403,7 @@ function addOrderedPairToBinaryRelation(relationId, relationRev, cn1Id, cn2Id, c
                 , c_us_c_ids, c_ds_c_ids, c_us_c_m_ids, c_ds_c_m_ids, m_c_ids, m_us_c_ids, m_ds_c_ids, m_us_c_m_ids, m_ds_c_m_ids, is)
             //*/
             if (is.length) {
-              callback(util.format('Error: adding this link would create bi-directional links between the selected mastery node and the following mastery node(s): %s.', JSON.stringify(is), 500))
+              callback(util.format('Error: adding this link would create bi-directional links between the selected mastery node and the following mastery node(s): %s.', JSON.stringify(is)), 500)
               return
             }
 
@@ -1475,7 +1511,15 @@ function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev
 
     if (!conceptNode.pipelines) conceptNode.pipelines = []
 
-    insertDoc({ type:'pipeline', name:pipelineName, problems:[], workflowStatus:0 }, function(e,r,b) {
+    var pl = {
+      type: 'pipeline'
+      , name: pipelineName
+      , problems: []
+      , workflowStatus: 0
+      , revisions: []
+    }
+
+    insertDoc(pl, function(e,r,b) {
       if (201 != r.statusCode) {
         callback(util.format('Failed to create pipeline. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode)
         return
@@ -1597,7 +1641,7 @@ function reorderConceptNodePipelines(conceptNodeId, conceptNodeRev, pipelineId, 
       return
     }
     if (pipelineId != cn.pipelines[oldIndex]) {
-      callback(util.format('Concept node id="%s" does not have pipeline id="%s" at index="%s". The pipelines were not reordered', conceptNodeId, pipelineId, oldIndex))
+      callback(util.format('Concept node id="%s" does not have pipeline id="%s" at index="%s". The pipelines were not reordered', conceptNodeId, pipelineId, oldIndex), 412)
       return
     }
     if (newIndex >= cn.pipelines.length) {
@@ -1874,7 +1918,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
       return
     }
     if (problemId != pl.problems[oldIndex]) {
-      callback(util.format('Pipeline id="%s" does not have problem id="%s" at index="%s". The pipeline problems were not reordered', pipelineId, problemId, oldIndex))
+      callback(util.format('Pipeline id="%s" does not have problem id="%s" at index="%s". The pipeline problems were not reordered', pipelineId, problemId, oldIndex), 412)
       return
     }
     if (newIndex >= pl.problems.length) {
