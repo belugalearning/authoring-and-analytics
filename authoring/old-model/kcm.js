@@ -179,16 +179,6 @@ function generateUUID() {
     .toUpperCase()
 }
 
-
-  request({
-    uri: couchServerURI + '_uuids'
-    , headers: { 'content-type':'application/json', accepts:'application/json' }
-  }
-  , function(e,r,b) {
-    callback(JSON.parse(b).uuids[0])
-  })
-}
-
 function importGraffleMapIntoNewDB(conceptNodeLayer, toolsLayer, dummyRun) {
   // files from which to import
   var graffleDocPath = __dirname + '/../resources/kcm-120420/kcm-120420-tools.graffle'
@@ -1508,53 +1498,40 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
     return
   }
 
-  var conceptNode = kcm.getDocClone(id, 'concept node')
-  if (!conceptNode.pipelines) conceptNode.pipelines = []
+  var cn = kcm.getDocClone(conceptNodeId, 'concept node')
+  if (!cn.pipelines) conceptNode.pipelines = []
 
-  if (!conceptNode) {
+  if (!cn) {
     callback('could not find concept node', 404)
     return
   }
 
-  if (conceptNode._rev != conceptNodeRev) {
-    callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The pipeline was not created.', conceptNodeRev, conceptNode._rev), 409)
+  if (cn._rev != conceptNodeRev) {
+    callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The pipeline was not created.', conceptNodeRev, cn._rev), 409)
     return
   }
 
   var pl = firstVersion(user, 'addNewPiplineToConceptNode', null)
+  pl._id = generateUUID()
   pl.type = 'pipeline'
   pl.name = pipelineName
   pl.problems = []
   pl.workflowStatus = 0
   pl.revisions = []
 
-    insertDoc(pl, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('Failed to create pipeline. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode)
-        return
-      }
+  nextVersion(cn, user, 'addNewPipelineToConceptNode', pl._id)
+  cn.pipelines.push(pl._id)
 
-      var plData = JSON.parse(b)
-      conceptNode.pipelines.push(plData.id)
-
-      updateDoc(conceptNode, function(e,r,b) {
-        if (201 != r.statusCode) {
-          callback(util.format('Error adding new pipeline to concept node. (Database Error:"%s"). The pipeline was created with id="%s".', e, plData.id), r.statusCode, plData)
-          return
-        }
-
-        var nodeRevision = JSON.parse(b).rev
-
-        getDoc(plData.id, function(e,r,b) {
-          if (200 != r.statusCode) {
-            callback(util.format('Error retrieving new pipeline. Database Error:"%s". The pipeline was created with id="%s" and the concept node was updated to revision="%s".'
-                                 , e, plData.id, nodeRevision), r.statusCode || 500)
-          } else {
-            callback(null, 201, JSON.parse(b), nodeRevision)
-          }
-        })
-      })
-    })
+  request({
+    method:'POST'
+    , uri: databaseURI + '_bulk_docs'
+    , headers: { 'content-type':'application/json', accepts:'application/json' }
+    , body: JSON.stringify({ docs:[pl,cn] })
+  }, function(e,r,b) {
+    if (!r || 201 != r.statusCode) {
+      e = util.format('Error deleting creating pipeline and adding it to node. Database reported error: "%s"', e)
+    }
+    callback(e, r && r.statusCode)
   })
 }
 

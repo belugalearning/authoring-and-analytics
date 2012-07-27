@@ -60,7 +60,7 @@
         .select(".arrow-head")
         .attr("transform", "translate("+ahr+",0)")
       
-      })
+    })
   }
 
   var ws
@@ -71,7 +71,6 @@
     }
     ws.onmessage = function(message) {
       var data = JSON.parse(message.data)
-        , ix
       console.log('message data:', data) // ----------- !!!!!!!!!!!!!!!!!!!!!!!!
       
       if (data.seq <= kcm.update_seq) return
@@ -91,9 +90,9 @@
             updateMapLinks()
             if ($(inFocus).attr('id') == data.id) setFocus(null)
           } else if (kcm.nodes[data.id]) {
+            kcm.nodes[data.id] = data.doc
             updateMapNodes()
             updateMapLinks()
-            if ($(inFocus).attr('id') == data.id) setFocus($('g#'+data.id)[0])
           } else {
             kcm.nodes[data.id] = data.doc
             updateMapNodes()
@@ -104,11 +103,20 @@
           }
           break
         case 'pipeline':
-          if (data.deleted) delete kcm.pipelines[data.id]
-          else kcm.pipelines[data.id] = data.doc
+          if (data.deleted) {
+            delete kcm.pipelines[data.id]
+          } else {
+            kcm.pipelines[data.id] = data.doc
+            if (inFocus && $(inFocus).attr('data-type') == 'concept-node') {
+              var n = d3.select(inFocus).data()[0]
+              if (n.pipelines.indexOf(data.id)) {
+                updateMapNodes()
+              }
+            }
+          }
           break
         case 'relation':
-          ix = $.grep(kcm.binaryRelations, function(r) { return r._id == data.id })
+          var ix = $.grep(kcm.binaryRelations, function(r) { return r._id == data.id })
           if (data.deleted) {
             if (~ix) {
               kcm.binaryRelations.splice(ix,1) 
@@ -225,11 +233,18 @@
   function updateMapNodes() {
     // TODO: UPDATE - code below is now dependent on all nodes being removed / recreated
     // TODO: Find out what's wrong with (my understanding of) d3.js. This line should not be necessary. Without next line, nodes do not update after changes, incorrect nodes removed after deletions
-    $('[data-type="concept-node"]').remove()
 
-    var gN = gNodes.selectAll('g.node')
-      .data($.map(kcm.nodes, function(n) { return n }))
-    
+    var selectedNodeId
+    if ($(inFocus).attr('data-type') == 'concept-node') {
+      selectedNodeId = $(inFocus).attr('id')
+    }
+
+    gNodes.selectAll('g.node').remove()
+
+    var gN = gNodes
+      .selectAll('g.node')
+        .data($.map(kcm.nodes, function(n) { return n }))
+
     gN
       .enter()
       .append('g')
@@ -268,6 +283,11 @@
             .attr('height', bbox.height + 2 * nodeTextPadding)
             .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
         })
+
+
+    if (selectedNodeId) {
+      setFocus($('g#'+selectedNodeId)[0])
+    }
   }
 
   function updateMapLinks() {
@@ -334,12 +354,14 @@
             .attr("class", "arrow-head")
       
 
-      g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ vs.colour +"" })
-      g.selectAll('path.arrow-head').attr('style', function() { return 'fill:#'+ vs.colour +' stroke-width:0' })
+      g.selectAll('rect.arrow-stem').attr("style", function() { return "fill:#"+ vs.colour +";" })
+      g.selectAll('path.arrow-head').attr('style', function() { return 'fill:#'+ vs.colour +'; stroke-width:0;' })
+
     })
 
     $('g.link').arrowRedraw()
-    if (inFocus && /\blink\b/.test(d3.select(inFocus).attr('class'))) {
+
+    if (inFocus && $(inFocus).attr('data-type') == 'binary-relation-pair') {
       setFocus($('g#'+d3.select(inFocus).attr('id'))[0])
     }
   }
@@ -1206,19 +1228,6 @@
             , type:'POST'
             , contentType:'application/json'
             , data:JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, pipelineName:name })
-            , success:function(d) {
-              var oldRev = cn._rev
-                , rev = d.conceptNodeRev
-                , pl = d.pipeline
-
-              if (!kcm.pipelines[pl._id]) kcm.pipelines[pl._id] = pl
-              cn = kcm.nodes[cn._id]
-              if (cn && cn._rev == oldRev) {
-                cn._rev = rev
-                cn.pipelines.push(pl._id)
-                if (inFocus && $(inFocus).att('id') == cn._id) displayConceptNodeProperties(cn)
-              }
-            }
             , error:ajaxErrorHandler('Error adding new pipeline')
           })
         }
