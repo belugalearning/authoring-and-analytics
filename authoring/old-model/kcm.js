@@ -167,7 +167,19 @@ function replaceUUIDWithGraffleId() {
   })
 }
 
-function generateUUID(callback) {
+function generateUUID() {
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  var buff = []
+  for (var i=0; i<32; i++) {
+    buff[i] = chars[Math.floor(chars.length * Math.random())]
+  }
+  return buff
+    .join('')
+    .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5')
+    .toUpperCase()
+}
+
+
   request({
     uri: couchServerURI + '_uuids'
     , headers: { 'content-type':'application/json', accepts:'application/json' }
@@ -1486,38 +1498,35 @@ function removeOrderedPairFromBinaryRelation(relationId, relationRev, pair, call
   })
 }
 
-function addNewPipelineToConceptNode(pipelineName, conceptNodeId, conceptNodeRev, callback) {
+function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptNodeRev, callback) {
   if (typeof pipelineName != 'string' || !pipelineName.length) {
-    if ('function' == typeof callback) callback('BAD ARGS - pipelineName requires string', 500)
+    if ('function' == typeof callback) callback('BAD ARGS - pipelineName requires string', 412)
     return
   }
   if (typeof conceptNodeId != 'string' || !conceptNodeId.length) {
-    if ('function' == typeof callback) callback('BAD ARGS - conceptNodeId requires string', 500)
+    if ('function' == typeof callback) callback('BAD ARGS - conceptNodeId requires string', 412)
     return
   }
 
-  getDoc(conceptNodeId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('could not retrieve concept node. (Database Error:"%s"). The pipeline was not created.',e), r.statusCode)
-      return
-    }
+  var conceptNode = kcm.getDocClone(id, 'concept node')
+  if (!conceptNode.pipelines) conceptNode.pipelines = []
 
-    var conceptNode = JSON.parse(b)
+  if (!conceptNode) {
+    callback('could not find concept node', 404)
+    return
+  }
 
-    if (conceptNode._rev != conceptNodeRev) {
-      callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The pipeline was not created.', conceptNodeRev, conceptNode._rev), 500)
-      return
-    }
+  if (conceptNode._rev != conceptNodeRev) {
+    callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The pipeline was not created.', conceptNodeRev, conceptNode._rev), 409)
+    return
+  }
 
-    if (!conceptNode.pipelines) conceptNode.pipelines = []
-
-    var pl = {
-      type: 'pipeline'
-      , name: pipelineName
-      , problems: []
-      , workflowStatus: 0
-      , revisions: []
-    }
+  var pl = firstVersion(user, 'addNewPiplineToConceptNode', null)
+  pl.type = 'pipeline'
+  pl.name = pipelineName
+  pl.problems = []
+  pl.workflowStatus = 0
+  pl.revisions = []
 
     insertDoc(pl, function(e,r,b) {
       if (201 != r.statusCode) {

@@ -30,19 +30,18 @@ module.exports = function(config, kcm_model, kcm) {
         }
     }
     , cannedDatabase: function(req, res) {
-        kcmModel.generateUUID(function(uuid) {
-            var dbPath = config.couchDatabasesDirectory
-              , dbName = kcmModel.databaseName
-              , zipFile = format('/tmp/canned-db-%s.zip', uuid)
-            ;
-            exec(format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
-                if (e) {
-                    res.send(e, 500);
-                    return;
-                }
-                res.download(zipFile, 'canned-db.zip');
-            });
-        });
+      var uuid = kcmModel.generateUUID()
+        , dbPath = config.couchDatabasesDirectory
+        , dbName = kcmModel.databaseName
+        , zipFile = format('/tmp/canned-db-%s.zip', uuid)
+
+      exec(format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
+        if (e) {
+          res.send(e, 500)
+          return
+        }
+        res.download(zipFile, 'canned-db.zip')
+      })
     }
     , getAppContent: function(req, res) {
         kcmModel.getAppContent(req.session.user._id, function(e, statusCode, contentZip) {
@@ -128,125 +127,124 @@ module.exports = function(config, kcm_model, kcm) {
                     }
                 });
 
-                kcmModel.generateUUID(function(uuid) {
-                    var uuidPath = '/tmp/' + uuid;
-                    var rootPath = format('%s/tokcm/Number', uuidPath);
+                var uuid = kcmModel.generateUUID()
+                var uuidPath = '/tmp/' + uuid;
+                var rootPath = format('%s/tokcm/Number', uuidPath);
 
-                    var errors = false;
-                    var onError = function(e, path, isDir) {
-                        if (!errors) {
-                            errors = true;
-                            res.send(format('error creating %s at path: "%s"  -->  "%s"', (isDir ? 'directory' : 'file'), path, e));
-                        }
+                var errors = false;
+                var onError = function(e, path, isDir) {
+                    if (!errors) {
+                        errors = true;
+                        res.send(format('error creating %s at path: "%s"  -->  "%s"', (isDir ? 'directory' : 'file'), path, e));
+                    }
+                };
+
+                exec(format('mkdir -p /tmp/%s/tokcm/Number/', uuid), function(e) {
+                    if (e) {
+                        onError(e, rootPath, true);
+                        return;
+                    }
+
+                    var regionNames = _.keys(regions);
+                    var regionsOutstanding = regionNames.length;
+                    var orphanedNodeIds = _.keys(nonMasteryNodes);
+                    var orphansOutstanding =  orphanedNodeIds.length;
+                    var numTopDirsOutstanding = regionsOutstanding + (orphansOutstanding > 0 ? 1 : 0);
+
+                    var onAllCreated = function() {
+                        var zipFile = format('%s/tokcm.zip', uuidPath);
+                        exec(format('zip -r %s tokcm', zipFile), { cwd:uuidPath }, function(e,stdout,stderr) {
+                            if (e) {
+                                res.send(e, 500);
+                                return;
+                            }
+                            res.download(zipFile, 'tokcm.zip');
+                        });
                     };
 
-                    exec(format('mkdir -p /tmp/%s/tokcm/Number/', uuid), function(e) {
-                        if (e) {
-                            onError(e, rootPath, true);
-                            return;
-                        }
+                    if (numTopDirsOutstanding == 0) onAllCreated();
 
-                        var regionNames = _.keys(regions);
-                        var regionsOutstanding = regionNames.length;
-                        var orphanedNodeIds = _.keys(nonMasteryNodes);
-                        var orphansOutstanding =  orphanedNodeIds.length;
-                        var numTopDirsOutstanding = regionsOutstanding + (orphansOutstanding > 0 ? 1 : 0);
+                    if (orphansOutstanding) {
+                        var path = rootPath + '/_NODES_WITHOUT_MASTERY_';
+                        fs.mkdir(path, function(e) {
+                            if (e) {
+                                onError(e, path, true);
+                                return;
+                            }
 
-                        var onAllCreated = function() {
-                            var zipFile = format('%s/tokcm.zip', uuidPath);
-                            exec(format('zip -r %s tokcm', zipFile), { cwd:uuidPath }, function(e,stdout,stderr) {
-                                if (e) {
-                                    res.send(e, 500);
-                                    return;
-                                }
-                                res.download(zipFile, 'tokcm.zip');
-                            });
-                        };
-
-                        if (numTopDirsOutstanding == 0) onAllCreated();
-
-                        if (orphansOutstanding) {
-                            var path = rootPath + '/_NODES_WITHOUT_MASTERY_';
-                            fs.mkdir(path, function(e) {
-                                if (e) {
-                                    onError(e, path, true);
-                                    return;
-                                }
-
-                                orphanedNodeIds.forEach(function(id) {
-                                    var orphanDirPath = format('%s/%s', path, id);
-                                    fs.mkdir(orphanDirPath, function(e) {
-                                        if (e) {
-                                            onError(e, orphanDirPath, true);
-                                            return;
-                                        }
-                                        var filePath = orphanDirPath + '/.gitseedir';
-                                        fs.writeFile(filePath, function(e) {
-                                            if (e) {
-                                                onError(e, filePath, true);
-                                                return;
-                                            }
-                                            if (--orphansOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
-                                        });
-                                    });
-                                });
-                            });
-                        }
-
-                        if (regionsOutstanding) {
-                            regionNames.forEach(function(regName) {
-                                var regionPath = format('%s/%s', rootPath, makeDirName(regName));
-                                fs.mkdir(regionPath, function(e) {
+                            orphanedNodeIds.forEach(function(id) {
+                                var orphanDirPath = format('%s/%s', path, id);
+                                fs.mkdir(orphanDirPath, function(e) {
                                     if (e) {
-                                        onError(e, regionPath, true);
+                                        onError(e, orphanDirPath, true);
                                         return;
                                     }
-
-                                    var regionalMasteryNodes = regions[regName];
-                                    var numMasteryNodesOutstanding = regionalMasteryNodes.length;
-
-                                    regionalMasteryNodes.forEach(function(mastery) {
-                                        var masteryPath = format('%s/%s', regionPath, makeDirName(mastery.nodeDescription));
-                                        fs.mkdir(masteryPath, function(e) {
-                                            if (e) {
-                                                onError(e, masteryPath, true);
-                                                return;
-                                            }
-                                            var numNodesOutstanding = mastery.nodes.length;
-                                            if (numNodesOutstanding == 0) {
-                                                var filePath = masteryPath + '/.gitseedir';
-                                                fs.writeFile(filePath, '', function(e) {
-                                                    if (e) {
-                                                        onError(e, filePath, false);
-                                                        return;
-                                                    }
-                                                    if (--numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
-                                                });
-                                            } else {
-                                                mastery.nodes.forEach(function(node) {
-                                                    var nodePath = format('%s/%s', masteryPath, node._id);
-                                                    fs.mkdir(nodePath, function(e) {
-                                                        if (e) {
-                                                            onError(e, nodePath, true);
-                                                            return;
-                                                        }
-                                                        var filePath = nodePath + '/.gitseedir';
-                                                        fs.writeFile(filePath, function(e) {
-                                                            if (e) {
-                                                                onError(e, filePath, false);
-                                                                return;
-                                                            }
-                                                            if (--numNodesOutstanding == 0 && --numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
-                                                        });
-                                                    });
-                                                });
-                                            }
-                                        });
+                                    var filePath = orphanDirPath + '/.gitseedir';
+                                    fs.writeFile(filePath, function(e) {
+                                        if (e) {
+                                            onError(e, filePath, true);
+                                            return;
+                                        }
+                                        if (--orphansOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
                                     });
                                 });
                             });
-                        }
-                    });
+                        });
+                    }
+
+                    if (regionsOutstanding) {
+                        regionNames.forEach(function(regName) {
+                            var regionPath = format('%s/%s', rootPath, makeDirName(regName));
+                            fs.mkdir(regionPath, function(e) {
+                                if (e) {
+                                    onError(e, regionPath, true);
+                                    return;
+                                }
+
+                                var regionalMasteryNodes = regions[regName];
+                                var numMasteryNodesOutstanding = regionalMasteryNodes.length;
+
+                                regionalMasteryNodes.forEach(function(mastery) {
+                                    var masteryPath = format('%s/%s', regionPath, makeDirName(mastery.nodeDescription));
+                                    fs.mkdir(masteryPath, function(e) {
+                                        if (e) {
+                                            onError(e, masteryPath, true);
+                                            return;
+                                        }
+                                        var numNodesOutstanding = mastery.nodes.length;
+                                        if (numNodesOutstanding == 0) {
+                                            var filePath = masteryPath + '/.gitseedir';
+                                            fs.writeFile(filePath, '', function(e) {
+                                                if (e) {
+                                                    onError(e, filePath, false);
+                                                    return;
+                                                }
+                                                if (--numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
+                                            });
+                                        } else {
+                                            mastery.nodes.forEach(function(node) {
+                                                var nodePath = format('%s/%s', masteryPath, node._id);
+                                                fs.mkdir(nodePath, function(e) {
+                                                    if (e) {
+                                                        onError(e, nodePath, true);
+                                                        return;
+                                                    }
+                                                    var filePath = nodePath + '/.gitseedir';
+                                                    fs.writeFile(filePath, function(e) {
+                                                        if (e) {
+                                                            onError(e, filePath, false);
+                                                            return;
+                                                        }
+                                                        if (--numNodesOutstanding == 0 && --numMasteryNodesOutstanding == 0 && --numTopDirsOutstanding == 0) onAllCreated();
+                                                    });
+                                                });
+                                            });
+                                        }
+                                    });
+                                });
+                            });
+                        });
+                    }
                 });
             });
         });
@@ -326,8 +324,8 @@ module.exports = function(config, kcm_model, kcm) {
           , cnRev = req.body.conceptNodeRev
           , plName = req.body.pipelineName
         ;
-        kcmModel.addNewPipelineToConceptNode(plName, cnId, cnRev, function(e, statusCode, newPipeline, conceptNodeRev) {
-            res.send(e || { pipeline:newPipeline, conceptNodeRev:conceptNodeRev }, statusCode || 500);
+        kcmModel.addNewPipelineToConceptNode(req.session.user._id, plName, cnId, cnRev, function(e, statusCode) {
+            res.send(e, statusCode || 500)
         });
     }
     , deletePipeline: function(req, res) {
