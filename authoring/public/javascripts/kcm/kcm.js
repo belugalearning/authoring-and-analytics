@@ -105,6 +105,7 @@
         case 'pipeline':
           if (data.deleted) {
             delete kcm.pipelines[data.id]
+            updateMapNodes()
           } else {
             kcm.pipelines[data.id] = data.doc
             if (inFocus && $(inFocus).attr('data-type') == 'concept-node') {
@@ -375,7 +376,7 @@
             return 'mastery ' + classes;
         }
 
-        $.each(cn.pipelines, function(i,plId) { numProblems += kcm.pipelines[plId].problems.length; });
+        $.each(cn.pipelines, function(i,plId) { if (kcm.pipelines[plId]) numProblems += kcm.pipelines[plId].problems.length; });
 
         if (numProblems == 0) {
             return 'no-problems ' + classes;
@@ -1252,13 +1253,6 @@
                 , type:'POST'
                 , contentType:'application/json'
                 , data:JSON.stringify({ pipelineId:plId, pipelineRev:pl._rev, conceptNodeId:cn._id, conceptNodeRev:cn._rev })
-                , success:function(cnRev) {
-                    cn._rev = cnRev;
-                    cn.pipelines.splice(cn.pipelines.indexOf(plId),1);
-                    delete kcm.pipelines[plId];
-                    displayConceptNodeProperties(cn);
-                    d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                }
                 , error:ajaxErrorHandler('error deleting pipeline')
             });
         });

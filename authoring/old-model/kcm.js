@@ -1529,13 +1529,59 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
     , body: JSON.stringify({ docs:[pl,cn] })
   }, function(e,r,b) {
     if (!r || 201 != r.statusCode) {
-      e = util.format('Error deleting creating pipeline and adding it to node. Database reported error: "%s"', e)
+      e = util.format('Error creating pipeline and adding it to node. Database reported error: "%s"', e)
     }
     callback(e, r && r.statusCode)
   })
 }
 
-function deletePipeline(plId, plRev, cnId, cnRev, callback) {
+function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
+  var pl = kcm.docStores.pipelines[plId]
+    , cn = kcm.docStores.nodes[cnId]
+    , ix = cn && cn.pipelines.indexOf(plId)
+
+  if (!pl) {
+    callback(util.format('could not retrieve pipeline id="%s". The pipeline was not deleted.', plId), 412)
+    return
+  }
+
+  if (!cn) {
+    callback(util.format('could not retrieve concept node with id="%s". Pipeline with id="%s" was not deleted.', cnId, plId), 412)
+    return
+  }
+
+  if (pl._rev !== plRev) {
+    callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline was not deleted', plRev, pl._rev), 409)
+    return
+  }
+
+  if (cnRev != cn._rev) {
+    callback(util.format('Error: concept node revisions do not correspond. Supplied:"%s", Database:"%s", The pipeline was not deleted', cnRev, cn._rev), 409)
+    return
+  }
+
+  if (ix === -1) {
+    callback(util.format('Error: Pipeline with id="%s" not found on concept node with id="%s". The pipeline was not deleted.', plId, cnId), 412)
+    return
+  }
+
+  nextVersion(cn, user, 'deletePipeline', plId)
+  nextVersion(pl, user, 'deletePipeline')
+  cn.pipelines.splice(ix, 1)
+  pl._deleted = true
+
+  request({
+    method:'POST'
+    , uri: databaseURI + '_bulk_docs'
+    , headers: { 'content-type':'application/json', accepts:'application/json' }
+    , body: JSON.stringify({ docs:[pl,cn] })
+  }, function(e,r,b) {
+    if (!r || 201 != r.statusCode) {
+      e = util.format('Error deleting creating pipeline and adding it to node. Database reported error: "%s"', e)
+    }
+    callback(e, r && r.statusCode)
+  })
+
   getDoc(plId, function(e,r,b) {
     if (r.statusCode != 200) {
       callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline was not deleted.',e), r.statusCode)

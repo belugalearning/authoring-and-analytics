@@ -329,8 +329,8 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , deletePipeline: function(req, res) {
-        kcmModel.deletePipeline(req.body.pipelineId, req.body.pipelineRev, req.body.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode, conceptNodeRev) {
-            res.send(e || conceptNodeRev, statusCode || 500);
+        kcmModel.deletePipeline(req.session.user._id, req.body.pipelineId, req.body.pipelineRev, req.body.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
+            res.send(e, statusCode || 500);
         });
     }
     , reorderConceptNodePipelines: function(req, res) {
