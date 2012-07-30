@@ -1536,17 +1536,17 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
 }
 
 function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
-  var pl = kcm.docStores.pipelines[plId]
-    , cn = kcm.docStores.nodes[cnId]
+  var pl = kcm.getDocClone(plId, 'pipeline')
+    , cn = kcm.getDocClone(cnId, 'concept node')
     , ix = cn && cn.pipelines.indexOf(plId)
 
   if (!pl) {
-    callback(util.format('could not retrieve pipeline id="%s". The pipeline was not deleted.', plId), 412)
+    callback(util.format('could not retrieve pipeline id="%s". The pipeline was not deleted.', plId), 404)
     return
   }
 
   if (!cn) {
-    callback(util.format('could not retrieve concept node with id="%s". Pipeline with id="%s" was not deleted.', cnId, plId), 412)
+    callback(util.format('could not retrieve concept node with id="%s". Pipeline with id="%s" was not deleted.', cnId, plId), 404)
     return
   }
 
