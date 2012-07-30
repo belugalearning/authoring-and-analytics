@@ -1088,16 +1088,6 @@
             , type:'POST'
             , contentType:'application/json'
             , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tag:tag })
-            , success: function(rev) {
-              var oldRev = cn._rev
-              cn = kcm.nodes[cn._id]
-              if (cn && cn._rev == oldRev) {
-                cn._rev = rev
-                cn.tags.push(tag)
-                d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour) // e.g. mastery tag can determine colour
-                if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
-              }
-            }
             , error: ajaxErrorHandler('Error adding new tag to concept node')
           })
         }

@@ -305,9 +305,9 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , insertConceptNodeTag: function(req, res) {
-        kcmModel.insertConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, null, req.body.tag, function(e, statusCode, conceptNodeRevision) {
-            res.send(e || conceptNodeRevision, statusCode || 500);
-        });
+      kcmModel.insertConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, null, req.body.tag, function(e, statusCode, conceptNodeRevision) {
+        res.send(e, statusCode || 500)
+      })
     }
     , deleteConceptNodeTag: function(req, res) {
         kcmModel.deleteConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode, conceptNodeRevision) {

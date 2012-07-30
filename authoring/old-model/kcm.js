@@ -922,70 +922,57 @@ function updateConceptNodeDescription(user, id, rev, desc, callback) {
   })
 }
 
-function insertConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
+function insertConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
   if ('string' != typeof tagText) {
     callback('tag supplied is not a string', 412)
     return
   }
 
-  getDoc(conceptNodeId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode || 500)
-      return
-    }
+  if (tagIndex && !/^\d+$/.test(tagIndex)) {
+    callback(util.format('Integer required for tagIndex, %s supplied. The tag was not added', tagIndex))
+    return
+  }
 
-    var cn = JSON.parse(b)
+  var cn = kcm.getDocClone(conceptNodeId, 'concept node')
 
-    if (cn._rev != conceptNodeRev) {
-      callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 409)
-      return
-    }
+  if (!cn) {
+    callback(util.format('Error: Concept node id="%s" was not found. The tag was not added.', conceptNodeId), 404)
+    return
+  }
 
-    if ('concept node' != cn.type) {
-      callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode)
-      return
-    }
+  if (cn._rev !== conceptNodeRev) {
+    callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The tag was not added', conceptNodeRev, cn._rev), 409)
+    return
+  }
 
-    // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
-    if ('mastery' != tagText) {
-      insertTag()
-    } else {
-      queryView('relations-by-name', 'key', 'Prerequisite', 'include_docs', true, function (e,r,b) {
-        if (200 != r.statusCode) {
-          callback(util.format('Could not retrieve "Prerequisite" binary relation. Database Error:"%s"', e), r.statusCode || 500)
+  if (~cn.tags.indexOf(tagText)) {
+    callback(util.format('Error: Concept node with id="%s" already contains tag="%s". The tag was not added.', conceptNodeId, tagText), 412)
+    return
+  }
+
+  // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
+  if ('mastery' == tagText) {
+    for (var id in kcm.docStores.relations) {
+      if (kcm.docStores.relations[id].name == 'Prerequisite') {
+        if (_.find(kcm.docStores.relations[id].members, function(pair) { return ~pair.indexOf(conceptNodeId) })) {
+          callback('node cannot be tagged mastery because it features in a "Prerequisite" relationship', 412)
           return
         }
-
-        var cnPrereqPair = _.find(JSON.parse(b).rows[0].doc.members, function(p) {
-          return conceptNodeId == p[0] || conceptNodeId == p[1]
-        })
-
-        if (cnPrereqPair) {
-          callback('node cannot be tagged mastery because it features in a "Prerequisite" relationship', 500)
-          return
-        } else {
-          insertTag()
-        }
-      })
+        break;
+      }
     }
+  }
 
-    function insertTag() {
-      if (!cn.tags) cn.tags = []
+  nextVersion(cn, user, 'insertConceptNodeTag', tagText)
 
-        if (Math.floor(tagIndex) === tagIndex && tagIndex >= 0 && tagIndex < cn.tags.length) {
-          cn.tags.splice(tagIndex, 0, tagText)
-        } else {
-          cn.tags.push(tagText)
-        }
+  if (tagIndex < cn.tags.length) {
+    cn.tags.splice(tagIndex, 0, tagText)
+  } else {
+    cn.tags.push(tagText)
+  }
 
-        updateDoc(cn, function(e,r,b) {
-          if (201 != r.statusCode) {
-            callback('failed to update concept node', r.statusCode)
-            return
-          }
-          callback(null, 201, JSON.parse(b).rev)
-        })
-    }
+  updateDoc(cn, function(e,r,b) {
+    callback(e, r && r.statusCode)
   })
 }
 
