@@ -334,9 +334,9 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , reorderConceptNodePipelines: function(req, res) {
-        kcmModel.reorderConceptNodePipelines(req.params.conceptNodeId, req.body.conceptNodeRev, req.body.pipelineId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,cnRev) {
-            res.send(e || cnRev, statusCode || 500);
-        });
+        kcmModel.reorderConceptNodePipelines(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, req.body.pipelineId, req.body.oldIndex, req.body.newIndex, function(e,statusCode) {
+            res.send(e, statusCode || 500)
+        })
     }
     , removeProblemFromPipeline: function(req,res) {
         kcmModel.removeProblemFromPipeline(req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {

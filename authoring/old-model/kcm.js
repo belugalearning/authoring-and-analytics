@@ -1647,7 +1647,7 @@ function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
   })
 }
 
-function reorderConceptNodePipelines(conceptNodeId, conceptNodeRev, pipelineId, oldIndex, newIndex, callback) {
+function reorderConceptNodePipelines(user, conceptNodeId, conceptNodeRev, pipelineId, oldIndex, newIndex, callback) {
   if (!/^\d+$/.test(oldIndex)) {
     callback('bad argument suppied for oldIndex:"%s" - positive integer required', oldIndex)
     return
@@ -1657,41 +1657,39 @@ function reorderConceptNodePipelines(conceptNodeId, conceptNodeRev, pipelineId, 
     return
   }
 
-  getDoc(conceptNodeId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('could not retrieve document with id="%s" from database. Error reported: "%s"', conceptNodeId, e), r.statusCode)
-      return
-    }
-    var cn = JSON.parse(b)
+  var cn = kcm.getDocClone(conceptNodeId, 'concept node')
+    , pl = kcm.getDocClone(pipelineId, 'pipeline')
 
-    if (cn._rev != conceptNodeRev) {
-      callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The pipelines were not reordered', conceptNodeRev, cn._rev), 500)
-      return
-    }
-    if ('concept node' != cn.type) {
-      callback(util.format('Error: Document with id="%s" is not a concept node. The pipelines were not reordered.',conceptNodeId), 500)
-      return
-    }
-    if (pipelineId != cn.pipelines[oldIndex]) {
-      callback(util.format('Concept node id="%s" does not have pipeline id="%s" at index="%s". The pipelines were not reordered', conceptNodeId, pipelineId, oldIndex), 412)
-      return
-    }
-    if (newIndex >= cn.pipelines.length) {
-      callback(util.format('Invalid new index:"%s" supplied for pipeline id="%s" on concept node id="%s" which contains %s pipelines.', newIndex, pipelineId, cn._id, cn.pipelines.length),500)
-      return
-    }
+  if (!cn) {
+    callback(util.format('Concept Node with id="%s" not found. Its pipelines were not reordered', conceptNodeId), 404)
+    return
+  }
 
-    cn.pipelines.splice(oldIndex,1)
-    cn.pipelines.splice(newIndex,0,pipelineId)
+  if (!pl) {
+    callback(util.format('Pipeline with id="%s" not found. The pipelines of node with id="%s" were not reordered', pipelineId, conceptNodeId), 404)
+    return
+  }
 
-    updateDoc(cn, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('error reordering concept node pipelines. Database reported error:"%s".', e), r.statusCode)
-        return
-      }
-      callback(null,201,JSON.parse(b).rev)
-    })
-  })
+  if (cn._rev !== conceptNodeRev) {
+    callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The pipelines were not reordered', conceptNodeRev, cn._rev), 409)
+    return
+  }
+
+  if (cn.pipelines.indexOf(pipelineId) !== oldIndex) {
+    callback(util.format('Concept node id="%s" does not have pipeline id="%s" at index="%s". The pipelines were not reordered', conceptNodeId, pipelineId, oldIndex), 412)
+    return
+  }
+
+  if (cn.pipelines.length <= newIndex) {
+    callback(util.format('Invalid new index:"%s" supplied for pipeline id="%s" on concept node id="%s" which contains %s pipelines.', newIndex, pipelineId, cn._id, cn.pipelines.length),500)
+    return
+  }
+
+  nextVersion(cn, user, 'reorderConceptNodePipelines', { pipeline:pipelineId, newIndex:newIndex })
+  cn.pipelines.splice(oldIndex,1)
+  cn.pipelines.splice(newIndex,0,pipelineId)
+
+  updateDoc(cn, function(e,r,b) { callback(e, r && r.statusCode) })
 }
 
 function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback) {

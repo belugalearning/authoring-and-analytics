@@ -1461,11 +1461,6 @@
                         , type:'POST'
                         , contentType:'application/json'
                         , data:JSON.stringify({ conceptNodeRev:cn._rev, pipelineId:plId, oldIndex:startIndex, newIndex:ix })
-                        , success:function(cnRev) {
-                            cn._rev = cnRev;
-                            cn.pipelines.splice(startIndex,1);
-                            cn.pipelines.splice(ix,0,plId);
-                        }
                         , error:ajaxErrorHandler('error reordering concept node pipelines')
                     });
                 }
