@@ -862,12 +862,6 @@
                             , type:'POST'
                             , contentType:'application/json'
                             , data:JSON.stringify({ nodeDescription:text, rev:cn._rev })
-                            , success:function(cnRev) {
-                                console.log('desc updated:',cnRev);
-                                cn._rev = cnRev;
-                                cn.nodeDescription = text;
-                                updateMapNodes();
-                            }
                             , error:ajaxErrorHandler('Error updating concept node description')
                         });
                     } else {

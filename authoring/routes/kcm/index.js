@@ -300,8 +300,8 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , updateConceptNodeDescription: function(req, res) {
-        kcmModel.updateConceptNodeDescription(req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode, conceptNodeRevision) {
-            res.send(e || conceptNodeRevision, statusCode || 500);
+        kcmModel.updateConceptNodeDescription(req.session.user._id, req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode) {
+            res.send(e, statusCode || 500);
         });
     }
     , insertConceptNodeTag: function(req, res) {

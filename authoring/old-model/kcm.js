@@ -895,30 +895,30 @@ function updateConceptNodePosition(user, id, rev, x, y, callback) {
   })
 }
 
-function updateConceptNodeDescription(id, rev, desc, callback) {
+function updateConceptNodeDescription(user, id, rev, desc, callback) {
   if ('string' != typeof(desc) || !desc.length) {
-    callback('BAD ARGS: string required for concept node description', 500)
+    callback('BAD ARGS: string required for concept node description', 412)
+    return
   }
 
-  getDoc(id, function(e,r,b) {
-    if (r.statusCode != 200) {
-      callback(util.format('Could not retrieve concept node. Database Error: "%s". The concept node description was not updated.', e), r.statusCode)
-      return
-    }
+  var cn = kcm.getDocClone(id, 'concept node')
 
-    var node = JSON.parse(b)
+  if (!cn) {
+    callback(util.format('Error: Concept node id="%s" was not found. The concept node description was not updated.', id), 404)
+    return
+  }
 
-    if (node._rev != rev) {
-      callback(util.format('concept node revisions do not correspond. supplied:"%s", database:"%s". The concept node description was not updated.', rev, node._rev), 500)
-      return
-    }
+  if (cn._rev !== rev) {
+    callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The concept node description was not updated', rev, cn._rev), 409)
+    return
+  }
 
-    node.nodeDescription = desc
+  nextVersion(cn, user, 'updateConceptNodeDescription')
+  cn.nodeDescription = desc
 
-    updateDoc(node, function(e,r,b) {
-      if (201 != r.statusCode) e = util.format('Error updating concept node description. Database Error: "%s"', e)
-      callback(e, r.statusCode, JSON.parse(b).rev)
-    })
+  updateDoc(cn, function(e,r,b) {
+    if (!r || 201 != r.statusCode) e = util.format('Error updating concept node description. Database Error: "%s"', e)
+    callback(e, r && r.statusCode)
   })
 }
 
