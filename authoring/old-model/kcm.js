@@ -1751,46 +1751,37 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
   })
 }
 
-function updatePipelineWorkflowStatus(pipelineId, pipelineRev, status, callback) {
+function updatePipelineWorkflowStatus(user, pipelineId, pipelineRev, status, callback) {
   var argErrors = []
   if ('string' != typeof pipelineId) argErrors.push('pipelineId')
   if ('string' != typeof pipelineRev) argErrors.push('pipelineRev')
   if (argErrors.length) {
-    callback('BAD ARGS: strings required for ' + argErrors.join(' and ') +'. The pipeline workflow status was not updated.', 500)
+    callback('BAD ARGS: strings required for ' + argErrors.join(' and ') +'. The pipeline workflow status was not updated.', 512)
     return
   }
 
   if (!/^\d+$/.test(status)) {
-    callback('BAD ARG: integer string required for status. The pipeline workflow status was not updated.', 500)
+    callback('BAD ARG: integer string required for status. The pipeline workflow status was not updated.', 412)
     return
   }
 
-  getDoc(pipelineId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline workflow status was not updated.',e), r.statusCode)
+  var pl = kcm.getDocClone(pipelineId, 'pipeline')
+
+  if (pl._rev != pipelineRev) {
+    callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline workflow status was not updated.', pipelineRev, pl._rev), 409)
+    return
+  }
+
+  nextVersion(pl, user, 'updatePipelineWorkflowStatus')
+
+  pl.workflowStatus = parseInt(status,10)
+
+  updateDoc(pl, function(e,r,b) {
+    if (201 != r.statusCode) {
+      callback(util.format('Error updating workflow status for pipeline with id="%s". Database reported error:"%s"', pipelineId, e), r.statusCode)
       return
     }
-    var pl = JSON.parse(b)
-
-    if (pl._rev != pipelineRev) {
-      callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline workflow status was not updated.', pipelineRev, pl._rev), 500)
-      return
-    }
-
-    if ('pipeline' != pl.type) {
-      callback(util.format('Error: Document with id="%s" is not a pipeline. The pipeline workflow status was not updated.',plId), 500)
-      return
-    }
-
-    pl.workflowStatus = parseInt(status,10)
-
-    updateDoc(pl, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('Error updating workflow status for pipeline with id="%s". Database reported error:"%s"', pipelineId, e), r.statusCode)
-        return
-      }
-      callback(null,201,JSON.parse(b).rev)
-    })
+    callback(null, 201)
   })
 }
 

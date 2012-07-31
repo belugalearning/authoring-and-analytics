@@ -1339,10 +1339,6 @@
         $.ajax({
             url: '/kcm/pipeline/' + id + '/' + pl._rev + '/update-workflow-status/' + status
             , type:'PUT'
-            , success:function(rev) {
-                pl._rev = rev;
-                pl.workflowStatus = status;
-            }
             , error:ajaxErrorHandler('error updating pipeline workflow status')
         });
     }

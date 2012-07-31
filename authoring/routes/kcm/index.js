@@ -344,7 +344,7 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , updatePipelineWorkflowStatus: function(req,res) {
-        kcmModel.updatePipelineWorkflowStatus(req.params.id, req.params.rev, req.params.status, function(e, statusCode, rev) {
+        kcmModel.updatePipelineWorkflowStatus(req.session.user._id, req.params.id, req.params.rev, req.params.status, function(e, statusCode, rev) {
             res.send(e || rev, statusCode || 500);
         });
     }
