@@ -1114,16 +1114,6 @@
           , type: 'POST'
           , contentType: 'application/json'
           , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:$tag.index(), tagText:$tag.text() })
-          , success: function(rev) {
-            var oldRev = cn._rev
-            cn = kcm.nodes[cn._id]
-            if (cn && cn._rev == oldRev) {
-              cn._rev = rev
-              cn.tags.splice($tag.index(), 1)
-              d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour) // e.g. mastery tag can determine colour
-              if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
-            }
-          }
           , error: ajaxErrorHandler('error deleting concept node tag')
         })
       }
@@ -1142,16 +1132,6 @@
           , type: 'POST'
           , contentType: 'application/json'
           , data: JSON.stringify({ conceptNodeId:cn._id, conceptNodeRev:cn._rev, tagIndex:tagIx, currentText:cn.tags[tagIx], newText:tagText})
-          , success: function(rev) {
-            var oldRev = cn._rev
-            cn = kcm.nodes[cn._id]
-            if (cn && cn._rev == oldRev) {
-              cn._rev = rev
-              cn.tags.splice(tagIx, 1, tagText)
-              d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
-              if (inFocus && $(inFocus).attr('id') == cn._id) displayConceptNodeProperties(cn)
-            }
-          }
           , error: function() {
             undoCallback()
             ajaxErrorHandler('error editing concept node tag').apply(null, [].slice.call(arguments))

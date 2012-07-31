@@ -310,14 +310,14 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , deleteConceptNodeTag: function(req, res) {
-        kcmModel.deleteConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode, conceptNodeRevision) {
-            res.send(e || conceptNodeRevision, statusCode || 500);
-        });
+      kcmModel.deleteConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode) {
+          res.send(e, statusCode || 500)
+      })
     }
     , editConceptNodeTag: function(req, res) {
-        kcmModel.editConceptNodeTag(req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.currentText, req.body.newText, function(e, statusCode, conceptNodeRevision) {
-            res.send(e || conceptNodeRevision, statusCode || 500);
-        });
+        kcmModel.editConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.currentText, req.body.newText, function(e, statusCode) {
+            res.send(e, statusCode || 500);
+        })
     }
     , addNewPipelineToConceptNode: function(req, res) {
         var cnId = req.body.conceptNodeId

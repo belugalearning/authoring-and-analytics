@@ -929,7 +929,7 @@ function insertConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, tag
   }
 
   if (tagIndex && !/^\d+$/.test(tagIndex)) {
-    callback(util.format('Integer required for tagIndex, %s supplied. The tag was not added', tagIndex))
+    callback(util.format('Integer required for tagIndex, %s supplied. The tag was not added', tagIndex), 412)
     return
   }
 
@@ -976,83 +976,108 @@ function insertConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, tag
   })
 }
 
-function deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
+function deleteConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, tagText, callback) {
   if ('string' != typeof tagText) {
-    callback('tag supplied is not a string', 500)
+    callback('tag supplied is not a string - tag was not deleted', 412)
     return
   }
-  if (tagIndex != parseInt(tagIndex)) {
-    callback('tagIndex is not an integer', 500)
+  if (!/^\d+$/.test(tagIndex)) {
+    callback('tagIndex is not an integer - tag was not deleted', 412)
     return
   }
 
-  getDoc(conceptNodeId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('Could not retrieve concept node. Database Error:"%s"', e), r.statusCode)
-      return
-    }
+  var cn = kcm.getDocClone(conceptNodeId, 'concept node')
 
-    var cn = JSON.parse(b)
+  if (!cn) {
+    callback(util.format('Error: Concept node id="%s" was not found. The tag was not deleted.', conceptNodeId), 404)
+    return
+  }
 
-    if (cn._rev != conceptNodeRev) {
-      callback(util.format('supplied revision:"%s" does not match latest document revision:"%s"', conceptNodeRev, cn._rev), 409)
-      return
-    }
+  if (cn._rev !== conceptNodeRev) {
+    callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The tag was not deleted', conceptNodeRev, cn._rev), 409)
+    return
+  }
 
-    if ('concept node' != cn.type) {
-      callback(util.format('id:"%s" does not correspond to a concept node', conceptNodeId), r.statusCode)
-      return
-    }
+  if (!cn.tags || cn.tags[tagIndex] != tagText) {
+    callback(util.format('tag with text="%s" not found at index=%d on concept node with id="%s". The tag was not deleted.', tagText, tagIndex, conceptNodeId), 412)
+  }
 
-    if (!cn.tags || tagText != cn.tags[tagIndex]) {
-      callback(util.format('supplied text:"%s" does not match tag at supplied index:"%s".', tagText, tagIndex), 409)
-      return
-    }
-
-    // TODO: This is ad hoc consideration of mastery tags in combo with Mastery relation. Genericise
-    if ('mastery' != tagText) {
-      deleteTag()
-    } else {
-      queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function (e,r,b) {
-        if (200 != r.statusCode) {
-          callback(util.format('Could not retrieve "Mastery" binary relation. Database Error:"%s"', e), r.statusCode || 500)
+  // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
+  if ('mastery' == tagText) {
+    for (var id in kcm.docStores.relations) {
+      if (kcm.docStores.relations[id].name == 'Mastery') {
+        if (_.find(kcm.docStores.relations[id].members, function(pair) { return pair[1] == conceptNodeId })) {
+          callback(util.format('Could not remove tag "mastery" from concept node id="%s" as it is the mastery node of another concept node', conceptNodeId), 412)
           return
         }
-
-        var cnMasteryPair = _.find(JSON.parse(b).rows[0].doc.members, function(p) {
-          return conceptNodeId == p[0] || conceptNodeId == p[1]
-        })
-
-        if (cnMasteryPair) {
-          callback('cannot remove tag "mastery" from node because node features in a "Mastery" relationship', 500)
-          return
-        } else {
-          deleteTag()
-        }
-      })
+        break;
+      }
     }
+  }
 
-    function deleteTag() {
-      cn.tags.splice(tagIndex, 1)
+  nextVersion(cn, user, 'deleteConceptNodeTag', tagText)
+  cn.tags.splice(tagIndex, 1)
 
-      updateDoc(cn, function(e,r,b) {
-        if (201 != r.statusCode) {
-          callback('failed to update concept node', r.statusCode)
-          return
-        }
-        callback(null, 201, JSON.parse(b).rev)
-      })
-    }
+  updateDoc(cn, function(e,r,b) {
+    callback(e, r && r.statusCode)
   })
 }
 
-function editConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText, newText, callback) {
-  deleteConceptNodeTag(conceptNodeId, conceptNodeRev, tagIndex, currentText, function(e, statusCode, cnRev) {
-    if (201 != statusCode) {
-      callback(e, statusCode)
-      return
+function editConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, currentText, newText, callback) {
+  if ('string' != typeof newText) {
+    callback('tag supplied is not a string - tag was not edited', 412)
+    return
+  }
+  if (!/^\d+$/.test(tagIndex)) {
+    callback('tagIndex is not an integer - tag was not edited', 412)
+    return
+  }
+
+  var cn = kcm.getDocClone(conceptNodeId, 'concept node')
+
+  if (!cn) {
+    callback(util.format('Error: Concept node id="%s" was not found. The tag was not edited.', conceptNodeId), 404)
+    return
+  }
+
+  if (cn._rev !== conceptNodeRev) {
+    callback(util.format('Error: Concept node revisions do not correspond. Supplied:"%s", Database:"%s". The tag was not edited', conceptNodeRev, cn._rev), 409)
+    return
+  }
+
+  if (!cn.tags || cn.tags[tagIndex] != currentText) {
+    callback(util.format('tag with text="%s" not found at index=%d on concept node with id="%s". The tag was not edited.', currentText, tagIndex, conceptNodeId), 412)
+  }
+
+  // TODO: This is ad hoc consideration of mastery tags in combo with prereqs. Genericise
+  if ('mastery' == currentText) {
+    for (var id in kcm.docStores.relations) {
+      if (kcm.docStores.relations[id].name == 'Mastery') {
+        if (_.find(kcm.docStores.relations[id].members, function(pair) { return pair[1] == conceptNodeId })) {
+          callback(util.format('Could not remove tag "mastery" from concept node id="%s" as it is the mastery node of another concept node', conceptNodeId), 412)
+          return
+        }
+        break;
+      }
     }
-    insertConceptNodeTag(conceptNodeId, cnRev, tagIndex, newText, callback)
+  }
+  if ('mastery' == newText) {
+    for (var id in kcm.docStores.relations) {
+      if (kcm.docStores.relations[id].name == 'Prerequisite') {
+        if (_.find(kcm.docStores.relations[id].members, function(pair) { return ~pair.indexOf(conceptNodeId) })) {
+          callback('node cannot be tagged mastery because it features in a "Prerequisite" relationship', 412)
+          return
+        }
+        break;
+      }
+    }
+  }
+
+  nextVersion(cn, user, 'editConceptNodeTag', newText)
+  cn.tags.splice(tagIndex, 1, newText)
+
+  updateDoc(cn, function(e, r, b) {
+    callback(e, r && r.statusCode)
   })
 }
 
