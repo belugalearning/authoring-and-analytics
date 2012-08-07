@@ -13,6 +13,7 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , couchServerURI
   , dbName
   , dbURI
+  , designDoc = 'logging-design-doc'
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
@@ -49,29 +50,30 @@ if (false) {
 }
 
 module.exports = function(config) {
-    couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/');
-    dbName = config.appWebService.loggingService.databaseName;
-    dbURI = couchServerURI + dbName + '/';
+  couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/')
+  dbName = config.appWebService.loggingService.databaseName
+  dbURI = couchServerURI + dbName + '/'
 
-    processPendingBatches(function(numProcessed) {
-        var f = arguments.callee;
+  //updateDesignDoc()
 
-        //console.log('processed %d batches at %s', numProcessed, new Date().toString());
-        if (numProcessed > 0) {
-            processPendingBatches(f);
-        } else {
-            setTimeout((function() { processPendingBatches(f); }), 5000);
-        }
-    });
+  processPendingBatches(function(numProcessed) {
+    var f = arguments.callee
 
-    return {
-        uploadBatchRequestHandler: uploadBatchRequestHandler
-    };
-};
+    //console.log('processed %d batches at %s', numProcessed, new Date().toString())
+    if (numProcessed > 0) {
+      processPendingBatches(f)
+    } else {
+      setTimeout((function() { processPendingBatches(f) }), 5000)
+    }
+  })
+
+  return {
+    uploadBatchRequestHandler: uploadBatchRequestHandler
+  }
+}
 
 // http request handler handler
 function uploadBatchRequestHandler(req, res) {
-    console.log('logging route handler');
     var batchFilePath = req.files.batchData.path;
     var md5 = crypto.createHash('md5');
 
@@ -279,3 +281,55 @@ function processBatch(batch, callback) {
         });
     });
 }
+
+// design doc
+function updateDesignDoc() {
+  var uri = dbURI + '/_design/' + designDoc
+
+  console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
+
+
+  var body = {
+    views: {
+      'by-batchdate-type': {
+        map: (function (doc) { if (doc.batchDate && doc.type) emit([doc.batchDate, doc.type], null); }).toString()
+      }
+      , 'events-by-date': {
+        map: (function (doc) {
+          if (Object.prototype.toString.call(doc.events) == '[object Array]') {
+            for (var i=0, len=doc.events.length; i<len; i++) {
+              var event = doc.events[i]
+                , date = new Date(event.date * 1000)
+                , dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
+              emit([dateString, event.eventType])
+            }
+          }
+        }).toString()
+      }
+    }
+  }
+
+  request.get(uri, function(e,r,b) {
+    if (!r) {
+      //TODO handle
+      console.log('LoggingService#updateDesignDoc() - error connecting to database')
+      return
+    }
+
+    if (404 != r.statusCode && 200 != r.statusCode) {
+      console.log('LoggingService#updateDesignDoc() - error retrieving design doc. Database Error: "%s"  Status Code:%d', e, r.statusCode)
+      return
+    }
+
+    if (r.statusCode == 200) body._rev = JSON.parse(b)._rev
+
+    request({
+      method:'PUT'
+      , uri: uri
+      , body: JSON.stringify(body)
+    }, function(e,r,b) {
+      console.log('LoggingService\t\t\tupdated design doc:\tstatusCode:%d error="%s"', r.statusCode, e)
+    })
+  })
+}
+
