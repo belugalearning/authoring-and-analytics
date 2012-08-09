@@ -105,6 +105,7 @@ function setupRoutes() {
   server.get('/kcm/canned-database', server.routeHandlers.kcm.cannedDatabase)
   server.post('/kcm/binary-relations/:binaryRelationId/remove-pair', server.routeHandlers.kcm.removePairFromBinaryRelation)
   server.post('/kcm/add-pair-to-binary-relation', server.routeHandlers.kcm.addPairToBinaryRelation)
+  server.post('/kcm/chained-binary-relations/members', server.routeHandlers.kcm.getChainedBinaryRelationsMembers)
   server.post('/kcm/concept-nodes/insert', server.routeHandlers.kcm.insertConceptNode)
   server.post('/kcm/concept-nodes/:conceptNodeId/delete', server.routeHandlers.kcm.deleteConceptNode)
   server.post('/kcm/concept-nodes/:conceptNodeId/update-description', server.routeHandlers.kcm.updateConceptNodeDescription)
