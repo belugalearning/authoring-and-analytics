@@ -687,46 +687,41 @@ function insertProblem(plist, callback) {
       callback(e)
       return
     }
-    request({ method:'GET', uri:couchServerURI+'_uuids' }, function(e,r,b) {
-      if (r.statusCode != 200) {
-        callback(util.format('could not generate uuid -- Database callback: (error:%s, statusCode:%d, body:%s)', e, r.statusCode, b), r.statusCode)
+
+    var now = (new Date).toJSON()
+
+    request({
+      method: 'PUT'
+      , uri: databaseURI + generateUUID()
+      , multipart: [
+        { 'Content-Type': 'application/json'
+          , 'body': JSON.stringify({
+            type: 'problem'
+            , problemDescription: problemDescription
+            , internalDescription: internalDescription
+            , problemNotes: ''
+            , toolId: toolId
+            , dateCreated: now
+            , dateModified: now
+            , assessmentCriteria: []
+            , _attachments: {
+              'pdef.plist': {
+                follows: true
+                , length: plistString.length
+                , 'Content-Type': 'application/xml'
+              }
+            }
+          })
+        }
+        , { 'body': plistString }
+      ]
+    }
+    , function(e,r,b) {
+      if (r.statusCode != 201) {
+        if (typeof callback == 'function') callback(util.format('Error uploading problem to database\n -- Database callback: (error:"%s", statusCode:%d, body:"%s")', e, r.statusCode, b), r.statusCode)
         return
       }
-      var now = (new Date()).toJSON()
-
-      request({
-        method: 'PUT'
-        , uri: databaseURI + JSON.parse(b).uuids[0]
-        , multipart: [
-          { 'Content-Type': 'application/json'
-            , 'body': JSON.stringify({
-              type: 'problem'
-              , problemDescription: problemDescription
-              , internalDescription: internalDescription
-              , problemNotes: ''
-              , toolId: toolId
-              , dateCreated: now
-              , dateModified: now
-              , assessmentCriteria: []
-              , _attachments: {
-                'pdef.plist': {
-                  follows: true
-                  , length: plistString.length
-                  , 'Content-Type': 'application/xml'
-                }
-              }
-            })
-          }
-          , { 'body': plistString }
-        ]
-      }
-      , function(e,r,b) {
-        if (r.statusCode != 201) {
-          if (typeof callback == 'function') callback(util.format('Error uploading problem to database\n -- Database callback: (error:"%s", statusCode:%d, body:"%s")', e, r.statusCode, b), r.statusCode)
-          return
-        }
-        callback(null, 201, JSON.parse(b))
-      })
+      callback(null, 201, JSON.parse(b))
     })
   })
 }
