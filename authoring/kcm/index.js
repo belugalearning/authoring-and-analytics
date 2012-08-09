@@ -37,6 +37,7 @@ function KCM(config) {
       if (o) o[row.id] = row.doc
     })
 
+    // set up db _changes stream listen / emit
     request.get(self.dbURI, function(e,r,b) {
       var couchDBStream
 
@@ -110,4 +111,53 @@ KCM.prototype.getDoc = function(id, type) {
 KCM.prototype.getDocClone = function(id, type) {
   var doc = this.getDoc(id, type)
   if (doc) return JSON.parse(JSON.stringify(doc))
+}
+
+KCM.prototype.cloneRelationNamed = function(name) {
+  for (var id in this.docStores.relations) {
+    if (this.docStores.relations[id].name == name) {
+      return this.getDocClone(id, 'relation')
+    }
+  }
+}
+
+KCM.prototype.chainedBinaryRelationMembers = function(cbr) {
+  var self = this
+    , br
+    , tailIx, headIx
+    , chains, extensions, aggregates, members
+
+  for (var i=0; i<cbr.chain.length; i++) {
+    br = self.docStores.relations[cbr.chain[i].relation]
+    tailIx = cbr.chain[i].direction == 1 ? 0 : 1
+    headIx = 1 - tailIx
+
+    if (i == 0) {
+      chains = br.members.map(function(pair) { return [ pair[tailIx], pair[headIx] ] })
+    } else {
+      extensions = []
+      chains.forEach(function(chain) {
+        br.members.forEach(function(pair) {
+          if (chain[i] == pair[tailIx] && !~chain.indexOf(pair[headIx])) {
+            extensions.push(chain.concat(pair[headIx]))
+          }
+        })
+      })
+      chains = extensions
+    }
+    if (!chains.length) return []
+  }
+
+  aggregates = {}
+  chains.forEach(function(chain) {
+    var ends = [ chain[0], chain[cbr.chain.length] ]
+      , key = ends.join()
+
+    if (!aggregates[key]) aggregates[key] = ends.concat(1)
+    else aggregates[key][2]++
+  })
+
+  members = []
+  for (var key in aggregates) members.push(aggregates[key])
+  return members
 }
