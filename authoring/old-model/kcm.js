@@ -1844,52 +1844,45 @@ function getAppContent(userId, callback) {
       return
     }
 
-    request(couchServerURI + '_uuids', function(e,r,b) {
-      if (200 != r.statusCode) {
-        callback(e || 'error generating uuid', statusCode || 500)
+    path = '/tmp/' + generateUUID()
+    pdefsPath = path + '/pdefs'
+    dbPath = path + '/content.db'
+
+    fs.mkdirSync(path)
+    fs.mkdirSync(pdefsPath)
+
+    //console.log('content path:', path)
+
+    if (writeLog) exportLogWriteStream = fs.createWriteStream(path + '/export-log.txt') 
+    if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
+
+    getAppContentJSON(function(e, statusCode, content) {
+      if (200 != statusCode) {
+        callback(e || 'error retrieving app json content', statusCode || 500)
         return
       }
+      if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
 
-      path = '/tmp/' + JSON.parse(b).uuids[0]
-      pdefsPath = path + '/pdefs'
-      dbPath = path + '/content.db'
+      //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2))
 
-      fs.mkdirSync(path)
-      fs.mkdirSync(pdefsPath)
-
-      //console.log('content path:', path)
-
-      if (writeLog) exportLogWriteStream = fs.createWriteStream(path + '/export-log.txt') 
-      if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
-
-      getAppContentJSON(function(e, statusCode, content) {
-        if (200 != statusCode) {
-          callback(e || 'error retrieving app json content', statusCode || 500)
+      createSQLiteDB(content, function(e, statusCode) {
+        if (201 != statusCode) {
+          callback(e || 'error creating content database', statusCode || 500)
           return
         }
-        if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
-
-        //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2))
-
-        createSQLiteDB(content, function(e, statusCode) {
+        writePDefs(content.problems, function(e, statusCode, pdefs) {
           if (201 != statusCode) {
-            callback(e || 'error creating content database', statusCode || 500)
+            callback(e || 'error writing problem pdefs', statusCode || 500)
             return
           }
-          writePDefs(content.problems, function(e, statusCode, pdefs) {
-            if (201 != statusCode) {
-              callback(e || 'error writing problem pdefs', statusCode || 500)
+
+          if (writeLog) exportLogWriteStream.end()
+          exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
+            if (e) {
+              callback(util.format('error zipping content:"%s"', e), 500)
               return
             }
-
-            if (writeLog) exportLogWriteStream.end()
-            exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
-              if (e) {
-                callback(util.format('error zipping content:"%s"', e), 500)
-                return
-              }
-              callback(null, 200, path + '/content.zip')
-            })
+            callback(null, 200, path + '/content.zip')
           })
         })
       })
