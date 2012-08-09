@@ -12,6 +12,8 @@
     , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
     , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
 
+  console.warn('!!!!!!!! Need to update chained binary relation members when binary relations updated')
+
   function nodesWithDescriptionsContaining(text) {
     var nodes = $.map(kcm.nodes, function(n) { return n })
     return $.grep(nodes, function(n) { return ~n.nodeDescription.indexOf(text) })
@@ -63,9 +65,8 @@
     })
   }
 
-  var ws
   $(function() {
-    ws = new WebSocket('ws://' + window.document.location.host)
+    var ws = new WebSocket('ws://' + window.document.location.host)
     ws.onopen = function(event) {
       ws.send(JSON.stringify({ event:'subscribe-kcm-changes', update_seq:kcm.update_seq }))
     }
@@ -98,7 +99,7 @@
             updateMapNodes()
             if (data.doc.currentVersion.user == kcm.user) {
               setFocus($('g#'+data.id)[0])
-              $('#concept-description').select();
+              $('#concept-description').select()
             }
           }
           break
@@ -117,16 +118,24 @@
           }
           break
         case 'relation':
-          var ix = $.grep(kcm.binaryRelations, function(r) { return r._id == data.id })
-          if (data.deleted) {
-            if (~ix) {
-              kcm.binaryRelations.splice(ix,1) 
-            }
-          } else {
-            if (!~ix) kcm.binaryRelations.push(data.doc)
-          }
-          updateMapNodes()
-          updateMapLinks()
+          if (data.doc.relationType == 'binary') {
+            if (data.deleted) delete kcm.binaryRelations[data.id]
+            else kcm.binaryRelations[data.id] = data.doc
+
+            var cbrsToUpdate = []
+            $.each(kcm.chainedBinaryRelations, function(id, cbr) {
+              var relations = cbr.chain.map(function(link) { return link.relation })
+              if (~relations.indexOf(data.id)) cbrsToUpdate.push(id)
+            })
+            updateChainedBinaryRelationsMembers(cbrsToUpdate, function(updates) {
+              console.log('updates:', updates)
+              for (var cbrId in updates) {
+                kcm.chainedBinaryRelations[cbrId].members = updates[cbrId]
+              }
+              updateMapNodes()
+              updateMapLinks()
+            })
+          } 
           break
       }
     }
@@ -294,7 +303,7 @@
   function updateMapLinks() {
     $('[data-type="binary-relation-pair"]').remove()
 
-    $.each(kcm.binaryRelations.concat(kcm.chainedBinaryRelations), function(i, br) {
+    $.each($.extend({}, kcm.binaryRelations, kcm.chainedBinaryRelations), function(key, br) {
       if (!kcm.viewSettings.links[br._id]) {
         kcm.viewSettings.links[br._id] = { visible:true, colour:'000' }
       }
@@ -491,19 +500,20 @@
         );
     }
     function showConfirmCancelModal(warning, callback) {
-        showModalDialog('warning-no-buttons'
-                        , warning
-                        , null
-                        , null
-                        , null
-                        , callback
-        );
+      showModalDialog('warning-no-buttons'
+                      , warning
+                      , null
+                      , null
+                      , null
+                      , callback)
     }
 
     function showNewLinkDetailsModal(cn1Data, cn2Data, callback) {
-        var br = kcm.binaryRelations
-          , $div = $.tmpl('newLinkConfigDIV', { cn1Data:cn1Data, cn2Data:cn2Data, relations:kcm.binaryRelations })
-        ;
+        var $div = $.tmpl('newLinkConfigDIV', {
+          cn1Data:cn1Data
+          , cn2Data:cn2Data
+          , relations:$.map(kcm.binaryRelations, function(br) { return br })
+        })
         $div
             .on('change', 'input[type="radio"][name="mode"]', function() {
                 var newRel = $div.find('input[type="radio"][name="mode"]:checked').val() == 'new';
@@ -518,7 +528,7 @@
                 }
             })
             .on('change', 'select#binary-relations', function() {
-                var br = binaryRelationWithId($(this).val());
+                var br = kcm.binaryRelations[$(this).val()];
                 $div.find('#binary-relation-desc').text(br.relationDescription);
             })
             .on('click', 'div.reverse-btn > input[type="button"]', function() {
@@ -534,7 +544,7 @@
             .on('focusout', 'input[type="text"]', function(e) {
                 setWarning(false, 'new-binary-relation-name' == $(e.currentTarget).prop('id'));
             })
-        ;
+        
         showModalDialog('new-link-details'
             , 'New Link Details:'
             , $div
@@ -553,7 +563,7 @@
 
                 var newRel = $div.find('input[name="mode"]:checked').val() == 'new'
                   , pair = [ $div.find('.new-link-node-l').children('div').attr('data-id'), $div.find('.new-link-node-r').children('div').attr('data-id') ]
-                  , rel = !newRel && binaryRelationWithId($('select#binary-relations').val())
+                  , rel = !newRel && kcm.binaryRelations[$('select#binary-relations').val()]
                   , relData
                 ;
 
@@ -568,23 +578,6 @@
                     , type:'POST'
                     , contentType:'application/json'
                     , data:JSON.stringify({ relation:relData, pair:pair })
-                    , success:function(updates) {
-                        if (newRel) {
-                            kcm.binaryRelations.push(updates.relation);
-                        } else {
-                            kcm.binaryRelations.splice(kcm.binaryRelations.indexOf(rel), 1, updates.relation);
-                        }
-
-                        var updatedCBRs = updates.chainedBinaryRelations;
-
-                        if (updatedCBRs && updatedCBRs.length) {
-                            $.each(updatedCBRs, function(i, uCBR) {
-                                var match = $.grep(kcm.chainedBinaryRelations, function(cBR) { return uCBR._id == cBR._id; });
-                                match[0].members = uCBR.members;
-                            });
-                        }
-                        updateMapLinks();
-                    }
                     , error: ajaxErrorHandler('Error adding new pair to binary relation')
                 });
             }
@@ -600,8 +593,7 @@
             } else {
                 var cnId0 = $div.find('.new-link-node-l').children('div').attr('data-id')
                   , cnId1 = $div.find('.new-link-node-r').children('div').attr('data-id')
-                  , relId = $('select#binary-relations').val()
-                  , rel = binaryRelationWithId(relId)
+                  , rel = kcm.binaryRelations[$('select#binary-relations').val()]
                   , matches = $.grep(rel.members, function(pair) { return pair[0] == cnId0 && pair[1] == cnId1; })
                 ;
                 if (matches.length) {
@@ -622,6 +614,17 @@
                 if (typeof callback == 'function') callback()
             }
         }
+    }
+
+    function updateChainedBinaryRelationsMembers(ids, callback) {
+      $.ajax({
+        url:'/kcm/chained-binary-relations/members'
+        , type:'POST'
+        , contentType:'application/json'
+        , data: JSON.stringify({ ids:ids })
+        , error: ajaxErrorHandler('Error retrieving chained binary relations members')
+        , success: callback
+      })
     }
 
     function updateMousePos(e) {
@@ -674,7 +677,7 @@
             var $lk = $(e.target).closest('[data-type="binary-relation-pair"]')
               , tId = $lk.attr('data-tail-node')
               , hId = $lk.attr('data-head-node')
-              , br = binaryRelationWithId($lk.closest('g[data-relation-type="binary"]').attr('data-id'))
+              , br = kcm.binaryRelations[$lk.closest('g[data-relation-type="binary"]').attr('data-id')]
             ;  
 
             $(window)
@@ -702,21 +705,6 @@
                         , type:'POST'
                         , contentType:'application/json'
                         , data: JSON.stringify({ pair:pair, rev:br._rev })
-                        , success: function(updates) {
-                            br._rev = updates.rev;
-                            br.members.splice(br.members.indexOf(pair), 1);
-                            $lk.remove();
-
-                            var updatedCBRs = updates.chainedBinaryRelations;
-
-                            if (updatedCBRs && updatedCBRs.length) {
-                                $.each(updatedCBRs, function(i, uCBR) {
-                                    var match = $.grep(kcm.chainedBinaryRelations, function(cBR) { return uCBR._id == cBR._id; });
-                                    match[0].members = uCBR.members;
-                                });
-                            }
-                            updateMapLinks();
-                        }
                         , error: ajaxErrorHandler('Error deleting pair from binary relation.')
                     });
                 }
@@ -917,18 +905,15 @@
         saveViewSettings();
     }
 
-    function updateViewSettingsDisplay() {
-        var $t = $('table#links-view-settings')
-        $t.children('tbody').remove();
-        $t.append(
-            $('<tbody/>')
-                .html(
-                    $.tmpl('brViewSettingsTR', 
-                           $.map(
-                               $.merge($.merge([], kcm.binaryRelations), kcm.chainedBinaryRelations)
-                               , function(br) { return $.extend({}, br, kcm.viewSettings.links[br._id]); }))))
-        ;
-    }
+  function updateViewSettingsDisplay() {
+    var allRelations = $.map($.extend({}, kcm.binaryRelations, kcm.chainedBinaryRelations), function(r) { return r })
+    var $trs = $.tmpl('brViewSettingsTR', $.map(allRelations, function(r) { return $.extend({}, r, kcm.viewSettings.links[r._id]) }))
+    $('table#links-view-settings')
+      .children('tbody')
+        .remove()
+        .end()
+      .append($('<tbody/>').html($trs))
+  }
 
     function saveViewSettings() {
         var fn = arguments.callee;
@@ -1503,10 +1488,6 @@
                 }
             }
         });
-    }
-
-    function binaryRelationWithId(id) {
-        return $.grep(kcm.binaryRelations, function(br) { return id == br._id; })[0];
     }
 
     function beginMouseInteractionWithNode(e) {

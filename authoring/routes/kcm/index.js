@@ -265,18 +265,24 @@ module.exports = function(config, kcm_model, kcm) {
         if (typeof pl.workflowStatus === 'undefined') pl.workflowStatus = 0 
       })
 
-      var map = { user:req.session.user._id, pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, update_seq:kcm.update_seq }
-      map.binaryRelations = _.filter(_.values(kcm.docStores.relations), function(r) { return r.relationType == 'binary' })
+      var map = { user:req.session.user._id, pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq }
+      var clone
 
-      kcmModel.getChainedBinaryRelationsWithMembers(function(e, statusCode, chainedBinaryRelations) {
-        map.chainedBinaryRelations = chainedBinaryRelations
+      _.each(kcm.docStores.relations, function(r, id) {
+        if (r.relationType == 'binary') {
+          map.binaryRelations[id] = r
+        } else if (r.relationType == 'chained-binary') {
+          clone = kcm.getDocClone(r._id, 'relation')
+          clone.members = kcm.chainedBinaryRelationMembers(r)
+          map.chainedBinaryRelations[id] = clone
+        }
+      })
 
-        kcmModel.queryView('by-user-type', 'keys', [[req.session.user._id,'ExportSettings'], [req.session.user._id,'ViewSettings']], 'include_docs', true, function(e,r,b) {
-          var rows = JSON.parse(b).rows
-          map.exportSettings = rows[0].doc
-          map.viewSettings = rows[1].doc
-          res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
-        })
+      kcmModel.queryView('by-user-type', 'keys', [[req.session.user._id,'ExportSettings'], [req.session.user._id,'ViewSettings']], 'include_docs', true, function(e,r,b) {
+        var rows = JSON.parse(b).rows
+        map.exportSettings = rows[0].doc
+        map.viewSettings = rows[1].doc
+        res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
       })
     }
     , insertConceptNode: function(req, res) {
@@ -407,11 +413,12 @@ module.exports = function(config, kcm_model, kcm) {
         numFiles = files.length;
 
         (function decompileNext(file) {
+          console.log('decompileNext')
             var numDecompiled;
 
             decompileFormPList(file, function(e, decompiledPDef) {
                 if (e) {
-                    res.send(e, 500);
+                    res.send('error decompiling plist: '+e, 500);
                     return;
                 }
 
@@ -427,7 +434,7 @@ module.exports = function(config, kcm_model, kcm) {
 
                         kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
                             if (201 != statusCode) {
-                                res.send('error creating problem: ' + e, statusCode || 500);
+                                res.send('Error creating problem:\n' + e, statusCode || 500);
                                 return;
                             }
 
@@ -463,50 +470,92 @@ module.exports = function(config, kcm_model, kcm) {
             res.send(e || nodeRevision, statusCode || 500);
         });
     }
+    , getChainedBinaryRelationsMembers: function(req,res) {
+      var cbrsMembers = {}
+        , cbr
+        , i
+
+      if (Object.prototype.toString.call(req.body.ids) != '[object Array]') {
+        res.send('array of strings required for request body.ids', 412)
+        return
+      }
+
+      for (i=0; i<req.body.ids.length; i++) {
+        if (typeof req.body.ids[i] != 'string') {
+          res.send('array of strings required for request body.ids', 412)
+          return
+        }
+      }
+
+      for (i=0; i<req.body.ids.length; i++) {
+        cbr = kcm.getDocClone(req.body.ids[i], 'relation')
+
+        if (!cbr) {
+          res.send(util.format('could not retrieve relation with id="%s"', req.body.ids[i]), 404)
+          return
+        }
+
+        if (cbr.relationType != 'chained-binary') {
+          res.send(util.format('relation with id="%s" does not have relationType="chained-binary"', req.body.ids[i]), 412)
+          return
+        }
+
+        cbrsMembers[req.body.ids[i]] = kcm.chainedBinaryRelationMembers(cbr)
+      }
+
+      res.send(cbrsMembers, 200)
+    }
     , addPairToBinaryRelation: function(req,res) {
-        var argErrors = []
-          , relation = req.body.relation
-          , pair = req.body.pair
-        ;
-        if (!relation) argErrors.push('"relation"');
-        if (!pair) argErrors.push('"pair"');
+      // N.B. can add pair to new or existing relation
+      var argErrors = []
+        , relation = req.body.relation
+        , pair = req.body.pair
+
+      var addPair = function() {
+        kcmModel.addOrderedPairToBinaryRelation(req.session.user._id, relation.id, relation.rev, pair[0], pair[1], function(e, statusCode) {
+          res.send(e, statusCode || 500)
+        })
+      }
+
+      if (!relation) argErrors.push('relation')
+      if (!pair) argErrors.push('pair')
+      if (argErrors.length) {
+        res.send(util.format('Missing Parameters: "%s"', argErrors.join('" and "')), 412)
+        return
+      }
+
+      if (relation.type != 'new' && relation.type != 'existing') {
+        res.send('Bad Arguments - either "new" or "existing" required for relation.type', 412)
+        return
+      }
+
+      if (relation.type == 'existing') {
+        addPair()
+      } else {
+        // Update kcmModel.insertBinaryRelation() to take req.session.user._id as first parameter - and make it comply with document versioning
+        res.send('CREATION OF BINARY RELATIONS FROM THE KCM IS CURRENTLY DISABLED. - See Code Comments for instructions to enable.', 500)
+        return
+
+        if ('string' != typeof relation.name) argErrors.push('relation.name')
+        if ('string' != typeof relation.description) argErrors.push('relation.description')
         if (argErrors.length) {
-            res.send('Bad Arguments - ' + argErrors.join(' and ') + ' required and missing', 400);
-            return;
+          res.send(util.format('Bad Arguments - strings required for "%s"', argErrors.join('" and "')), 412)
+          return
         }
 
-        if (relation.type != 'new' && relation.type != 'existing') {
-            res.send('Bad Arguments - either "new" or "existing" required for relation.type', 400);
-            return;
-        }
+        kcmModel.insertBinaryRelation(relation.name, relation.description, function(e, statusCode) {
+          var row = JSON.parse(b)
 
-        if (relation.type == 'existing') {
-            addPair();
-        } else {
-            if ('string' != typeof relation.name) argErrors.push('"relation.name"');
-            if ('string' != typeof relation.description) argErrors.push('"relation.description"');
-            if (argErrors.length) {
-                res.send('Bad Arguments - strings required for ' + argErrors.join(' and '), 400);
-                return;
-            }
+          if (201 != statusCode) {
+            res.send(e, statusCode || 500)
+            return
+          }
 
-            kcmModel.insertBinaryRelation(relation.name, relation.description, function(e,statusCode,b) {
-                var row = JSON.parse(b);
-                if (201 != statusCode) {
-                    res.send(e, statusCode)
-                    return;
-                }
-                relation.id = row.id;
-                relation.rev = row.rev;
-                addPair();
-            });
-        }
-
-        function addPair() {
-            kcmModel.addOrderedPairToBinaryRelation(relation.id, relation.rev, pair[0], pair[1], function(e,statusCode,updatedRelation) {
-                res.send(e || updatedRelation, statusCode || 500);
-            });
-        }
+          relation.id = row.id
+          relation.rev = row.rev
+          addPair()
+        })
+      }
     }
     , removePairFromBinaryRelation: function(req, res) {
         kcmModel.removeOrderedPairFromBinaryRelation(req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode, rev) {
