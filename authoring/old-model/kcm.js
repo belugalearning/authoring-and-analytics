@@ -1838,206 +1838,125 @@ function getAppContent(userId, callback) {
     if (writeLog) exportLogWriteStream = fs.createWriteStream(path + '/export-log.txt') 
     if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
 
-    getAppContentJSON(function(e, statusCode, content) {
-      if (200 != statusCode) {
-        callback(e || 'error retrieving app json content', statusCode || 500)
+    var content = getAppContentJSON()
+    if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
+
+    //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2))
+
+    createSQLiteDB(content, function(e, statusCode) {
+      if (201 != statusCode) {
+        callback(e || 'error creating content database', statusCode || 500)
         return
       }
-      if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
-
-      //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2))
-
-      createSQLiteDB(content, function(e, statusCode) {
+      writePDefs(content.problems, function(e, statusCode, pdefs) {
         if (201 != statusCode) {
-          callback(e || 'error creating content database', statusCode || 500)
+          callback(e || 'error writing problem pdefs', statusCode || 500)
           return
         }
-        writePDefs(content.problems, function(e, statusCode, pdefs) {
-          if (201 != statusCode) {
-            callback(e || 'error writing problem pdefs', statusCode || 500)
+
+        if (writeLog) exportLogWriteStream.end()
+        exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
+          if (e) {
+            callback(util.format('error zipping content:"%s"', e), 500)
             return
           }
-
-          if (writeLog) exportLogWriteStream.end()
-          exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
-            if (e) {
-              callback(util.format('error zipping content:"%s"', e), 500)
-              return
-            }
-            callback(null, 200, path + '/content.zip')
-          })
+          callback(null, 200, path + '/content.zip')
         })
       })
     })
 
     function getAppContentJSON(jsonCallback) {
-      getPipelines(function(e, statusCode, pipelines) {
-        if (200 != statusCode) {
-          jsonCallback(e || 'error retrieving pipelines', statusCode || 500)
-          return
+      var pipelines = {}
+        , pl, plWfStatus
+        , problems = {}
+        , nodes
+        , nodeIds
+        , binaryRelations = []
+        , problems
+
+      // pipelines & problems
+      for (var plId in kcm.docStores.pipelines) {
+        pl = kcm.docStores.pipelines[plId]
+        plWfStatus = pl.workflowStatus || 0
+        
+        if (pl.problems.length && ~pipelineNames.indexOf(pl.name) && ~pipelineWorkflowStatusLevels.indexOf(plWfStatus)) {
+          pipelines[plId] = { id:plId, rev:pl._rev, name:pl.name, workflowStatus:plWfStatus, problems:pl.problems }
+
+          pl.problems.forEach(function(prId) {
+            var problem = kcm.docStores.problems[prId]
+            problems[prId] = { id:problem._id, rev:problem._rev }
+          })
         }
-        getNodes(pipelines, function(e, statusCode, nodes) {
-          if (200 != statusCode) {
-            jsonCallback(e || 'error retrieving concept nodes', statusCode || 500)
-            return
-          }
+      }
 
-          var nodeIds = Object.keys(nodes)
-            , binaryRelations = []
+      // nodes
+      nodes = getNodes()
+      nodeIds = Object.keys(nodes) 
 
-          kcm.docStores.relations.forEach(function(r) {
-            if (!~['binary','chained-binary'].indexOf(r.relationType)) return
+      // binary relations
+      _.each(kcm.docStores.relations, function(r) {
+        if (!~['binary','chained-binary'].indexOf(r.relationType)) return
 
-            var brMembers = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
+        var brMembers = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
 
-            binaryRelations.push({
-              id: r._id
-              , rev: r._rev
-              , name: r.name
-              , members: brMembers.filter(function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]) })
-            })
-          })
-
-          getProblems(pipelines, function(e, statusCode, problems) {
-            if (200 != statusCode) {
-              jsonCallback(e || 'error retrieving problems', statusCode || 500)
-              return
-            }
-            //console.log('app content JSON generated.')
-            jsonCallback(e, statusCode, { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:problems })
-          })
+        binaryRelations.push({
+          id: r._id
+          , rev: r._rev
+          , name: r.name
+          , members: brMembers.filter(function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]) })
         })
       })
 
-      function getPipelines(cb) {
-        var numPlNames = pipelineNames.length
-          , pipelines = {}
+      return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
 
+      function getNodes() {
+        var plIds = Object.keys(pipelines)
+          , nodes = {}
+          , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
 
-        if (!numPlNames) {
-          cb('case when pipelineNames.length == 0 not handled', 500)
-          return
+        if (exportAllNodes) {
+          console.log('EXPORT ALL N')
+          _.each(kcm.docStores.nodes, function(node, id) {
+            nodes[id] = node
+          })
+        } else {
+          // include nodes with included pipelines or containing included tags
+          _.each(kcm.docStores.nodes, function(node, id) {
+            if (_.intersection(plIds, node.pipelines).length || _.intersection(nodeInclusionTags, node.tags).length) {
+              nodes[id] = node
+            }
+          })
+
+          // ensure mastery nodes of all included nodes are themselves included
+          if (!~nodeInclusionTags.indexOf('mastery')) {
+            kcm.cloneRelationNamed('Mastery')
+              .members
+                .forEach(function(link) {
+                  if (nodes[link[0]]) nodes[link[1]] = kcm.docStores.nodes[link[1]]
+                })
+          }
         }
 
-        ;(function getPipelinesMatchingNameAtIndex(i) {
-          var name = pipelineNames[i]
+        _.each(nodes, function(n, id) {
+          nodes[id] = { id:n._id, rev:n._rev, pipelines:_.intersection(plIds, n.pipelines), x:n.x, y:n.y, workflowStatus:0 }
+          
+          if (n.pipelines.length) {
+            nodes[id].workflowStatus = Math.min.apply(Math, _.map(nodes[id].pipelines, function(plId) { return pipelines[plId].workflowStatus }))
+          }
 
-          queryView('pipelines-with-problems-by-name', 'reduce', false, 'startkey', [name], 'endkey', [name,{}], function(e,r,b) {
-            if (!r || 200 != r.statusCode) {
-              cb(util.format('Error retrieving pipelines with name="%s". db reported error: "%s"', name, e), r && r.statusCode || 500)
-              return
-            }
-
-            var rows = JSON.parse(b).rows
-              , row, key, workflowStatus
-              , len = rows.length, i
-
-
-            for (i=0; i<len; i++) {
-              row = rows[i]
-              key = row.key
-              wfStatus = key[3] || 0
-
-              if (~pipelineWorkflowStatusLevels.indexOf(wfStatus)) {
-                pipelines[row.id] = { id:row.id, rev:key[2], name:name, workflowStatus:wfStatus, problems:row.value }
-              }
-            }
-
-            if (++i < len) {
-              getPipelinesMatchingNameAtIndex(i)
-            } else {
-              cb (null, 200, pipelines)
-            }
+          nodeTagsToBitCols.forEach(function(tag) {
+            nodes[id][tag] = ~n.tags.indexOf(tag) ? 1 : 0
           })
-        })(0)
-      }
 
-      function getNodes(pipelines, cb) {
-        var plIds = _.keys(pipelines)
+          nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
+            var re = tagTextRegExps[i]
+              , matchingTags = _.filter(n.tags, function(tag) { return tag.match(re) != null })
 
-        getNodeDocs(function(docs) {
-          var nodes = {}
-            , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
-
-          docs.forEach(function(doc) {
-            var n = { id:doc._id, rev:doc._rev, pipelines:_.intersect(doc.pipelines, plIds), workflowStatus:0, x:doc.x, y:doc.y }
-
-            if (n.pipelines.length) {
-              n.workflowStatus = Math.min.apply(Math, _.map(n.pipelines, function(plId) { return pipelines[plId].workflowStatus }))
-            }
-
-            nodeTagsToBitCols.forEach(function(tag) {
-              n[tag] = ~doc.tags.indexOf(tag) ? 1 : 0
-            })
-
-            nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
-              var re = tagTextRegExps[i]
-                , matchingTags = _.filter(doc.tags, function(tag) { return tag.match(re) != null })
-
-              n[tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
-            })
-
-            nodes[n.id] = n
+            nodes[id][tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
           })
-          cb(null,200,nodes)
         })
 
-        function getNodeDocs(successCB) {
-          if (exportAllNodes) {
-            queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
-              if (200 != r.statusCode) {
-                cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500)
-                return
-              }
-              successCB(_.pluck(JSON.parse(b).rows, 'doc'))
-            })
-          } else {
-            getNodesByPipeline(function(plNodeDocs) {
-              getNodesByTag(function(tagNodeDocs) {
-                var uniqDocs = _.uniq(plNodeDocs.concat(tagNodeDocs), false, function(doc) { return doc._id })
-                successCB(uniqDocs)
-              })
-            })
-          }
-        }
-
-        function getNodesByPipeline(successCB) {
-          queryView('concept-nodes-by-pipeline', 'include_docs', true, 'keys', plIds, function(e,r,b) {
-            if (200 != r.statusCode) {
-              cb(util.format('Error retrieving concept nodes. db reported error: "%s"', e), r.statusCode || 500)
-              return
-            }
-            successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc }))
-          })
-        }
-
-        function getNodesByTag(successCB) {
-          if (!nodeInclusionTags.length) {
-            successCB([])
-            return
-          }
-          queryView('concept-node-tags', 'keys', nodeInclusionTags, 'include_docs', true, 'reduce', false, function(e,r,b) {
-            if (200 != r.statusCode) {
-              cb(util.format('Error retrieving concept node tags. db reported error: "%s"', e), r.statusCode || 500)
-              return
-            }
-            successCB(_.map(JSON.parse(b).rows, function(row) { return row.doc }))
-          })
-        }
-      }
-
-      function getProblems(pipelines, cb) {
-        var problemIds = _.uniq(_.flatten(_.map(pipelines, function(pl) { return pl.problems })))
-
-        request(encodeURI(databaseURI + '_all_docs?keys=' + JSON.stringify(problemIds)), function(e,r,b) {
-          if (200 != r.statusCode) {
-            cb(util.format('Error retrieving binary relations. db reported error: "%s"', e), r.statusCode || 500)
-            return
-          }
-
-          var problems = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, rev:row.value.rev } })
-          cb(null, 200, problems)
-        })
+        return nodes
       }
     }
 
@@ -2081,7 +2000,7 @@ function getAppContent(userId, callback) {
         var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag) }).join('')
         var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix) }).join('')
         exportLogWriteStream.write('\n================================================\nCREATE TABLE ConceptNodes\n')
-        var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, workflowSatatus INTEGER, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs)
+        var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, workflowStatus INTEGER, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs)
         db.run(cnTableCreateScript)
 
         exportLogWriteStream.write('\n================================================\nINSERT INTO ConceptNodes\n')
