@@ -15,8 +15,8 @@ var connectSession = connect.session({
 })
 
 exports.createService = function createSessionService(kcm, noAuthenticatePathnames) {
-  var noAuthRegexps = noAuthenticatePathnames ? _.filter(noAuthenticationPathnames, function(pn) { return _.isRegExp(pn) }) : []
-    , noAuthStrings = noAuthenticatePathnames ? _.difference(noAuthenticationPathnames, regexps) : []
+  var noAuthRegexps = noAuthenticatePathnames ? _.filter(noAuthenticatePathnames, function(pn) { return _.isRegExp(pn) }) : []
+    , noAuthStrings = noAuthenticatePathnames ? _.difference(noAuthenticatePathnames, noAuthRegexps) : []
 
   var get = function(req, fn) {
     parseCookie(req, null, function(e) {
