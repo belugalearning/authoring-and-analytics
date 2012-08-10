@@ -24,6 +24,7 @@ function KCM(config) {
     , problems: {}
     , relations: {}
     , tools: {}
+    , users: {}
   }
 
   request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
@@ -86,6 +87,7 @@ KCM.prototype.storeForDoc = function(doc) {
     , 'problem': this.docStores.problems
     , 'relation': this.docStores.relations
     , 'tool': this.docStores.tools
+    , 'User': this.docStores.users
   })[doc.type]
 }
 
