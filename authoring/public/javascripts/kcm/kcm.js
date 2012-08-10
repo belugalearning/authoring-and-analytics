@@ -106,6 +106,7 @@
             delete kcm.pipelines[data.id]
             updateMapNodes()
           } else {
+            if (typeof data.doc.workflowStatus === 'undefined') data.doc.workflowStatus = 0 
             kcm.pipelines[data.id] = data.doc
             if (inFocus && $(inFocus).attr('data-type') == 'concept-node') {
               var n = d3.select(inFocus).data()[0]
