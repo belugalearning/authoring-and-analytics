@@ -44,13 +44,28 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , getAppContent: function(req, res) {
-        kcmModel.getAppContent(req.session.user._id, function(e, statusCode, contentZip) {
+      kcmModel.getAppContent(req.session.user._id, function(e, statusCode, contentZip) {
+        if (200 != statusCode) {
+          res.send(e || 'error retrieving canned application content', statusCode || 500)
+          return
+        }
+        res.download(contentZip, 'canned-content.zip')
+      })
+    }
+    , appImportContent: function(req, res) {
+      for (var id in kcm.docStores.users) {
+        if (kcm.docStores.users[id].loginName == req.params.loginName) {
+          kcmModel.getAppContent(id, function(e, statusCode, contentZip) {
             if (200 != statusCode) {
-                res.send(e || 'error retrieving canned application content');
-                return;
+              res.send(e, statusCode || 500)
+            } else {
+              res.download(contentZip, 'canned-content.zip')
             }
-            res.download(contentZip, 'canned-content.zip');
-        });
+          })
+          return
+        }
+      }
+      res.send(util.format('user with loginName="%s" does not exist', req.params.loginName), 412)
     }
     , downloadToKCMDirs: function(req, res) {
         kcmModel.queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function(e,r,b) {
@@ -413,7 +428,6 @@ module.exports = function(config, kcm_model, kcm) {
         numFiles = files.length;
 
         (function decompileNext(file) {
-          console.log('decompileNext')
             var numDecompiled;
 
             decompileFormPList(file, function(e, decompiledPDef) {

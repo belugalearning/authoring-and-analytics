@@ -8,6 +8,7 @@ var express = require('express')
   , KCMWebSocketServer = require('./kcm-websocket-server')
 
 var server = express.createServer()
+var noAuthRequired = [/^\/kcm\/app-import-content\/.*/]
 
 module.exports = function(config) {
   server.kcm = new KCM(config)
@@ -15,7 +16,7 @@ module.exports = function(config) {
   server.kcm.once('initialised', function() {
     var oldModel = initOldModel(config, server.kcm)
     server.routeHandlers = routeHandlers.init(config, oldModel, server.kcm)
-    server.sessionService = sessionService.createService(oldModel.kcm)
+    server.sessionService = sessionService.createService(oldModel.kcm, noAuthRequired)
     server.kcmWSS = new KCMWebSocketServer(server.kcm, server.sessionService, {
       server: server
       , verifyClient: function(ws, callback) {
@@ -99,6 +100,7 @@ function setupRoutes() {
   server.get('/kcm', server.routeHandlers.kcm.getMap)
   server.get('/kcm/pull-replicate', server.routeHandlers.kcm.pullReplicate) //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
   server.get('/kcm/get-app-content', server.routeHandlers.kcm.getAppContent)
+  server.get('/kcm/app-import-content/:loginName', server.routeHandlers.kcm.appImportContent)
   server.get('/kcm/download-tokcm-dirs', server.routeHandlers.kcm.downloadToKCMDirs)
   server.post('/kcm/update-view-settings', server.routeHandlers.kcm.updateViewSettings)
   server.post('/kcm/update-export-settings', server.routeHandlers.kcm.updateExportSettings)
