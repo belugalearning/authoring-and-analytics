@@ -1264,70 +1264,52 @@ function addOrderedPairToBinaryRelation(user, relationId, relationRev, cn1Id, cn
   })
 }
 
-function removeOrderedPairFromBinaryRelation(relationId, relationRev, pair, callback) {
-  getDoc(relationId, function(e,r,b) {
-    if (200 != r.statusCode)  {
-      if ('function' == typeof callback) callback(util.format('Error retrieving relation. Database reported error:"%s". The pair was not removed from the relation', e),r.statusCode)
-        return
-    }
+function removeOrderedPairFromBinaryRelation(user, relationId, relationRev, pair, callback) {
+  var noStringErrors = []
+  if (typeof relationId != 'string' || !relationId.length) noStringErrors.push('relationId')
+  if (typeof relationRev != 'string' || !relationRev.length) noStringErrors.push('relationRev')
+  if (noStringErrors.length) {
+    callback('BAD ARGS - strings required for: ' + noStringErrors.join(), 412)
+    return
+  }
 
-    var relation = JSON.parse(b)
+  if (Object.prototype.toString.call(pair) != '[object Array]' || typeof pair[0] != 'string' || typeof pair[1] != 'string') {
+    callback('BAD ARGS - array of strings required for parameter: pair', 412)
+    return
+  }
 
-    if ('relation' != relation.type || 'binary' != relation.relationType) {
-      callback(util.format('document with id "%s" does not represent a binary relation - pair not removed from relation', relationId), r.statusCode)
-      return
-    }
+  var br = kcm.getDocClone(relationId, 'relation')
 
-    if (relation._rev != relationRev) {
-      callback(util.format('supplied revision:"%s" does not match latest document revision:"%s" on document id:"%s"', relationRev, relation._rev, relationId), 409)
-      return
-    }
+  if (!br) {
+    callback(util.format('could not find relation with id="%s"', relationId), 404)
+    return
+  }
 
-    var match = _.find(relation.members, function(p) {
-      return pair[0] == p[0] && pair[1] == p[1]
-    })
+  if (!br.relationType == 'binary') {
+    callback(util.format('relation with id="%s" has relationType="%s". Binary required', relationId, br.relationType), 412)
+    return
+  }
 
-    if (!match) {
-      callback(util.format('ordered pair ["%s", "%s"] not a member of binary relation id="%s"', pair[0], pair[1], relationId), 500)
-      return
-    }
+  if (br._rev != relationRev) {
+    callback(util.format('relation revisions do not correspond. supplied:"%s", database:"%s"', relationRev, br._rev), 409)
+    return
+  }
 
-    relation.members.splice(relation.members.indexOf(match), 1)
+  var ix
+  for (ix=0; ix<br.members.length; ix++) {
+    if (br.members[ix][0] == pair[0] && br.members[ix][1] == pair[1]) break
+  }
 
-    updateDoc(relation, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('Error updating relation. Database reported error:"%s". The pair was not removed from the relation', e), r.statusCode)
-        return
-      }
+  if (ix == br.members.length) {
+    callback(util.format('ordered pair ["%s", "%s"] not a member of binary relation id="%s"', pair[0], pair[1], relationId), 412)
+    return
+  }
 
-      var rev = JSON.parse(b).rev
+  nextVersion(br, user, 'removeOrderedPairFromBinaryRelation', pair)
+  br.members.splice(ix, 1)
 
-      queryView('relations-by-relation-type', 'include_docs', true, 'key', 'chained-binary', function(e,r,b) {
-        if (200 != r.statusCode) { 
-          // don't throw error as it's not especially important
-          // TODO: this error however should be logged somewhere for developer attention
-          callback(null, 201, { rev:rev })
-          return
-        }
-
-        var cRIds = _.chain(JSON.parse(b).rows)
-          .map(function(r) { return r.doc })
-          .filter(function(r) {
-            return ~_.pluck(r.chain, 'relation').indexOf(relation._id)
-          })
-          .pluck('_id')
-          .value()
-
-        if (!cRIds.length) {
-          callback(null, 201, { rev:rev })
-          return
-        }
-
-        getChainedBinaryRelationsWithMembers(cRIds, function(e, statusCode, cRs) {
-          callback(null, 201, { rev:rev, chainedBinaryRelations:cRs })
-        })
-      })
-    })
+  updateDoc(br, function(e,r,b) {
+    callback(e, r && r.statusCode)
   })
 }
 

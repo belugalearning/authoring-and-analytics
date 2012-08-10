@@ -12,8 +12,6 @@
     , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
     , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
 
-  console.warn('!!!!!!!! Need to update chained binary relation members when binary relations updated')
-
   function nodesWithDescriptionsContaining(text) {
     var nodes = $.map(kcm.nodes, function(n) { return n })
     return $.grep(nodes, function(n) { return ~n.nodeDescription.indexOf(text) })

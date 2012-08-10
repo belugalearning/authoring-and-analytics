@@ -558,9 +558,9 @@ module.exports = function(config, kcm_model, kcm) {
       }
     }
     , removePairFromBinaryRelation: function(req, res) {
-        kcmModel.removeOrderedPairFromBinaryRelation(req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode, rev) {
-            res.send(e || rev, statusCode || 500);
-        });
+      kcmModel.removeOrderedPairFromBinaryRelation(req.session.user._id, req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode) {
+        res.send(e, statusCode || 500)
+      })
     }
   }
 }
