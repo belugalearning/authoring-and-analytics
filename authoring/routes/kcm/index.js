@@ -627,13 +627,13 @@ function pipelineSequenceViewData(plId, callback) {
 
 function decompileFormPList(plist, callback) {
     var path = plist && plist.path || undefined
-      , command = format('perl %s/plutil.pl %s.plist', __dirname, path)
+      , command = format('perl %s/../plutil.pl %s.plist', __dirname, path)
       , isBinary
     ;
 
     if (!path) {
         callback(format('plist not found at path "%s".\n\tplist:\n', path, plist));
-        return;
+        return
     }
 
     fs.rename(path, path + '.plist', function(e) {
