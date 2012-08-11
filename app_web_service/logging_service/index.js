@@ -291,8 +291,32 @@ function updateDesignDoc() {
 
   var body = {
     views: {
-      'by-batchdate-type': {
+      'app-errors': {
+        map: (function (doc) {
+          if (Object.prototype.toString.call(doc.events) == '[object Array]') {
+            for (var i=0, len=doc.events.length; i<len; i++) {
+              var event = doc.events[i]
+                , date = new Date(event.date * 1000)
+                , dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
+                , errorType
+
+              if (event.eventType == 'APP_ERROR') {
+                if (event.additionalData && event.additionalData.type) errorType = event.additionalData.type
+                emit(dateString, errorType)
+              }
+            }
+          }
+        }).toString()
+      }
+      , 'by-batchdate-type': {
         map: (function (doc) { if (doc.batchDate && doc.type) emit([doc.batchDate, doc.type], null); }).toString()
+      }
+      , 'by-type': {
+        map:(function (doc) { emit(doc.type) }).toString()
+        , reduce: (function(keys, values, rereduce) {
+          if (!rereduce) return values.length
+          else return sum(values)
+        }).toString()
       }
       , 'events-by-date': {
         map: (function (doc) {
@@ -322,23 +346,6 @@ function updateDesignDoc() {
         , reduce: (function(keys, values, rereduce) {
           if (!rereduce) return values.length
           else return sum(values)
-        }).toString()
-      }
-      , 'app-errors': {
-        map: (function (doc) {
-          if (Object.prototype.toString.call(doc.events) == '[object Array]') {
-            for (var i=0, len=doc.events.length; i<len; i++) {
-              var event = doc.events[i]
-                , date = new Date(event.date * 1000)
-                , dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
-                , errorType
-
-              if (event.eventType == 'APP_ERROR') {
-                if (event.additionalData && event.additionalData.type) errorType = event.additionalData.type
-                emit(dateString, errorType)
-              }
-            }
-          }
         }).toString()
       }
     }
