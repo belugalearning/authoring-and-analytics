@@ -1786,7 +1786,7 @@
                 <div/>\
             </td>\
             <td class="txt">\
-                <a href="/kcm/pipelines/{{html _id}}" target="_blank">{{html _id}}</a>\
+                <span class="pipeline-id">{{html _id}}</span>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
                 <select class="workflow-status">\

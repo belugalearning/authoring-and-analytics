@@ -379,32 +379,6 @@ module.exports = function(config, kcm_model, kcm) {
             res.send(e, statusCode || 500);
         });
     }
-    , pipelinePage: function(req, res) {
-        kcmModel.queryView('pipelines-by-name', function(e,r,b) {
-            var plId = req.params.pipelineId
-              , pipelines
-            ;
-
-            if (200 != r.statusCode) {
-                res.render(format('could not retrieve pipeline list: DB Error: "%s"',e) ,r.statusCode);
-                return;
-            }
-
-            pipelines = _.map(JSON.parse(b).rows, function(row) { return { id:row.id, name:row.key }; });
-
-            pipelineSequenceViewData(plId, function(data) {
-                data.title = 'Pipelines';
-                data.pipelines = pipelines;
-                res.render('kcm/pipeline-page', data);
-            });
-        });
-    }
-    , pipelineSequenceTables: function(req, res) {
-        var plId = req.params.pipelineId;
-        pipelineSequenceViewData(req.params.pipelineId, function(data) {
-            res.render('kcm/pipeline-sequence-tables', data);
-        });
-    }
     , pipelineProblemDetails: function(req, res) {
         kcmModel.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
             res.send(e || problemDetails, statusCode);
@@ -577,52 +551,6 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
   }
-}
-
-function pipelineSequenceViewData(plId, callback) {
-    var incl = []
-      , excl = []
-      , pl
-      , doCallback = function() {
-          callback({
-              pipelineId: plId
-              , includedProblems:incl   , includedProblemIds:pl && pl.problems || []
-              , excludedProblems:excl   , excludedProblemIds:_.map(excl, function(p) { return p._id; })
-          });
-      }
-    ;
-
-    if (!plId) {
-        doCallback();
-        return;
-    }
-
-    kcmModel.getDoc(plId, function(e,r,b) {
-        if (r.statusCode != 200) {
-            doCallback();
-            return;
-        }
-
-        pl = JSON.parse(b);
-
-        kcmModel.queryView('by-type', 'include_docs', true, 'key', 'problem', function(e,r,b) {
-            var probs = _.map(JSON.parse(b).rows, function(row) { return row.doc; });
-
-            incl = _.sortBy(
-                  _.filter(probs, function(p) { return pl.problems.indexOf(p._id) > -1; })
-                  , function(p) { return pl.problems.indexOf(p._id); }
-            );
-            excl = _.sortBy(
-                  _.filter(probs, function(p) { return pl.problems.indexOf(p._id) == -1; })
-                  , function(p) { return p.problemDescription; }
-            );
-
-            _.each(incl, function(p) { p.orderOn = incl.indexOf(p); });
-            _.each(excl, function(p) { p.orderOn = excl.indexOf(p); });
-
-            doCallback();
-        });
-    });
 }
 
 function decompileFormPList(plist, callback) {

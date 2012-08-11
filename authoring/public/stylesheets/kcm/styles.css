@@ -66,6 +66,7 @@ form#upload-plists { visibility:hidden; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.expand-collapse > div { background-image:url('/images/expand_button.jpg'); width:16px; height:16px; cursor:pointer; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline.expanded > td.expand-collapse > div { background-image:url('/images/collapse_button.jpg'); }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.txt { padding-right:0; }
+[data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.txt > span.pipeline-id { font-size:9px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.txt > input[type="text"] { width:239px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.controls { width:22px; vertical-align:top; padding:3px 0 9px 6px; }
 [data-panel="concept-node-data"] table[data-section="pipelines"] tr.pipeline > td.controls > div.gripper { margin:0 2px 11px 0; width:20px; height:6px; }
