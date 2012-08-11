@@ -91,7 +91,7 @@ function uploadBatchRequestHandler(req, res) {
         ;
 
         for (var i=0; i<5; i++) {
-            dWords[i] = (lead0s + buffer.readUInt32BE(4 + 4*i).toString(16)).match(/([0-9a-f]{8})$/i)[1];
+            dWords[i] = (lead0s + buffer.readUInt32BE(4*i).toString(16)).match(/([0-9a-f]{8})$/i)[1];
         }
 
         var batchDate = dWords[0];
