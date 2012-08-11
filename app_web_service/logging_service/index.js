@@ -306,6 +306,41 @@ function updateDesignDoc() {
           }
         }).toString()
       }
+      , 'events-by-type': {
+        map: (function (doc) {
+          var event, date, dateString
+
+          if (Object.prototype.toString.call(doc.events) == '[object Array]') {
+            for (var i=0, len=doc.events.length; i<len; i++) {
+              event = doc.events[i]
+              date = new Date(event.date * 1000)
+              dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
+              if (event && event.eventType) emit(event.eventType, dateString)
+            }
+          }
+        }).toString()
+        , reduce: (function(keys, values, rereduce) {
+          if (!rereduce) return values.length
+          else return sum(values)
+        }).toString()
+      }
+      , 'app-errors': {
+        map: (function (doc) {
+          if (Object.prototype.toString.call(doc.events) == '[object Array]') {
+            for (var i=0, len=doc.events.length; i<len; i++) {
+              var event = doc.events[i]
+                , date = new Date(event.date * 1000)
+                , dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
+                , errorType
+
+              if (event.eventType == 'APP_ERROR') {
+                if (event.additionalData && event.additionalData.type) errorType = event.additionalData.type
+                emit(dateString, errorType)
+              }
+            }
+          }
+        }).toString()
+      }
     }
   }
 
