@@ -303,7 +303,13 @@ function updateDesignDoc(callback) {
         }).toString()
       }
       , 'by-batchdate-type': {
-        map: (function (doc) { if (doc.batchDate && doc.type) emit([doc.batchDate, doc.type], null) }).toString()
+        map: (function (doc) {
+          if (doc.batchDate && doc.type) {
+            var date = new Date(doc.batchDate * 1000)
+              , dateString = date.toJSON().replace(/^(.{10})T(.{8}).*/, '$1 $2')
+            emit([dateString, doc.type], null)
+          }
+        }).toString()
       }
       , 'by-type': {
         map:(function (doc) { emit(doc.type) }).toString()
