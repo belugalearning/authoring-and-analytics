@@ -162,6 +162,7 @@ function processBatch(batch, callback) {
         try {
           doc = JSON.parse(jsonString)
           doc.batchDate = batchDate
+          doc.batchUUID = batchUUID
         } catch (e) {
           err = 'INVALID_JSON'
         }
