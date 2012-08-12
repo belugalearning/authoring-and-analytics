@@ -182,6 +182,7 @@ function processBatch(batch, callback) {
         _id: batchUUID
         , type: 'LogBatch'
         , batchDate: batchDate
+        , batchProcessDate: Math.round(new Date().getTime() / 1000)
         , records: records
       }
 
