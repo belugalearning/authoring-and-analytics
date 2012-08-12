@@ -342,6 +342,31 @@ function updateDesignDoc(callback) {
           else return sum(values)
         }).toString()
       }
+      , 'logbatch-records-by-action': {
+        map: (function (doc) {
+          if (doc.type == 'LogBatch') {
+            if (Object.prototype.toString.call(doc.records) != '[object Array]') {
+              emit([ "#ERROR: value for key 'records' is not an array", doc._id ], doc)
+              return
+            }
+            doc.records.forEach(function(r) {
+              var key0
+              if (r.error) {
+                key0 = '#ERROR: ' + r.error 
+              } else if (!r.action) {
+                key0 = "#ERROR: LogBatch record does not contain key: 'action'"
+              } else {
+                key0 = r.action
+              }
+              emit([ key0, doc._id ], r)
+            })
+          }
+        }).toString()
+        , reduce: (function(keys, values, rereduce) {
+          if (!rereduce) return values.length
+          else return sum(values)
+        }).toString()
+      }
     }
   }
 
