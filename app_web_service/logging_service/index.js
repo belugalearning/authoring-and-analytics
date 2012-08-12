@@ -277,7 +277,7 @@ function processBatch(batch, callback) {
 }
 
 // design doc
-function updateDesignDoc() {
+function updateDesignDoc(callback) {
   var uri = dbURI + '/_design/' + designDoc
 
   console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
@@ -346,14 +346,20 @@ function updateDesignDoc() {
   }
 
   request.get(uri, function(e,r,b) {
+    var error
+
     if (!r) {
       //TODO handle
-      console.log('LoggingService#updateDesignDoc() - error connecting to database')
+      error = 'error connecting to database'
+      console.log('LoggingService#updateDesignDoc() - ' +  error)
+      callback && callback(error, 500)
       return
     }
 
     if (404 != r.statusCode && 200 != r.statusCode) {
-      console.log('LoggingService#updateDesignDoc() - error retrieving design doc. Database Error: "%s"  Status Code:%d', e, r.statusCode)
+      var error = util.format('error retrieving design doc. Database Error: "%s"  Status Code:%d', e, r.statusCode)
+      console.log('LoggingService#updateDesignDoc() - ' + error)
+      callback && callback(error, r.statusCode || 500)
       return
     }
 
@@ -365,6 +371,7 @@ function updateDesignDoc() {
       , body: JSON.stringify(body)
     }, function(e,r,b) {
       console.log('LoggingService\t\t\tupdated design doc:\tstatusCode:%d error="%s"', r.statusCode, e)
+      callback && callback(e, r.statusCode)
     })
   })
 }
