@@ -185,6 +185,12 @@ function processBatch(batch, callback) {
         , batchDate: batchDate
         , batchProcessDate: Math.round(new Date().getTime() / 1000)
         , records: records
+        , _attachments: {
+          "raw-log": {
+            "content_type": "text\/plain; charset=utf-8"
+            , data: new Buffer(str).toString('base64')
+          }
+        }
       }
 
       // bulk insert/update: send each document in the batch, together with the batchDoc above
@@ -202,31 +208,7 @@ function processBatch(batch, callback) {
           callback(util.format('error recording log batch\n\terror: %s\n\tstatusCode: %d\n\tresponse body: %s', e, r.statusCode, b))
           return
         }
-
-        var batchDocRev = JSON.parse(b)[0].rev
-
-        if (!batchDocRev) {
-          callback(util.format('error retrieving batchDoc revision from bulk insert/update response\n\tbatch doc data: %s', JSON.stringify(JSON.parse(b)[0])))
-          return
-        }
-
-        // attach the batch file to the batch doc
-        request({
-          method:'PUT'
-          , uri: encodeURI(util.format('%s%s/raw-log?rev=%s', dbURI, batchUUID, batchDocRev))
-          , headers: { 'content-type':'text/plain; charset=utf-8', accepts:'application/json' }
-          , body: str
-        }, function(e,r,b) {
-          if (!r) {
-            callback('no database response to request attaching batch file to batch doc')
-            return
-          }
-          else if (r.statusCode != 201) {
-            callback(util.format('error attaching batch file to batch doc\n\terror: %s\n\tstatusCode: %d\n\tresponse body: %s', e, r.statusCode, b))
-            return
-          }
-          callback()
-        })
+        callback()
       })
     }
 
