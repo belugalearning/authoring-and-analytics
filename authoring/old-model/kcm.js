@@ -706,9 +706,8 @@ function insertProblem(plist, callback) {
             , assessmentCriteria: []
             , _attachments: {
               'pdef.plist': {
-                follows: true
-                , length: plistString.length
-                , 'Content-Type': 'application/xml'
+                'Content-Type': 'application/xml'
+                , data: new Buffer(plistString).toString('base64')
               }
             }
           })
