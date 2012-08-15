@@ -693,27 +693,23 @@ function insertProblem(plist, callback) {
     request({
       method: 'PUT'
       , uri: databaseURI + generateUUID()
-      , multipart: [
-        { 'Content-Type': 'application/json'
-          , 'body': JSON.stringify({
-            type: 'problem'
-            , problemDescription: problemDescription
-            , internalDescription: internalDescription
-            , problemNotes: ''
-            , toolId: toolId
-            , dateCreated: now
-            , dateModified: now
-            , assessmentCriteria: []
-            , _attachments: {
-              'pdef.plist': {
-                'Content-Type': 'application/xml'
-                , data: new Buffer(plistString).toString('base64')
-              }
-            }
-          })
+      , headers: { 'Content-Type': 'application/json' }
+      , body: JSON.stringify({
+        type: 'problem'
+        , problemDescription: problemDescription
+        , internalDescription: internalDescription
+        , problemNotes: ''
+        , toolId: toolId
+        , dateCreated: now
+        , dateModified: now
+        , assessmentCriteria: []
+        , _attachments: {
+          'pdef.plist': {
+            'Content-Type': 'application/xml'
+            , data: new Buffer(plistString).toString('base64')
+          }
         }
-        , { 'body': plistString }
-      ]
+      })
     }
     , function(e,r,b) {
       if (r.statusCode != 201) {
