@@ -1323,7 +1323,7 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
   }
 
   var cn = kcm.getDocClone(conceptNodeId, 'concept node')
-  if (!cn.pipelines) conceptNode.pipelines = []
+  if (!cn.pipelines) cn.pipelines = []
 
   if (!cn) {
     callback('could not find concept node', 404)
