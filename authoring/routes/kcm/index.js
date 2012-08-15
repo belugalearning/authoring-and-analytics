@@ -385,68 +385,67 @@ module.exports = function(config, kcm_model, kcm) {
         });
     }
     , uploadProblems: function(req, res) {
-        var files = req.files.pdefs
-          , numFiles
-          , decompiledPDefs = []
-          , problems = []
-          , plId = req.body['pipeline-id']
-          , plRev = req.body['pipeline-rev']
-        ;
+      var files = req.files.pdefs
+        , numFiles
+        , decompiledPDefs = []
+        , problems = []
+        , plId = req.body['pipeline-id']
+        , plRev = req.body['pipeline-rev']
 
-        if (typeof files == 'undefined') {
-            res.send('no files found on form', 500);
-            return;
-        }
+      if (typeof files == 'undefined') {
+        res.send('no files found on form', 500)
+        return
+      }
 
-        if (typeof files.slice == 'undefined') files = [files]; // single pdefs not put in array
-        numFiles = files.length;
+      if (typeof files.slice == 'undefined') files = [files] // single pdefs not put in array
+      numFiles = files.length
 
-        (function decompileNext(file) {
-            var numDecompiled;
+      ;(function decompileNext(file) {
+        var numDecompiled
 
-            decompileFormPList(file, function(e, decompiledPDef) {
-                if (e) {
-                    res.send('error decompiling plist: '+e, 500);
-                    return;
+        decompileFormPList(file, function(e, decompiledPDef) {
+          if (e) {
+            res.send('error decompiling plist: '+e, 500)
+            return
+          }
+
+          decompiledPDefs.push(decompiledPDef)
+          numDecompiled = decompiledPDefs.length
+
+          if (numDecompiled < numFiles) {
+            decompileNext(files[numDecompiled])
+          } else {
+            // all pdefs decompiled fine. use them to create problems
+            ;(function createProblem(pdef) {
+              var numProblems
+
+              kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
+                if (201 != statusCode) {
+                  res.send('Error creating problem:\n' + e, statusCode || 500)
+                  return
                 }
 
-                decompiledPDefs.push(decompiledPDef);
-                numDecompiled = decompiledPDefs.length;
-
-                if (numDecompiled < numFiles) {
-                    decompileNext(files[numDecompiled]);
+                problems.push(newProblem)
+                numProblems = problems.length
+                if (numProblems < numFiles) {
+                  createProblem(decompiledPDefs[numProblems])
                 } else {
-                    // all pdefs decompiled fine. use them to create problems
-                    (function createProblem(pdef) {
-                        var numProblems;
+                  kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e, statusCode, plUpdate) {
+                    if (201 != statusCode) {
+                      res.send(e, statusCode || 500)
+                      return
+                    }
 
-                        kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
-                            if (201 != statusCode) {
-                                res.send('Error creating problem:\n' + e, statusCode || 500);
-                                return;
-                            }
-
-                            problems.push(newProblem);
-                            numProblems = problems.length;
-                            if (numProblems < numFiles) {
-                                createProblem(decompiledPDefs[numProblems]);
-                            } else {
-                                kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e, statusCode, plUpdate) {
-                                    if (201 != statusCode) {
-                                        res.send(e, statusCode || 500);
-                                        return;
-                                    }
-
-                                    kcmModel.pipelineProblemDetails(plId, plUpdate.rev, function(e, statusCode, problemDetails) {
-                                        res.send(e || { problemDetails:problemDetails, pipelineId:plUpdate.id, pipelineRev:plUpdate.rev }, statusCode || 500);
-                                    });
-                                });
-                            }
-                        });
-                    })(decompiledPDefs[0]);
+                    kcmModel.pipelineProblemDetails(plId, plUpdate.rev, function(e, statusCode, problemDetails) {
+                      res.send(e || { problemDetails:problemDetails, pipelineId:plUpdate.id, pipelineRev:plUpdate.rev }, statusCode || 500)
+                    })
+                  })
                 }
-            });
-        })(files[0]);
+              })
+            })(decompiledPDefs[0])
+          }
+        })
+      })(files[0])
     }
     , reorderPipelineProblems: function(req, res) {
         kcmModel.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
