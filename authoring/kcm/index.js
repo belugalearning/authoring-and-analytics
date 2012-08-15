@@ -80,7 +80,7 @@ function KCM(config) {
   })
 }
 
-KCM.prototype.storeForDoc = function(doc) {
+KCM.prototype.storeForDocType = function(type) {
   return ({
     'concept node': this.docStores.nodes
     , 'pipeline': this.docStores.pipelines
@@ -88,19 +88,18 @@ KCM.prototype.storeForDoc = function(doc) {
     , 'relation': this.docStores.relations
     , 'tool': this.docStores.tools
     , 'User': this.docStores.users
-  })[doc.type]
+  })[type]
+}
+
+KCM.prototype.storeForDoc = function(doc) {
+  return this.storeForDocType(doc.type)
 }
 
 KCM.prototype.getDoc = function(id, type) {
   var store
+
   if (type) {
-    store = ({
-      'concept node': this.docStores.nodes
-      , 'pipeline': this.docStores.pipelines
-      , 'problem': this.docStores.problems
-      , 'relation': this.docStores.relations
-      , 'tool': this.docStores.tools
-    })[type]
+    store = this.storeForDocType(type)
   } else {
     for (var i=0; i<docStores.length; i++) {
       store = docStores[i]
