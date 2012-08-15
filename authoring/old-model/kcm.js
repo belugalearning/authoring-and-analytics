@@ -86,6 +86,8 @@ module.exports = function(config, kcmModel) {
     , updateViewSettings: updateViewSettings
     , updateExportSettings: updateExportSettings
     , insertProblem: insertProblem
+    , getPDef: getPDef
+    , updatePDef: updatePDef
     , insertConceptNode: insertConceptNode
     , deleteConceptNode: deleteConceptNode
     , updateConceptNodePosition: updateConceptNodePosition
@@ -682,9 +684,16 @@ function queryView(view) {
 }
 
 function insertProblem(plist, callback) {
-  getProblemInfoFromPList(plist, function(e, plistString, problemDescription, toolId, internalDescription) {
+  fs.readFile(plist, 'utf8', function(e, plistString) {
     if (e) {
-      callback(e)
+      if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
+      return
+    }
+
+    var info = getProblemInfoFromPList(plistString)
+
+    if (info.error) {
+      callback(info.error)
       return
     }
 
@@ -696,10 +705,10 @@ function insertProblem(plist, callback) {
       , headers: { 'Content-Type': 'application/json' }
       , body: JSON.stringify({
         type: 'problem'
-        , problemDescription: problemDescription
-        , internalDescription: internalDescription
+        , problemDescription: info.problemDescription
+        , internalDescription: info.internalDescription
         , problemNotes: ''
-        , toolId: toolId
+        , toolId: info.toolId
         , dateCreated: now
         , dateModified: now
         , assessmentCriteria: []
@@ -721,50 +730,89 @@ function insertProblem(plist, callback) {
   })
 }
 
-function getProblemInfoFromPList(plist, callback) {
+function getPDef(problemId, callback) {
+  request({
+    uri: databaseURI + problemId + '/pdef.plist'
+    , method: 'GET'
+    , headers: { 'content-type':'application/json', accepts:'application/xml' }
+  }, callback)
+}
+
+function updatePDef(problemId, plist, callback) {
   fs.readFile(plist, 'utf8', function(e, plistString) {
     if (e) {
-      if (typeof callback == 'function') callback('could not load plist. error: ' + e)
+      if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
       return
     }
 
-    var xmlDoc
+    var info = getProblemInfoFromPList(plistString)
 
-    try {
-      xmlDoc = libxmljs.parseXmlString(plistString)
-    } catch(e) {
-      callback('could not parse plist')
+    if (info.error) {
+      callback(info.error)
       return
     }
 
-    var stringValueForKey = function(key) {
-      var elm = xmlDoc.get(util.format('//string[preceding-sibling::key[1][text() = "%s"]]', key))
-      return elm && elm.text()
-    }
-
-    var toolName = stringValueForKey('TOOL_KEY')
-      , tool = toolName && kcm.cloneDocByTypeName('tool', toolName)
-      , isMetaQ = xmlDoc.get('//key[text() = "META_QUESTION"]')
-      , isNumberPicker = xmlDoc.get('//key[text() = "NUMBER_PICKER"]')
-      , desc = stringValueForKey( isMetaQ ? 'META_QUESTION_TITLE' : isNumberPicker ? 'NUMBER_PICKER_DESCRIPTION' : 'PROBLEM_DESCRIPTION' )
-      , internalDesc = stringValueForKey('INTERNAL_DESCRIPTION')
-      , missingStrings = []
-
-    if (!desc) missingStrings.push(descElmName)
-    if (!isMetaQ && !toolName) missingStrings.push('TOOL_KEY')
-
-    if (missingStrings.length) {
-      console.log('missingStrings:', missingStrings)
-      callback(util.format('invalid plist - missing strings for keys: "%s"', missingStrings.join('","')))
+    var problem = kcm.getDocClone(problemId, 'problem')
+    if (!problem) {
+      callback('problem not found', 404)
       return
     }
 
-    if (isMetaQ || isNumberPicker || tool) {
-      callback(null, plistString, desc, tool && tool._id, internalDesc)
-    } else {
-      callback(util.format('invalid plist. Could not retrieve tool with name "%s".', toolName), 500)
+    problem.problemDescription = info.problemDescription;
+    problem.internalDescription = info.internalDescription;
+    problem.toolId = info.toolId;
+    problem.dateModified = (new Date()).toJSON();
+
+    if (!problem._attachments) problem._attachments = {};
+    problem._attachments['pdef.plist'] = {
+      data: new Buffer(plist).toString('base64')
+      , 'Content-Type': 'application/xml'
     }
+
+    request({
+      method: 'PUT'
+      , uri: databaseURI + problemId
+      , body: JSON.stringify(problem)
+    }, function(e,r,b) {
+      callback(r.statusCode != 201 && util.format('failed to update plist. statusCode:%s, database error:%s', r.statusCode, e) || null);
+    })
   })
+}
+
+function getProblemInfoFromPList(plistString, callback) {
+  var xmlDoc
+
+  try {
+    xmlDoc = libxmljs.parseXmlString(plistString)
+  } catch(e) {
+    return { error: 'could not parse plist' }
+  }
+
+  var stringValueForKey = function(key) {
+    var elm = xmlDoc.get(util.format('//string[preceding-sibling::key[1][text() = "%s"]]', key))
+    return elm && elm.text()
+  }
+
+  var toolName = stringValueForKey('TOOL_KEY')
+    , tool = toolName && kcm.cloneDocByTypeName('tool', toolName)
+    , isMetaQ = xmlDoc.get('//key[text() = "META_QUESTION"]')
+    , isNumberPicker = xmlDoc.get('//key[text() = "NUMBER_PICKER"]')
+    , desc = stringValueForKey( isMetaQ ? 'META_QUESTION_TITLE' : isNumberPicker ? 'NUMBER_PICKER_DESCRIPTION' : 'PROBLEM_DESCRIPTION' )
+    , internalDesc = stringValueForKey('INTERNAL_DESCRIPTION')
+    , missingStrings = []
+
+  if (!desc) missingStrings.push(descElmName)
+  if (!isMetaQ && !toolName) missingStrings.push('TOOL_KEY')
+
+  if (missingStrings.length) {
+    return { error:util.format('invalid plist - missing strings for keys: "%s"', missingStrings.join('","')) }
+  }
+
+  if (isMetaQ || isNumberPicker || tool) {
+    return { problemDescription:desc, internalDescription:internalDesc, toolId:tool._id }
+  } else {
+    return { error:util.format('invalid plist. Could not retrieve tool with name "%s".', toolName) }
+  }
 }
 
 function insertConceptNode(user, o, callback) {

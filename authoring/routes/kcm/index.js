@@ -447,6 +447,65 @@ module.exports = function(config, kcm_model, kcm) {
         })
       })(files[0])
     }
+
+    , editProblem: {
+      problemDetailPage: function(req, res) {
+        var problemId = req.params.problemId
+          , problem = problemId && kcm.getDocClone(problemId, 'problem')
+          , tool = problem && problem.toolId && kcm.getDocClone(problem.toolId, 'tool')
+
+        if (!problemId) {
+          req.send('requires problemId', 412)
+          return
+        }
+
+        if (!problem) {
+          req.send(util.format('problem with id="%s" not found', problemId), 404)
+          return
+        }
+
+        res.render('problem-detail-page', {
+          problemId:problem._id                                   , title:'Edit Problem'
+          , problemDescription:problem.problemDescription         , dateCreated:formatDateString(problem.dateCreated)
+          , dateModified:formatDateString(problem.dateModified)   , toolName: (tool && tool.name || '')
+          , internalDescription:problem.internalDescription || ''
+        })
+      }
+      , sendPList: function(req, res, sendAsAttachment) {
+        var problemId = req.params.problemId
+        if (!problemId) {
+          res.send('requires problemId')
+          return
+        }
+
+        kcmModel.getPDef(problemId, function(e,r,b) {
+          if (r.statusCode == 200) {
+            if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
+            res.header('Content-Type', 'application/xml')
+            res.send(b)
+          } else {
+            res.send('could not retrieve problem plist. statusCode='+r.statusCode, 404)
+          }
+        })
+      }
+      , replacePListPage: function(req, res) {
+        res.render('upload-plist', { title:'Upload the replacement problem definition PList', problemId:req.params.problemId });
+      }
+      , performReplacePList: function(req, res) {
+        decompileFormPList(req.files.plist, function(e, plist) {
+          if (e) {
+            res.send(e, 500)
+            return
+          }
+
+          kcmModel.updatePDef(req.params.problemId, plist, function(e) {
+            if (e) res.send(e, 500)
+            else res.redirect('/kcm/problem/' + req.params.problemId)
+          })
+        })
+      }
+    }
+
     , reorderPipelineProblems: function(req, res) {
         kcmModel.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
             res.send(e || plRev, statusCode || 500);
@@ -597,4 +656,9 @@ function decompileFormPList(plist, callback) {
             });
         });
     });
+}
+
+function formatDateString(jsonDate) {
+    if (!jsonDate) return '';
+    return jsonDate.replace(/^([0-9]{4}-[0-9]{2}-[0-9]{2})T(([0-9]{2}:){2}[0-9]{2}).+$/, "$1 $2");
 }
