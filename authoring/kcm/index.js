@@ -114,12 +114,19 @@ KCM.prototype.getDocClone = function(id, type) {
   if (doc) return JSON.parse(JSON.stringify(doc))
 }
 
-KCM.prototype.cloneRelationNamed = function(name) {
-  for (var id in this.docStores.relations) {
-    if (this.docStores.relations[id].name == name) {
-      return this.getDocClone(id, 'relation')
+KCM.prototype.cloneDocByTypeName = function(type, name) {
+  var store = this.storeForDocType(type)
+  if (store) {
+    for (var id in store) {
+      if (store[id].name == name) {
+        return this.getDocClone(id, type)
+      }
     }
   }
+}
+
+KCM.prototype.cloneRelationNamed = function(name) {
+  return this.cloneDocByTypeName('relation', name)
 }
 
 KCM.prototype.chainedBinaryRelationMembers = function(cbr) {
