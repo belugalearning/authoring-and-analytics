@@ -728,41 +728,39 @@ function getProblemInfoFromPList(plist, callback) {
       return
     }
 
-    var matchMETA_QUESTION = plistString.match(/<key>META_QUESTION<\/key>/i)
-      , matchValMETA_QUESTION_TITLE = plistString.match(/META_QUESTION_TITLE<\/key>\s*<string>([^<]+)/i)
-      , matchValTOOL_KEY = plistString.match(/TOOL_KEY<\/key>\s*<string>([^<]+)/i)
-      , matchValPROBLEM_DESCRIPTION = plistString.match(/PROBLEM_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
-      , matchValINTERNAL_DESCRIPTION = plistString.match(/INTERNAL_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
-      , matchNUMBER_PICKER = plistString.match(/<key>NUMBER_PICKER<\/key>/i)
-      , matchValNUMBER_PICKER_DESCRIPTION = plistString.match(/NUMBER_PICKER_DESCRIPTION<\/key>\s*<string>([^<]+)/i)
-      , isMetaQuestion = matchMETA_QUESTION && matchMETA_QUESTION.length > 0
-      , isNumberPicker = matchNUMBER_PICKER && matchNUMBER_PICKER.length > 0
-      , toolName = (matchValTOOL_KEY && matchValTOOL_KEY.length > 1 && matchValTOOL_KEY[1]) || ((isMetaQuestion || isNumberPicker) && 'NONE') // Meta Questions optionally have TOOL_KEY. Other questions must have TOOL_KEY
-      , internalDescription = matchValINTERNAL_DESCRIPTION && matchValINTERNAL_DESCRIPTION.length > 1 && matchValINTERNAL_DESCRIPTION[1] || ''
-      , problemDescription
+    var xmlDoc
 
-    if (isMetaQuestion) {
-      problemDescription = matchValMETA_QUESTION_TITLE && matchValMETA_QUESTION_TITLE.length > 1 && matchValMETA_QUESTION_TITLE[1]
-    } else if (isNumberPicker) {
-      problemDescription = matchValNUMBER_PICKER_DESCRIPTION && matchValNUMBER_PICKER_DESCRIPTION.length > 1 && matchValNUMBER_PICKER_DESCRIPTION[1]
-    } else {
-      problemDescription = matchValPROBLEM_DESCRIPTION && matchValPROBLEM_DESCRIPTION.length > 1 && matchValPROBLEM_DESCRIPTION[1]
-    }
-
-    if (!toolName || !problemDescription) {
-      if (typeof callback == 'function') callback(
-        'invalid plist - missing values for keys: '
-          + (toolName ? '' : ' TOOL_KEY')
-        + (toolName || problemDescription ? '' : ' and')
-        + (problemDescription ? '' : (isMetaQuestion ? ' META_QUESTION_TITLE' : (toolName == 'NUMBER_PICKER' ? 'NUMBER_PICKER_DESCRIPTION' : ' PROBLEM_DESCRIPTION')))
-      )
+    try {
+      xmlDoc = libxmljs.parseXmlString(plistString)
+    } catch(e) {
+      callback('could not parse plist')
       return
     }
 
-    var tool = kcm.cloneDocByTypeName('tool', toolName)
+    var stringValueForKey = function(key) {
+      var elm = xmlDoc.get(util.format('//string[preceding-sibling::key[1][text() = "%s"]]', key))
+      return elm && elm.text()
+    }
 
-    if (isMetaQuestion || isNumberPicker || tool) {
-      callback(null, plistString, problemDescription, tool && tool._id, internalDescription)
+    var toolName = stringValueForKey('TOOL_KEY')
+      , tool = toolName && kcm.cloneDocByTypeName('tool', toolName)
+      , isMetaQ = xmlDoc.get('//key[text() = "META_QUESTION"]')
+      , isNumberPicker = xmlDoc.get('//key[text() = "NUMBER_PICKER"]')
+      , desc = stringValueForKey( isMetaQ ? 'META_QUESTION_TITLE' : isNumberPicker ? 'NUMBER_PICKER_DESCRIPTION' : 'PROBLEM_DESCRIPTION' )
+      , internalDesc = stringValueForKey('INTERNAL_DESCRIPTION')
+      , missingStrings = []
+
+    if (!desc) missingStrings.push(descElmName)
+    if (!isMetaQ && !toolName) missingStrings.push('TOOL_KEY')
+
+    if (missingStrings.length) {
+      console.log('missingStrings:', missingStrings)
+      callback(util.format('invalid plist - missing strings for keys: "%s"', missingStrings.join('","')))
+      return
+    }
+
+    if (isMetaQ || isNumberPicker || tool) {
+      callback(null, plistString, desc, tool && tool._id, internalDesc)
     } else {
       callback(util.format('invalid plist. Could not retrieve tool with name "%s".', toolName), 500)
     }
