@@ -741,7 +741,6 @@ function getProblemInfoFromPList(plist, callback) {
       , internalDescription = matchValINTERNAL_DESCRIPTION && matchValINTERNAL_DESCRIPTION.length > 1 && matchValINTERNAL_DESCRIPTION[1] || ''
       , problemDescription
 
-
     if (isMetaQuestion) {
       problemDescription = matchValMETA_QUESTION_TITLE && matchValMETA_QUESTION_TITLE.length > 1 && matchValMETA_QUESTION_TITLE[1]
     } else if (isNumberPicker) {
@@ -759,14 +758,14 @@ function getProblemInfoFromPList(plist, callback) {
       )
       return
     }
-    queryView('tools-by-name', 'key', toolName, function(e,r,b) {
-      var rows = !e && r && r.statusCode == 200 && JSON.parse(b).rows
-      , toolId = rows && rows.length && rows[0].id
 
+    var tool = kcm.cloneDocByTypeName('tool', toolName)
 
-      if (toolId || isMetaQuestion || isNumberPicker) callback(null, plistString, problemDescription, toolId, internalDescription)
-      else callback(util.format('invalid plist. Could not retrieve tool with name "%s". -- Database callback: (error:%s, statusCode:%d)', toolName, e, r.statusCode), r.statusCode)
-    })
+    if (isMetaQuestion || isNumberPicker || tool) {
+      callback(null, plistString, problemDescription, tool && tool._id, internalDescription)
+    } else {
+      callback(util.format('invalid plist. Could not retrieve tool with name "%s".', toolName), 500)
+    }
   })
 }
 
