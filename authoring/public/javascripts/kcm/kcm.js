@@ -1818,11 +1818,11 @@
 
     var search = function() {
       var currMatch = matches[currMatchIx]
-        , s = $('input#map-search').val()
+        , s = $('input#map-search').val().toLowerCase()
         , nodes = $.map(kcm.nodes, function(n) { return n })
 
       if (s.length) {
-        matches = $.grep(nodes, function(n) { return ~n._id.indexOf(s) || ~n.nodeDescription.indexOf(s) })
+        matches = $.grep(nodes, function(n) { return ~n._id.toLowerCase().indexOf(s) || ~n.nodeDescription.toLowerCase().indexOf(s) })
       } else {
         matches = []
       }
