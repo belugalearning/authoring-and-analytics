@@ -16,11 +16,6 @@
         return $(a).text() === m[3]
       }
 
-  function nodesWithDescriptionsContaining(text) {
-    var nodes = $.map(kcm.nodes, function(n) { return n })
-    return $.grep(nodes, function(n) { return ~n.nodeDescription.indexOf(text) })
-  }
-
   $.fn.arrowRedraw = function() {
     $.each(this, function() {
       var gArrow = d3.select(this)
