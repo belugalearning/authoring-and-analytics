@@ -92,6 +92,12 @@ form#upload-plists { visibility:hidden; }
 [data-panel="export-settings"] .tags-box.empty { display:none; }
 [data-panel="export-settings"] .tags-box { margin-top:4px; }
 
+[data-panel="upload-pipeline-folder"] { margin-top:14px; }
+[data-panel="upload-pipeline-folder"] #file-holder { width:100%; height:188px; overflow:hidden; }
+[data-panel="upload-pipeline-folder"] .highlight-folder-upload { background-color:#f00; }
+[data-panel="upload-pipeline-folder"] .folder-icon { margin:30px auto; background-image:url('/images/uploads_folder.png'); height:128px; width:128px; }
+[data-panel="upload-pipeline-folder"] input#file-url[type="file"] { display:block; width:100%; margin-top:-210px; height:210px; overflow:hidden; background:transparent; cursor:pointer; }
+
 div#modal-bg { position:absolute; top:0; left:0; height:100%; width:100%; opacity:0.8; background-color:#000; }
 div#modal-dialog { position:absolute; padding:2px; margin:auto; top:25%; left:0; right:0; background-color:#fff; border:2px solid #555; }
 div#modal-dialog h1 { margin:2px; font-weight:800; font-size:14px; }
@@ -120,7 +126,6 @@ div#modal-dialog.new-link-details input#new-binary-relation-desc { display:none;
 div#modal-dialog.new-link-details div.new-relation input#new-binary-relation-desc { display:inline; }
 div#modal-dialog.new-link-details div.new-relation span#binary-relation-desc { display: none; }
 div#modal-dialog.new-link-details div.reverse-btn { margin-top:50px; text-align:center; }
-
 
 .button
 , #cancel-page-changes

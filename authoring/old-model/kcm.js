@@ -98,6 +98,7 @@ module.exports = function(config, kcmModel) {
     , insertBinaryRelation: insertBinaryRelation
     , addOrderedPairToBinaryRelation: addOrderedPairToBinaryRelation
     , removeOrderedPairFromBinaryRelation: removeOrderedPairFromBinaryRelation
+    , uploadPipelineFolder: uploadPipelineFolder
     , addNewPipelineToConceptNode: addNewPipelineToConceptNode
     , deletePipeline: deletePipeline
     , reorderConceptNodePipelines: reorderConceptNodePipelines
@@ -785,7 +786,7 @@ function getProblemInfoFromPList(plistString, callback) {
   try {
     xmlDoc = libxmljs.parseXmlString(plistString)
   } catch(e) {
-    return { error: 'could not parse plist' }
+    return { error: 'could not parse pdef - is pdef compiled?\n\n' + plistString }
   }
 
   var stringValueForKey = function(key) {
@@ -802,16 +803,16 @@ function getProblemInfoFromPList(plistString, callback) {
     , missingStrings = []
 
   if (!desc) missingStrings.push(descElmName)
-  if (!isMetaQ && !toolName) missingStrings.push('TOOL_KEY')
+  if (!isMetaQ && !isNumberPicker && !toolName) missingStrings.push('TOOL_KEY')
 
   if (missingStrings.length) {
     return { error:util.format('invalid plist - missing strings for keys: "%s"', missingStrings.join('","')) }
   }
 
   if (isMetaQ || isNumberPicker || tool) {
-    return { problemDescription:desc, internalDescription:internalDesc, toolId:tool._id }
+    return { problemDescription:desc, internalDescription:internalDesc, toolId:tool && tool._id }
   } else {
-    return { error:util.format('invalid plist. Could not retrieve tool with name "%s".', toolName) }
+    return { error:util.format('invalid plist. Could not retrieve tool with name "%s".\n\n%s', toolName, plistString) }
   }
 }
 
@@ -1353,6 +1354,108 @@ function removeOrderedPairFromBinaryRelation(user, relationId, relationRev, pair
   })
 }
 
+function uploadPipelineFolder(user, o, callback) {
+  var cn, pl
+    , errors = []
+    , docsToSave = []
+    , now = (new Date).toJSON()
+    , decodedPDef, info
+
+  if (typeof o.cnId != 'string') errors.push('string required for cnId') 
+  if (typeof o.cnRev != 'string') errors.push('string required for cnRev')
+  if (typeof o.plName !='string') errors.push('string required for plName')
+  if (Object.prototype.toString.call(o.pdefs) != '[object Array]') errors.push('array required for pdefs')
+  if (errors.length) {
+    callback(errors.join('\n'), 412)
+  }
+
+  cn = kcm.getDocClone(o.cnId, 'concept node')
+
+  if (!cn) {
+    callback(util.format('node with id="%s not found', o.cnId), 404)
+    return
+  }
+
+  if (cn._rev != o.cnRev) {
+    callback('concept node revision conflict', 409)
+    return
+  }
+
+  if (o.plId) {
+    if (typeof o.plRev != 'string') {
+      callback('revision required for pipeline', 412)
+      return
+    }
+
+    pl = kcm.getDocClone(o.plId, 'pipeline')
+
+    if (!pl) {
+      callback(util.format('pipeline with id="%s" not found', o.plId), 404)
+      return
+    }
+
+    if (pl._rev != o.plRev) {
+      callback('pipeline revision conflict', 409)
+      return
+    }
+
+    nextVersion(pl, user, 'uploadPipelineFolder')
+  } else {
+    pl = firstVersion(user, 'uploadPipelineFolder')
+    pl._id = generateUUID()
+    pl.type = 'pipeline'
+
+    docsToSave.push(cn)
+    nextVersion(cn, user, 'uploadPipelineFolder', pl._id)
+    cn.pipelines.push(pl._id)
+  }
+
+  docsToSave.push(pl)
+
+  pl.name = o.plName
+  pl.workflowStatus = 0
+  pl.problems = []
+
+  for (var i=0; i<o.pdefs.length; i++) {
+    pl.problems[i] = generateUUID()
+
+    decodedPDef = new Buffer(o.pdefs[i], 'base64').toString()
+    info = getProblemInfoFromPList(decodedPDef)
+
+    if (info.error) {
+      callback(util.format('error with problem %d of %d in pipeline: %s', i+1, o.pdefs.length, info.error), 500)
+      return
+    }
+
+    docsToSave.push({
+      _id: pl.problems[i]
+      , problemDescription: info.problemDescription
+      , internalDescription: info.internalDescription
+      , toolId: info.toolId
+      , dateCreated: now
+      , dateModified: now
+      , _attachments: {
+        'pdef.plist': {
+          'Content-Type': 'application/xml'
+          , data: o.pdefs[i]
+        }
+      }
+    })
+  }
+
+  request({
+    method:'POST'
+    , uri: databaseURI + '_bulk_docs'
+    , headers: { 'content-type':'application/json', accepts:'application/json' }
+    , body: JSON.stringify({ docs:docsToSave })
+  }, function(e,r,b) {
+    if (!r || 201 != r.statusCode) {
+      e = util.format('Error uploading docs. Database reported error: "%s"', e)
+    }
+    callback(e, r && r.statusCode)
+  })
+}
+
 function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptNodeRev, callback) {
   if (typeof pipelineName != 'string' || !pipelineName.length) {
     if ('function' == typeof callback) callback('BAD ARGS - pipelineName requires string', 412)
@@ -1382,7 +1485,6 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
   pl.name = pipelineName
   pl.problems = []
   pl.workflowStatus = 0
-  pl.revisions = []
 
   nextVersion(cn, user, 'addNewPipelineToConceptNode', pl._id)
   cn.pipelines.push(pl._id)

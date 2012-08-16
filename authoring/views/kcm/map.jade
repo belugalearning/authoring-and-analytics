@@ -97,6 +97,17 @@ block wrapper
               option(value="0") Untested
               option(value="32") In Testing
               option(value="64") Production-Ready
+    table(data-panel="upload-pipeline-folder")
+      thead
+        tr
+          th
+            | Upload Pipeline Folder
+      tbody
+        tr.field
+          td
+            div#file-holder
+              div.folder-icon
+              input#file-url(type="file", multiple, webkitdirectory, directory)
     form(id="upload-pdefs", action="/kcm/add-problems-to-pipeline", method="post", style="visibility:hidden;")
       input(type="text", name="pipeline-id")
       input(type="text", name="pipeline-rev")

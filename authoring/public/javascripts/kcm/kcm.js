@@ -12,6 +12,10 @@
     , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
     , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
 
+      $.expr[':'].texteq = function(a, i, m) {
+        return $(a).text() === m[3]
+      }
+
   function nodesWithDescriptionsContaining(text) {
     var nodes = $.map(kcm.nodes, function(n) { return n })
     return $.grep(nodes, function(n) { return ~n.nodeDescription.indexOf(text) })
@@ -140,6 +144,137 @@
     }
 
       $('form#upload-pdefs').ajaxForm();
+
+      // add texteq selector to jquery
+      $('#file-url')
+        .on('dragover', function(e) {
+          $('#file-holder').addClass('highlight-folder-upload')
+          $('#file-url').val('')
+        })
+        .on('dragleave dragend drop', function(e) {
+          $('#file-holder').removeClass('highlight-folder-upload')
+        })
+        .on('change', function(e) {
+          var metafile = '#meta-pipeline.plist'
+            , files = []
+            , numFilesToLoad = 0
+            , numFilesLoaded = 0
+            , fr
+            , cn, plName, pl, problems
+
+          var onanyload = function() {
+            var pdefs = []
+
+            if (++numFilesLoaded == numFilesToLoad) {
+              if (!cn) {
+                alert(metafile + ' required but missing')
+                return
+              }
+              
+              for (var i=0, p; p=problems[i]; i++) {
+                for (j=0, f; f=files[j]; j++) {
+                  if (f.name == p) {
+                    pdefs[i] = f.data
+                    break
+                  }
+                }
+                if (j == files.length) {
+                  alert('missing plist: ' + p)
+                  return
+                }
+              }
+
+              $.ajax({
+                url: '/kcm/pipelines/upload-pipeline-folder'
+                , type: 'POST'
+                , contentType: 'application/json'
+                , data: JSON.stringify({
+                  cnId: cn._id
+                  , cnRev: cn._rev
+                  , plId: pl && pl._id
+                  , plRev: pl && pl._rev
+                  , plName: plName
+                  , pdefs: pdefs
+                })
+                , success: function() {
+                  alert('successfully ' + (pl ? 'updated' : 'added new') + ' pipeline')
+                }
+                , error: ajaxErrorHandler('Error uploading pipeline')
+              })
+            }
+          }
+
+          for (var i=0, f; f = e.target.files[i]; i++) {
+            if (/.+\.plist$/.test(f.name)) {
+              numFilesToLoad++
+
+              fr = new FileReader()
+
+              if (f.name == metafile) {
+                fr.readAsText(f)
+                fr.onload = function(e) {
+                  var $meta
+                    , $problems
+                    , cnId
+
+                  try {
+                    $meta = $( $.parseXML(e.target.result) )
+                      .children('plist:first')
+                        .children('dict:first')
+                    
+                    $problems = $meta.children('key:texteq("PROBLEMS")').next()
+                    if (!$problems.length || $problems[0].tagName !== 'array') {
+                      alert('required but missing: array for key "PROBLEMS"')
+                      return
+                    }
+
+                    problems = $.map($problems.children('string'), function(s) {
+                      return $(s).text().replace(/^.*\/([^/]+\.plist)$/, '$1')
+                    })
+
+                    cnId = $meta.children('key:texteq("NODE_ID")').next().text()
+                    if (!cnId) {
+                      alert('required but missing: string for key "NODE_ID"')
+                      return
+                    }
+
+                    if (!kcm.nodes[cnId]) {
+                      alert('cannot find node matching string for key NODE_ID: ' + cnId)
+                      return
+                    }
+
+                    cn = kcm.nodes[cnId]
+
+                    plName = $meta.children('key:texteq("PIPELINE_NAME")').next().text()
+                    if (!plName) {
+                      alert('required but missing: string for key "PIPELINE_NAME"')
+                      return
+                    }
+
+                    for (var i=0, plId;  plId=cn.pipelines[i];  i++) {
+                      if (kcm.pipelines[plId].name == plName) {
+                        pl = kcm.pipelines[plId]
+                        break
+                      }
+                    }
+                    onanyload()
+                  } catch(e) {
+                    alert('invalid file: ' + metafile)
+                  }
+                }
+              } else {
+                fr.readAsDataURL(f)
+                fr.onload = (function(name) {
+                  return function(e) {
+                    var base64 = e.target.result.slice(13) // "data:;base64,".length == 13
+                    files.push( { name:name, data:base64 } )
+                    onanyload()
+                  }
+                })(f.name)
+              }
+            }
+          }
+        })
 
       $(window)
           .resize(layoutControls)
@@ -748,9 +883,14 @@
           insertConceptNode(mouse.xmap, mouse.ymap, 'NEW CONCEPT NODE')
         }
         break
-      case 70: if (!e.ctrlKey) break // ctrl + 'f'
-      case 191: // '/'
-        if (e.type == 'keyup' && !$('body > #modal-bg').length) displayMapSearch()
+      case 70:
+        if (e.ctrlKey && e.type == 'keydown' && !$('body > #modal-bg').length) displayMapSearch()
+        break // ctrl + 'f'
+      case 191:
+        if (!e.shiftKey) { // '/'
+          if (e.type == 'keyup' && !$('body > #modal-bg').length) displayMapSearch()
+        } else { // '?'
+        }
         break
     }
   }

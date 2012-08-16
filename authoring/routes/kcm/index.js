@@ -340,6 +340,12 @@ module.exports = function(config, kcm_model, kcm) {
             res.send(e, statusCode || 500);
         })
     }
+    , uploadPipelineFolder: function(req, res) {
+      // N.B. requires plists that are not compiled
+      kcmModel.uploadPipelineFolder(req.session.user._id, req.body, function(e, statusCode) {
+        res.send(e, statusCode || 500)
+      })
+    }
     , addNewPipelineToConceptNode: function(req, res) {
         var cnId = req.body.conceptNodeId
           , cnRev = req.body.conceptNodeRev
@@ -648,7 +654,7 @@ function decompileFormPList(plist, callback) {
                 }
 
                 if (!/BinaryToXML/.test(stdout)) {
-                    callback('error decompiling plist: plutil output format unrecognised');
+                    callback('plutil output format unrecognised');
                     return;
                 }
 

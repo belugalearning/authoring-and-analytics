@@ -110,10 +110,7 @@ function setupRoutes() {
   server.post('/kcm/insert-concept-node-tag', server.routeHandlers.kcm.insertConceptNodeTag)
   server.post('/kcm/delete-concept-node-tag', server.routeHandlers.kcm.deleteConceptNodeTag)
   server.post('/kcm/edit-concept-node-tag', server.routeHandlers.kcm.editConceptNodeTag)
-  server.post('/kcm/pipelines/upload-pipeline-folder', function(req,res) {
-    console.log('upload pipeline folder')
-    console.log(req.body)
-  })
+  server.post('/kcm/pipelines/upload-pipeline-folder', server.routeHandlers.kcm.uploadPipelineFolder)
   server.post('/kcm/insert-pipeline', server.routeHandlers.kcm.addNewPipelineToConceptNode)
   server.post('/kcm/delete-pipeline', server.routeHandlers.kcm.deletePipeline)
   server.put('/kcm/pipeline/:id/:rev/update-workflow-status/:status', server.routeHandlers.kcm.updatePipelineWorkflowStatus)
