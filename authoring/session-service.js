@@ -10,7 +10,7 @@ var sidKey = 'bl.authoring.sid'
 var connectSession = connect.session({
   store: sessionStore
   , key: sidKey
-  , cookie: { maxAge:600000 }
+  , cookie: { maxAge:3600000 } // 1 hour
   , secret: '1a4eca939f8e54fd41e3d74d64aa9187d9951aed50599986418d96180716579c1ec776fc17a96640e579e76481677c87'
 })
 
