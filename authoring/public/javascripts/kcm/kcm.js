@@ -142,11 +142,11 @@
 
       // add texteq selector to jquery
       $('#file-url')
-        .on('dragover', function(e) {
+        .on('dragover mousedown', function(e) {
           $('#file-holder').addClass('highlight-folder-upload')
           $('#file-url').val('')
         })
-        .on('dragleave dragend drop', function(e) {
+        .on('mouseup dragleave dragend drop', function(e) {
           $('#file-holder').removeClass('highlight-folder-upload')
         })
         .on('change', function(e) {
