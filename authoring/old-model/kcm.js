@@ -1429,6 +1429,7 @@ function uploadPipelineFolder(user, o, callback) {
 
     docsToSave.push({
       _id: pl.problems[i]
+      , type: 'problem'
       , problemDescription: info.problemDescription
       , internalDescription: info.internalDescription
       , toolId: info.toolId
