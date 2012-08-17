@@ -341,9 +341,43 @@ module.exports = function(config, kcm_model, kcm) {
         })
     }
     , uploadPipelineFolder: function(req, res) {
-      // N.B. requires plists that are not compiled
-      kcmModel.uploadPipelineFolder(req.session.user._id, req.body, function(e, statusCode) {
-        res.send(e, statusCode || 500)
+      var encodedCompiledFileStart = new Buffer('bplist').toString('base64')
+      var awaiting = req.body.pdefs.length
+      var sentError = false
+
+      var next = function(e) {
+        if (!sentError) {
+          if (e) {
+            sentError = true
+            res.send(e, 500)
+          } else {
+            if (!--awaiting) {
+              kcmModel.uploadPipelineFolder(req.session.user._id, req.body, function(e, statusCode) {
+                res.send(e, statusCode || 500)
+              })
+            }
+          }
+        }
+      }
+
+      req.body.pdefs.forEach(function(pdef, i) {
+        if (pdef.slice(0, encodedCompiledFileStart.length) == encodedCompiledFileStart) {
+          var path = '/tmp/' + kcmModel.generateUUID()
+          fs.writeFile(path, pdef, 'base64', function(e) {
+            decompileFormPList({ path: path }, function(e, decompiledPath) {
+              if (e) {
+                next(e)
+              } else {
+                fs.readFile(decompiledPath, 'base64', function(e, data) {
+                  if (!e) req.body.pdefs[i] = data
+                  next(e)
+                })
+              }
+            })
+          })
+        } else {
+          next()
+        }
       })
     }
     , addNewPipelineToConceptNode: function(req, res) {
