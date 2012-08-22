@@ -659,10 +659,10 @@ function queryView(view) {
 
       switch (valType) {
         case 'Null':
-          case 'Undefined':
+        case 'Undefined':
           return 'null'
         case 'Number':
-          case 'Boolean':
+        case 'Boolean':
           return val.toString()
         case 'String':
           return '%22' + encodeURIComponent(val) + '%22'
