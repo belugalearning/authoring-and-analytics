@@ -12,7 +12,8 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , couchServerURI
   , dbName
   , dbURI
-  , designDoc = 'logging-design-doc'
+  , genDesignDoc = 'logging-design-doc'
+  , userDesignDoc = 'user-related-views'
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
@@ -52,7 +53,7 @@ module.exports = function(config) {
   dbName = config.appWebService.loggingService.databaseName
   dbURI = couchServerURI + dbName + '/'
 
-  //updateDesignDoc()
+  //updateDesignDocs([userDesignDoc])
 
   processPendingBatches(function(numProcessed) {
     var f = arguments.callee
@@ -259,13 +260,58 @@ function processBatch(batch, callback) {
 }
 
 // design doc
-function updateDesignDoc(callback) {
-  var uri = dbURI + '_design/' + designDoc
+function updateDesignDocs(docsToUpdate, callback) {
+  if (Object.prototype.toString.call(docsToUpdate) !== '[object Array]') {
+    callback = docsToUpdate
+    docsToUpdate = [genDesignDoc, userDesignDoc]
+  }
+  
+  var toUpdate = 0
+  ~docsToUpdate.indexOf(genDesignDoc) && toUpdate++
+  ~docsToUpdate.indexOf(userDesignDoc) && toUpdate++
+  if (!toUpdate) {
+    callback(400, 'no docs to update')
+    return
+  }
 
-  console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
+  var sentError = false
 
+  var updateDesignDoc = function(docName, body, callback) {
+    var uri = dbURI + '_design/' + docName
+    console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
 
-  var body = {
+    request.get(uri, function(e,r,b) {
+      var error
+
+      if (!r) {
+        //TODO handle
+        error = 'error connecting to database'
+        console.log('LoggingService#updateDesignDocs() - ' +  error)
+        callback && callback(error, 500)
+        return
+      }
+
+      if (404 != r.statusCode && 200 != r.statusCode) {
+        var error = util.format('error retrieving design doc: "%s". Database Error: "%s"  Status Code:%d', docName, e, r.statusCode)
+        console.log('LoggingService#updateDesignDocs() - ' + error)
+        callback && callback(error, r.statusCode || 500)
+        return
+      }
+
+      if (r.statusCode == 200) body._rev = JSON.parse(b)._rev
+
+      request({
+        method:'PUT'
+        , uri: uri
+        , body: JSON.stringify(body)
+      }, function(e,r,b) {
+        console.log('LoggingService\t\t\tupdated design doc: "%s"\t\tstatusCode:%d error="%s"', docName, r.statusCode, e)
+        callback && callback(e, r.statusCode)
+      })
+    })
+  }
+
+  var genDocBody = {
     views: {
       'app-errors': {
         map: (function (doc) {
@@ -358,33 +404,45 @@ function updateDesignDoc(callback) {
     }
   }
 
-  request.get(uri, function(e,r,b) {
-    var error
+  var userDocBody = {
+    views: {
+      'problemattempt-events-by-user-date': {
+        map: (function(doc) {
+          var formatDate = function(secs) {
+            if (typeof secs != 'number' || isNaN(secs)) return null
+            var date = new Date(secs*1000)
+            return date.toJSON()
+          }
 
-    if (!r) {
-      //TODO handle
-      error = 'error connecting to database'
-      console.log('LoggingService#updateDesignDoc() - ' +  error)
-      callback && callback(error, 500)
-      return
+          if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) && doc.events.length) {
+            var startDate = formatDate(doc.events[0].date)
+            doc.events.forEach(function(event) {
+              emit([doc.user, startDate, doc._id, formatDate(event.date)], event.eventType)
+            })
+          } else if (doc.type == 'ProblemAttemptGOPoll' && Object.prototype.toString.call(doc.deltas)) {
+            doc.deltas.forEach(function(event) {
+              emit([doc.user, formatDate(doc.problemAttemptStartDate), doc.problemAttempt, formatDate(event.date)], event.delta)
+            })
+          }
+        }).toString()
+      }
     }
+  }
 
-    if (404 != r.statusCode && 200 != r.statusCode) {
-      var error = util.format('error retrieving design doc. Database Error: "%s"  Status Code:%d', e, r.statusCode)
-      console.log('LoggingService#updateDesignDoc() - ' + error)
-      callback && callback(error, r.statusCode || 500)
-      return
-    }
-
-    if (r.statusCode == 200) body._rev = JSON.parse(b)._rev
-
-    request({
-      method:'PUT'
-      , uri: uri
-      , body: JSON.stringify(body)
-    }, function(e,r,b) {
-      console.log('LoggingService\t\t\tupdated design doc:\tstatusCode:%d error="%s"', r.statusCode, e)
-      callback && callback(e, r.statusCode)
+  if (~docsToUpdate.indexOf(genDesignDoc)) {
+    updateDesignDoc(genDesignDoc, genDocBody, function(e, statusCode) {
+      if (!sentError) {
+        if (e) sentError = true
+        if (e || !--toUpdate) callback && callback(e, statusCode)
+      }
     })
-  })
+  }
+  if (~docsToUpdate.indexOf(userDesignDoc)) {
+    updateDesignDoc(userDesignDoc, userDocBody, function(e, statusCode) {
+      if (!sentError) {
+        if (e) sentError = true
+        if (e || !--toUpdate) callback && callback(e, statusCode)
+      }
+    })
+  }
 }
