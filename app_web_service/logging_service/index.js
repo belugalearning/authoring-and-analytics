@@ -417,11 +417,11 @@ function updateDesignDocs(docsToUpdate, callback) {
           if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) && doc.events.length) {
             var startDate = formatDate(doc.events[0].date)
             doc.events.forEach(function(event) {
-              emit([doc.user, startDate, doc._id, formatDate(event.date)], event.eventType)
+              emit([doc.user, startDate, doc._id, formatDate(event.date), doc.type], event.eventType)
             })
           } else if (doc.type == 'ProblemAttemptGOPoll' && Object.prototype.toString.call(doc.deltas)) {
             doc.deltas.forEach(function(event) {
-              emit([doc.user, formatDate(doc.problemAttemptStartDate), doc.problemAttempt, formatDate(event.date)], event.delta)
+              emit([doc.user, formatDate(doc.problemAttemptStartDate), doc.problemAttempt, formatDate(event.date), doc.type], event.delta)
             })
           }
         }).toString()
