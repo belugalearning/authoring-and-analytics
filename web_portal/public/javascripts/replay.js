@@ -65,6 +65,9 @@ function playPAIndex(pAIx) {
   if (!cache) cache = arguments.callee.cache = {}
   else if (cache.toId) clearTimeout(cache.toId)
 
+  $('g#game-objects').children().remove()
+  $('g#touch').children().remove()
+
   $('#curr-pa-events').html('')
   $('<div>').text(pa.id).css('color', '#8fa').appendTo('#curr-pa-events')
 
@@ -85,6 +88,33 @@ function playPAIndex(pAIx) {
     cache.toId = setTimeout((function() {
       delete cache.toId
       $('<div style="padding:2px 0;"/>').text(eText).insertAfter($('#curr-pa-events').children(':first')).css('color', typeTxtCols[e.docType])
+      
+      if (e.docType == 'ProblemAttemptGOPoll') {
+        e.value.forEach(function(goDelta) {
+          if (goDelta.status == 'ADD') {
+            d3.select('g#game-objects')
+              .append('g')
+                .attr('id', 'go-'+goDelta.id)
+                .attr('class', 'go')
+                .attr('transform', 'translate('+goDelta.x+','+(768-goDelta.y)+')')
+                .append('rect')
+                  .attr('width', 20)
+                  .attr('height', 20)
+                  .attr('transform', 'translate(-20,-20)')
+          } else if (goDelta.stus == 'REMOVE') {
+            $('#go-'+goDelta.id).remove()
+          } else {
+            if (typeof goDelta.x != 'undefined' || typeof goDelta.y != 'undefined') {
+              var go = d3.select('#go-'+goDelta.id)
+              var p = d3.transform(go.attr('transform')).translate
+              if (typeof goDelta.x != 'undefined') p[0] = goDelta.x
+              if (typeof goDelta.y != 'undefined') p[1] = 768 - goDelta.y
+              go.attr('transform', 'translate('+p[0]+','+p[1]+')')
+            }
+          }
+        })
+      }
+
       if (eIx--) nextEvent()
     }), timeUntilE)
   })()
