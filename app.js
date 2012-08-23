@@ -1,11 +1,11 @@
 var fs = require('fs')
   , _ = require('underscore')
-;
+  , WebPortal = require('./web_portal')
 
 var config = JSON.parse(fs.readFileSync(__dirname + '/config.json'))
   , appWebService = require('./app_web_service')(config)
   , authoring = require('./authoring')(config)
-;
+  , webPortal = new WebPortal(config)
 
 /*
  * NO LAUNCH OPTIONS AT THE MOMENT

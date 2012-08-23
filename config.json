@@ -1,19 +1,22 @@
 {
-    "couchServerURI": "http://localhost:5984"
-    , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
-    , "appWebService" : {
-        "port": 3000
-        , "loggingService": {
-            "databaseName": "june2012-logging"
-        }
-        , "usersService": {
-            "databaseName": "june2012-users"
-            , "databaseDesignDoc": "users-views"
-        }
+  "couchServerURI": "http://localhost:5984"
+  , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
+  , "appWebService" : {
+    "port": 3000
+    , "loggingService": {
+      "databaseName": "june2012-logging"
     }
-    , "authoring" : {
-        "port": 3001
-        , "kcmDatabaseName": "tmp-blm-kcm3"
-        , "kcmDatabaseDesignDoc": "kcm-views"
+    , "usersService": {
+      "databaseName": "june2012-users"
+      , "databaseDesignDoc": "users-views"
     }
+  }
+  , "authoring" : {
+    "port": 3001
+    , "kcmDatabaseName": "tmp-blm-kcm3"
+    , "kcmDatabaseDesignDoc": "kcm-views"
+  }
+  , "webPortal": {
+    "port": 3002
+  }
 }

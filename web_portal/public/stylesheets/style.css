@@ -1,0 +1,14 @@
+body { font-family:'PT Sans', arial, serif; font-size:11px; }
+
+/*h1 { color:#269FF5; }*/
+
+select#problem-attempts { margin-left:10px; width:170px; }
+
+div#parse-replays-log { position:absolute; width:980px; height:200px; top:820px; left:20px; background-color:#fff; overflow:scroll; border:1px solid black; padding:0 10px; }
+div#parse-replays-log > div { white-space:pre; font-family:Monaco, Monospace; font-size:10px; color:#494949; }
+
+div#curr-pa-events { word-wrap:break-word; height:688px; width:400px; margin:10px; padding:5px; overflow:scroll; border:1px solid black; }
+
+svg#screen { width:1024px; height:768px; position:absolute; top:20px; left:480px; border:1px solid #ddd; }
+
+div.gripper { position:absolute; left:0; top:0; width:10px; height:10px; cursor:pointer; background-color:#eee; }

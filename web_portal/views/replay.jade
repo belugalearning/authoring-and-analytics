@@ -1,0 +1,14 @@
+extends layout
+
+block additionalScripts
+  script
+    var replayData = !{JSON.stringify(replayData,null,2)}
+  script(src='/javascripts/replay.js', type='text/javascript')
+
+block wrapper
+  select#problem-attempts
+    option(value="0") Select a problem attempt
+  div#curr-pa-events 
+  div#parse-replays-log 
+    div.gripper
+  svg#screen
