@@ -408,20 +408,32 @@ function updateDesignDocs(docsToUpdate, callback) {
     views: {
       'problemattempt-events-by-user-date': {
         map: (function(doc) {
+          var type = doc.type
+          if (doc.type != 'ProblemAttempt' && doc.type != 'ProblemAttemptGOPoll' && (doc.type != 'TouchLog' || doc.context != 'ProblemAttempt')) return
+
           var formatDate = function(secs) {
             if (typeof secs != 'number' || isNaN(secs)) return null
             var date = new Date(secs*1000)
             return date.toJSON()
           }
 
-          if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) && doc.events.length) {
-            var startDate = formatDate(doc.events[0].date)
-            doc.events.forEach(function(event) {
-              emit([doc.user, startDate, doc._id, formatDate(event.date), doc.type], event.eventType)
+          var ur = doc.user
+            , pa = type == 'ProblemAttempt' ? doc._id : doc.problemAttempt
+            , paStart = formatDate( type == 'ProblemAttempt' ? doc.events[0].date : doc.problemAttemptStartDate ) 
+
+          if (type == 'ProblemAttempt') {
+            Object.prototype.toString.call(doc.events) == '[object Array]' && doc.events.forEach(function(event) {
+              emit([ur, paStart, pa, formatDate(event.date), type], event.eventType)
             })
-          } else if (doc.type == 'ProblemAttemptGOPoll' && Object.prototype.toString.call(doc.deltas)) {
-            doc.deltas.forEach(function(event) {
-              emit([doc.user, formatDate(doc.problemAttemptStartDate), doc.problemAttempt, formatDate(event.date), doc.type], event.delta)
+          } else if (type == 'ProblemAttemptGOPoll') {
+            Object.prototype.toString.call(doc.deltas) == '[object Array]' && doc.deltas.forEach(function(event) {
+              emit([ur, paStart, pa, formatDate(event.date), type], event.delta)
+            })
+          } else if (type == 'TouchLog') {
+            Object.prototype.toString.call(doc.touches) == '[object Array]' && doc.touches.forEach(function(touch) {
+              Object.prototype.toString.call(touch.events) == '[object Array]' && touch.events.forEach(function(event) {
+                emit([ur, paStart, pa, formatDate(event.date), type], { index:touch.index, phase:event.phase, x:event.x, y:event.y })
+              })
             })
           }
         }).toString()
