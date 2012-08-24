@@ -12,6 +12,7 @@ module.exports = function(config, kcm_model, kcm) {
 
   return {
     pullReplicate: function(req, res) {
+      // TODO: ffs, use QueryString or URL modules maybe?
         var sourceMatch = req.url.match(/(?:\?|\&)source\=([^&]+)/)
           , filterMatch = req.url.match(/(?:\?|\&)filter\=([^&]+)/)
           , continuousMatch = req.url.match(/(?:\?|\&)continuous\=([^&]+)/)
