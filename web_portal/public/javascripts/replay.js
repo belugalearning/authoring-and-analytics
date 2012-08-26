@@ -1,4 +1,4 @@
-var minTickTime = 5 // time in ms. setInterval() on Chrome has min delay of c. 5ms so this value should not be set <5. Increased further for performance.
+var minTickTime = 5 // time in ms. setInterval() on Chrome has min delay of c.5ms so this value should not be set <5. Increase if required further for performance.
   , problemAttempts = []
   , currPAData
   , showEventText = true
