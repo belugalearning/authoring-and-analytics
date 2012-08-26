@@ -1,16 +1,30 @@
-body { font-family:'PT Sans', arial, serif; font-size:11px; }
+body { font-family:'PT Sans', arial, serif; font-size:11px; background-color:#181818; color:#0f0; }
 
-/*h1 { color:#269FF5; }*/
+h1 { color:#269FF5; }
 
-select#problem-attempts { margin-left:10px; width:170px; }
+*[data-doc-type="ProblemAttempt"].doc-type-color, [data-doc-type="ProblemAttempt"] .doc-type-color { color:#0F0; fill:#0F0; }
+*[data-doc-type="ProblemAttemptGOPoll"].doc-type-color, [data-doc-type="ProblemAttemptGOPoll"] .doc-type-color { color:#269FF5; fill:#269FF5; }
+*[data-doc-type="TouchLog"].doc-type-color, [data-doc-type="TouchLog"] .doc-type-color { color:#FF0090; fill:#FF0090; }
 
-div#parse-replays-log { position:absolute; width:980px; height:200px; top:820px; left:20px; background-color:#fff; overflow:scroll; border:1px solid black; padding:0 10px; }
-div#parse-replays-log > div { white-space:pre; font-family:Monaco, Monospace; font-size:10px; color:#494949; }
+select#problem-attempts { margin:0 0 10px 3px; width:170px; }
 
-div#curr-pa-events { word-wrap:break-word; height:688px; width:400px; margin:10px; padding:5px; overflow:scroll; border:1px solid black; }
+div#parse-replays-log { position:absolute; width:980px; height:200px; top:820px; left:10px; background-color:#000; overflow:scroll; border:2px solid #222; padding:0 10px; display:none; }
+div#parse-replays-log > div { white-space:pre; font-family:Monaco, Monospace; font-size:10px; color:#0f0; }
 
-div#screen-wrapper { position:absolute; top:20px; left:480px; }
-svg#screen { width:1024px; height:768px; border:1px solid #ddd; }
-g.go > rect { fill:#9FD7DD; stroke-width:0; }
+div#curr-pa-events { word-wrap:break-word; height:700px; width:500px; margin-bottom:5px; padding:5px; overflow:scroll; border:1px solid #CC0; background-color:#000; }
+div#curr-pa-events > div { padding:2px 0; }
+div#curr-pa-events div { white-space:pre; }
 
-div.gripper { position:absolute; left:0; top:0; width:10px; height:10px; cursor:pointer; background-color:#eee; }
+div#screen-wrapper { position:absolute; top:20px; left:535px; }
+svg#screen { width:1024px; height:768px; border:1px solid #CC0; }
+g.go > rect { stroke-width:0; }
+g.touch > circle { /*fill-opacity:0.5;*/ stroke-width:0; }
+g.touch > text { text-anchor:middle; dominant-baseline:central; font-weight:600; font-size:13px; }
+
+div#time-display { width:120px; height:11px; padding:2px 4px; margin:5px 5px 0 0; border:1px solid #CC0; color:#CC0; font-family:Menlo, Monospace; float:left; }
+div#timeline { width:891px; height:15px; margin-top:5px; border:1px solid #CC0; float:left; }
+div#progress { width:0; height:100%; background-color:#CC0; }
+
+div.gripper { position:relative; left:-10px; top:0; width:30px; height:10px; margin-bottom:-5px; cursor:pointer; background-color:#0F0; }
+
+.no-select { -webkit-touch-callout:none; -webkit-user-select:none; -khtml-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; } 

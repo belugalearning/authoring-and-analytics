@@ -34,15 +34,17 @@ function WebPortal(config) {
 
   console.log("WebPortal Express server listening on port %d in %s mode", server.address().port, server.settings.env)
 
-  //problemattempt-events-by-user-date
+  //var ur = '66D9E2CC-08DE-4198-8F0C-DB9C3B43B97F'
+  var ur = "25D71875-F035-4A47-87A3-82D9B7EEF55E"
 
   var qs = {
-    startkey: [ "25D71875-F035-4A47-87A3-82D9B7EEF55E", {} ]
-    , endkey: [ "25D71875-F035-4A47-87A3-82D9B7EEF55E" ]
+    startkey: [ ur, {} ]
+    , endkey: [ ur ]
     , descending: true
   }
 
-  url = format( '%s/%s/_design/%s/_view/%s%s', config.couchServerURI, config.appWebService.loggingService.databaseName, 'user-related-views', 'problemattempt-events-by-user-date', formatQueryString(qs) )
+  url = format( '%s/%s/_design/user-related-views/_view/problemattempt-events-by-user-date%s', config.couchServerURI, config.appWebService.loggingService.databaseName, formatQueryString(qs) )
+  console.log('Web Portal get data url:\n\t%s', url)
 
   server.get('/', function(req,res) {
     request.get(url, function(e,r,b) {

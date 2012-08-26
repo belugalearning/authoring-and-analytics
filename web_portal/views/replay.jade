@@ -8,10 +8,17 @@ block additionalScripts
 block wrapper
   select#problem-attempts
     option(value="0") Select a problem attempt
-  div#curr-pa-events 
-  div#parse-replays-log 
-    div.gripper
+  br
+  input#event-text-visibility(type="checkbox", checked="checked", name="event-text-visibility")
+  label(for="event-text-visibility") Event Text
   div#screen-wrapper
     svg#screen
       g#game-objects
-      g#touch
+      g#touches
+    div#play-controls
+      div#time-display
+      div#timeline
+        div#progress
+  div#curr-pa-events 
+  div#parse-replays-log 
+    div.gripper
