@@ -218,6 +218,7 @@ function showCurrentEventBlock() {
 function play() {
   if (!currPAData) return
   if (currPAData.timerId) clearInterval(currPAData.timerId)
+  if (getProgress() >= 1) setProgress(0)
 
   var duration = currPAData.duration
     , startPlayingRelTime = duration * getProgress()
