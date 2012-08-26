@@ -288,7 +288,9 @@ $(function() {
   populateProblemAttempts(replayData)
 
   $('select#problem-attempts').on('change', function(e) {
-    $(e.target).children('[value="0"]').remove()
+    $(e.target)
+      .blur()
+      .children('[value="0"]').remove()
     loadPA($(e.target).children('[selected]').index())
   })
 
@@ -340,4 +342,10 @@ $(function() {
   })
 
   $('input#event-text-visibility').on('change', function(e) { setEventTextVisibility($(this).prop('checked')) })
+
+  $(window).on('keydown', function(e) {
+    var focusedEl = $('*:focus')[0]
+    if (focusedEl && ~['input','select'].indexOf(focusedEl.tagName.toLowerCase())) return
+    if (e.keyCode == 32 && !stop()) play()
+  })
 })
