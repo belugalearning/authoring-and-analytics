@@ -227,10 +227,7 @@ function play() {
   currPAData.timerId = setInterval((function() {
     var relTime = startPlayingRelTime + new Date().getTime() - startPlayingAbsTime
     setProgress(relTime / duration)
-    if (relTime >= duration) {
-      clearInterval(currPAData.timerId)
-      currPAData.timerId = null
-    }
+    if (relTime >= duration) stop()
   }), minTickTime)
 }
 
