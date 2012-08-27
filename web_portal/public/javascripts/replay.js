@@ -259,11 +259,7 @@ function setProgress(progress) {
   }
 
   $('#progress').width((100*progress) + '%')
-
-  var relTimeS = progress * duration / 1000
-  var m = Math.floor(relTimeS / 60).toString()
-  var s = (relTimeS % 60).toFixed(1)
-  $('#time-display').text(relTimeToFormattedString(progress * duration) + ' / ' + currPAData.formattedDurationString)
+  $('#time-display').text( relTimeToFormattedString(progress * duration)  + ' / '  + currPAData.formattedDurationString )
 }
 
 function getProgress() {
