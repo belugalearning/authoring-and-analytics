@@ -2,15 +2,28 @@ extends layout
 
 block additionalScripts
   script
-    var replayData = !{JSON.stringify(replayData,null,2)}
+    var users = !{JSON.stringify(users)}
   script(src='/javascripts/replay.js', type='text/javascript')
 
 block wrapper
-  select#problem-attempts
-    option(value="0") Select a problem attempt
-  br
+  table
+    tbody
+      tr
+        td.label User: 
+        td
+          div#user-search
+            input#user(type="text")
+            br
+            div#matching-users
+      tr
+        td.label Problem Attempt:
+        td
+          select#problem-attempts
+            option(value="0") Select a problem attempt
   input#event-text-visibility(type="checkbox", checked="checked", name="event-text-visibility")
   label(for="event-text-visibility") Event Text
+  br
+  div#curr-pa-events 
   div#screen-wrapper
     svg#screen
       g#game-objects
@@ -19,6 +32,5 @@ block wrapper
       div#time-display
       div#timeline
         div#progress
-  div#curr-pa-events 
   div#parse-replays-log 
     div.gripper

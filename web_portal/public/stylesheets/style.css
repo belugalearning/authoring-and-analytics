@@ -2,20 +2,32 @@ body { font-family:'PT Sans', arial, serif; font-size:11px; background-color:#18
 
 h1 { color:#269FF5; }
 
+table { margin:20px 0 30px 0; }
+td.label { font-size:13px; }
+td { padding-bottom: 10px; }
+
+input#user[type="text"] { width:400px; background-color:#222; color:#CC0; border:1px solid #CC0; padding:2px 4px; }
+input#user[type="text"].no-match { color:#F55; border-color:#F55; }
+input#user[type="text"]:focus { outline:none; }
+div#matching-users { display:none; position:absolute; background-color:#222; border:1px solid #CC0; width:405px; }
+div#matching-users > div { padding:3px; cursor:pointer; white-space:pre; }
+div#matching-users > div:focus { outline:none; background-color:#CC0; color:#222; }
+div#matching-users > div:hover { color:#269FF5; }
+
 *[data-doc-type="ProblemAttempt"].doc-type-color, [data-doc-type="ProblemAttempt"] .doc-type-color { color:#0F0; fill:#0F0; }
 *[data-doc-type="ProblemAttemptGOPoll"].doc-type-color, [data-doc-type="ProblemAttemptGOPoll"] .doc-type-color { color:#269FF5; fill:#269FF5; }
 *[data-doc-type="TouchLog"].doc-type-color, [data-doc-type="TouchLog"] .doc-type-color { color:#FF0090; fill:#FF0090; }
 
-select#problem-attempts { margin:0 0 10px 3px; width:170px; }
+select#problem-attempts { margin-bottom:0px; width:270px; }
 
 div#parse-replays-log { position:absolute; width:980px; height:200px; top:820px; left:10px; background-color:#000; overflow:scroll; border:2px solid #222; padding:0 10px; display:none; }
 div#parse-replays-log > div { white-space:pre; font-family:Monaco, Monospace; font-size:10px; color:#0f0; }
 
-div#curr-pa-events { word-wrap:break-word; height:700px; width:500px; margin-bottom:5px; padding:5px; overflow:scroll; border:1px solid #CC0; background-color:#000; }
+div#curr-pa-events { word-wrap:break-word; height:610px; width:500px; margin:0 20px 5px 0; padding:5px; overflow:scroll; border:1px solid #CC0; background-color:#000; float:left; }
 div#curr-pa-events > div { padding:2px 0; }
 div#curr-pa-events div { white-space:pre; }
 
-div#screen-wrapper { position:absolute; top:20px; left:535px; }
+div#screen-wrapper { float:left; position:absolute; top:10px; left:540px; }
 svg#screen { width:1024px; height:768px; border:1px solid #CC0; }
 g.go > rect { stroke-width:0; }
 g.touch > circle { /*fill-opacity:0.5;*/ stroke-width:0; }

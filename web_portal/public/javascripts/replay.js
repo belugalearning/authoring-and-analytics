@@ -1,4 +1,6 @@
 var minTickTime = 5 // time in ms. setInterval() on Chrome has min delay of c.5ms so this value should not be set <5. Increase if required further for performance.
+  , selectedUser
+  , urPAEvents
   , problemAttempts = []
   , currPAData
   , showEventText = true
@@ -48,10 +50,6 @@ function populateProblemAttempts(baseData) {
 
   if (!hasPollData && problemAttempts.length) problemAttempts.pop()
   else $div.appendTo($('#parse-replays-log'))
-
-  problemAttempts.forEach(function(pa) {
-    $('select#problem-attempts').append($('<option value="'+pa.id+'">' + (pa.date || 'null').replace(/T|(\.\d{3}Z)/g, ' &nbsp; ') + '</option>'))
-  })
 }
 
 function loadPA(pAIx) {
@@ -163,6 +161,7 @@ function createPAElements() {
   go.enter().append('g')
     .attr('data-doc-type', 'ProblemAttemptGOPoll')
     .attr('class', 'go')
+    .attr('style', function(go) { return 'display:' + go.states[0].display + ';' })
     .append('rect')
       .attr('class', 'doc-type-color')
       .attr('width', 20)
@@ -172,6 +171,7 @@ function createPAElements() {
   touch.enter().append('g')
     .attr('data-doc-type', 'TouchLog')
     .attr('class', 'touch')
+    .attr('style', function(touch) { return 'display:' + touch.states[0].display + ';' })
     .each(function(touch) {
       d3.select(this).append('circle')
         .attr('class', 'doc-type-color')
@@ -279,13 +279,9 @@ function relTimeToFormattedString(ms) {
 }
 
 $(function() {
-  populateProblemAttempts(replayData)
-
   $('select#problem-attempts').on('change', function(e) {
-    $(e.target)
-      .blur()
-      .children('[value="0"]').remove()
-    loadPA($(e.target).children('[selected]').index())
+    $(this).blur()
+    window.location.hash = '/user/' + selectedUser.id + '/problem-attempt/' + $(this).val()
   })
 
   $('.gripper').on('mousedown', function(e) {
@@ -337,9 +333,193 @@ $(function() {
 
   $('input#event-text-visibility').on('change', function(e) { setEventTextVisibility($(this).prop('checked')) })
 
-  $(window).on('keydown', function(e) {
-    var focusedEl = $('*:focus')[0]
-    if (focusedEl && ~['input','select'].indexOf(focusedEl.tagName.toLowerCase())) return
-    if (e.keyCode == 32 && !stop()) play()
-  })
+  $('input#user')
+    .on('keyup paste cut', function(e) {
+      var matches = []
+        , $input = $(this)
+
+      if (e.keyCode === 27) return // handled by $(window).on('keydown', 'input#user'....)
+
+      // input value only updated for cut/paste after 0 second delay
+      setTimeout(function() {
+        var val = $input.val()
+
+        if (val.length) {
+          var re = new RegExp('^' + val.replace(/([^0-9a-z])/ig, '\\$1'), 'i')
+          matches = users.filter(function(ur) { return re.test(ur.id) || re.test(ur.name) })
+        }
+
+        !val.length || matches.length ? $input.removeClass('no-match') : $input.addClass('no-match')
+
+        var sel = d3.select('#matching-users').selectAll('div').data(matches)
+        sel.exit().remove()
+        sel.enter().append('div')
+          .attr('class', 'user-match')
+          .attr('tabindex', -1)
+        sel.text(function(ur, i) { return ur.name + ' | ' + ur.id })
+        $('#matching-users').css('display', matches.length ? 'block' : 'none')
+      }, 0)
+    })
+
+  $('div#matching-users')
+    .on('keydown click', 'div.user-match', function(e) {
+      if (e.type == 'click' || e.keyCode == 13) {
+        window.location.hash = '/user/' + d3.select(this).data()[0].id
+        $('#matching-users').css('display', 'none')
+      }
+    })
+
+  $(window)
+    .on('keydown', 'input#user, div.user-match', function(e) {
+      var $input = $('input#user')
+        , $match
+
+      switch(e.keyCode) {
+        case 13: // return
+          break;
+        case 38: // up
+        case 40: // down
+          if (e.keyCode == 38) {
+            $match = this == $input[0] ? $('.user-match:last') : $(this).prev()
+          } else if (e.keyCode == 40) {
+            $match = this == $input[0] ? $('.user-match:first') : $(this).next()
+          }
+          if (!$match.length) $('input#user').focus()
+          else $match.focus()
+          break;
+        case 27: // escape
+          if (this == $input[0]) {
+            $input.blur()
+          } else {
+            $input.focus()
+          }
+          $input.removeClass('no-match')
+          break;
+      }
+    })
+    .on('focusout', 'input#user, div.user-match', function(e) {
+      // next element only gets focus after 0 second delay
+      setTimeout(function() {
+        var $focus = $('*:focus')
+          , $input = $('input#user')
+        if (!$focus.hasClass('user-match') && $focus[0] != $input[0]) {
+          $('div#matching-users').css('display', 'none')
+          $input
+            .val(selectedUser ? selectedUser.name : '')
+            .removeClass('no-match')
+        }
+      }, 0)
+    })
+    .on('keydown', function(e) {
+      var focusedEl = $('*:focus')[0]
+      if (focusedEl && ~['input','select'].indexOf(focusedEl.tagName.toLowerCase())) return
+      if ($(focusedEl).hasClass('user-match')) return
+      if (e.keyCode == 32 && !stop()) play()
+    })
+    .on('hashchange', function(e) {
+      var hash = window.location.hash
+        , baseHash = '/user/'
+        , urId
+        , matchingUr
+        , matchPA
+        , paId
+
+      var clearUser = function() {
+        selectedUser = null
+        problemAttempts = []
+        $('select#problem-attempts').children().remove()
+        $('input#user').val('')
+      }
+
+      stop()
+      $('#time-display').html('')
+      $('#progress').width(0)
+      currPAData = null
+      d3.select('div#curr-pa-events').selectAll('div').remove()
+      d3.select('g#game-objects').selectAll('g.go').remove()
+      d3.select('g#touches').selectAll('g.touch').remove()
+
+      if (!/^#\/user\//.test(hash)) {
+        window.location.hash = baseHash
+        return
+      }
+
+      urId = hash.match(/^#\/user\/([^/]*)/)[1]
+
+      if (!urId.length) {
+        clearUser()
+        return
+      }
+
+      for (var i=0; matchingUr=users[i]; i++) {
+        if (matchingUr.id == urId) break
+      }
+
+      if (!matchingUr) {
+        alert('could not find user with id="' + urId + '"')
+        window.location.hash = baseHash
+        return
+      }
+
+      matchPA = function() {
+        var paRE = /^#\/user\/[^/]+\/problem-attempt\/([^/]+)/
+          , paREMatch = window.location.hash.match(paRE)
+          , paId = paREMatch && paREMatch[1]
+          , urBaseHash = baseHash + selectedUser.id + '/'
+          , $sel = $('select#problem-attempts') 
+          , $option
+        
+        if (!paId) {
+          if (hash != urBaseHash) window.location.hash = baseHash + selectedUser.id + '/'
+          return
+        }
+
+        $option = $sel.children('[value="'+paId+'"]')
+
+        if (!$option.length) {
+          $sel.prepend('<option value="0">Select a problem attempt</option>')
+          $sel.val(0)
+          alert('problem attempt with id="' + paId + '" not found for user with id="' + selectedUser.id + '"') 
+          window.location.hash = urBaseHash
+          return
+        }
+
+        console.log($sel.children('[value="0"]'))
+
+        $sel
+          .val(paId)
+          .children('[value="0"]').remove()
+        loadPA($option.index())
+      }
+
+      if (selectedUser == matchingUr) {
+        matchPA()
+      } else {
+        clearUser()
+        $.ajax({
+          url: '/pa-events-for-user/' + matchingUr.id
+          , method: 'GET'
+          , error: function(e) {
+            alert('error retrieving problem attempt events for user with id="' + matchingUr.id + '"\n' + e)
+          }
+          , success: function(events) {
+            var $sel =  $('select#problem-attempts')
+
+            selectedUser = matchingUr
+            $('input#user').val(selectedUser.name)
+
+            populateProblemAttempts(events)
+
+            $sel.children().remove()
+            $sel.append('<option value="0">Select a problem attempt</option>')
+            problemAttempts.forEach(function(pa) {
+              $sel.append($('<option value="'+pa.id+'">' + (pa.date || 'null').replace(/T|(\.\d{3}Z)/g, ' &nbsp; ') + '</option>'))
+            })
+
+            matchPA()
+          }
+        })
+      }
+    })
+    .trigger('hashchange')
 })

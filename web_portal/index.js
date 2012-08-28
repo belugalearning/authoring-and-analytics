@@ -34,27 +34,43 @@ function WebPortal(config) {
 
   console.log("WebPortal Express server listening on port %d in %s mode", server.address().port, server.settings.env)
 
-  //var ur = '66D9E2CC-08DE-4198-8F0C-DB9C3B43B97F'
-  var ur = "25D71875-F035-4A47-87A3-82D9B7EEF55E"
+  server.get('/', function(req,res) {
+    self.usersByNick(function(e,r,b) {
+      var users
+        , sc = r && r.statusCode || 500
 
+      if (sc === 200) {
+        users = _.map(JSON.parse(b).rows, function(r) { return { id:r.id, name:r.key } })
+        res.render('replay', { title:'Problem Attempt Replay', users:users })
+      } else {
+        res.send(format('error retrieving users. Error="%s" SortCode=%d', e, sc), sc)
+      }
+    })
+  })
+  server.get('/pa-events-for-user/:urId', function(req,res) {
+    self.paEventsForUr(req.params.urId, function(e,r,b) {
+      var sc = r && r.statusCode || 500
+        , body
+      if (sc === 200) body = JSON.parse(b).rows
+      else body = format('error retrieving problem attempt events for user="%s". Error="%s" SortCode=%d', ur, e, sc)
+      res.send(body, sc)
+    })
+  })
+}
+
+WebPortal.prototype.paEventsForUr = function(ur, callback) {
   var qs = {
     startkey: [ ur, {} ]
     , endkey: [ ur ]
     , descending: true
   }
+  var url = format( '%s/%s/_design/user-related-views/_view/problemattempt-events-by-user-date%s', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName, formatQueryString(qs) )
+  request.get(url, callback)
+}
 
-  url = format( '%s/%s/_design/user-related-views/_view/problemattempt-events-by-user-date%s', config.couchServerURI, config.appWebService.loggingService.databaseName, formatQueryString(qs) )
-  console.log('Web Portal get data url:\n\t%s', url)
-
-  server.get('/', function(req,res) {
-    request.get(url, function(e,r,b) {
-      if (!r || r.statusCode != 200) {
-        res.send(e, 500)
-        return
-      }
-      res.render('replay', { title:'Problem Attempt Replay', replayData:JSON.parse(b).rows })
-    })
-  })
+WebPortal.prototype.usersByNick = function(callback) {
+  var url = format('%s/%s/_design/%s/_view/users-by-nick', this.config.couchServerURI, this.config.appWebService.usersService.databaseName, this.config.appWebService.usersService.databaseDesignDoc)
+  request.get(url, callback)
 }
 
 function formatQueryString(o) {
@@ -63,3 +79,4 @@ function formatQueryString(o) {
       return key + '=' + encodeURIComponent( JSON.stringify(val) )
     }).join('&')
 }
+
