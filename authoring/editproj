@@ -1,4 +1,4 @@
 #! /bin/bash
 
 DIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-vim -p $DIR/index.js $DIR/old-model/kcm.js $DIR/routes/kcm/index.js $DIR/kcm/index.js $DIR/kcm-websocket-server.js $DIR/public/javascripts/kcm/kcm.js $DIR/../config.json
+vim -p $DIR/index.js $DIR/old-model/kcm.js $DIR/routes/kcm/index.js $DIR/kcm/index.js $DIR/kcm-websocket-server.js $DIR/public/javascripts/kcm/kcm.js $DIR/../config.json $DIR/../web_portal/index.js $DIR/../web_portal/public/javascripts/replay.js $DIR/../web_portal/public/stylesheets/style.css $DIR/../web_portal/views/replay.jade
