@@ -23,9 +23,16 @@ select#problem-attempts { margin-bottom:0px; width:270px; }
 div#parse-replays-log { position:absolute; width:980px; height:200px; top:820px; left:10px; background-color:#000; overflow:scroll; border:2px solid #222; padding:0 10px; display:none; }
 div#parse-replays-log > div { white-space:pre; font-family:Monaco, Monospace; font-size:10px; color:#0f0; }
 
+ul#filter-events { margin:0; padding:0; }
+ul#filter-events > li { display:inline; list-style-type:none; padding-right:10px; }
+ul#filter-events.hide-all > li[data-doc-type] { display:none; }
+
 div#curr-pa-events { word-wrap:break-word; height:610px; width:500px; margin:0 20px 5px 0; padding:5px; overflow:scroll; border:1px solid #CC0; background-color:#000; float:left; }
-div#curr-pa-events > div { padding:2px 0; }
+div#curr-pa-events div[data-doc-type] { padding:1px 0; }
 div#curr-pa-events div { white-space:pre; }
+div#curr-pa-events.hideProblemAttempt div[data-doc-type="ProblemAttempt"] { display:none; }
+div#curr-pa-events.hideProblemAttemptGOPoll div[data-doc-type="ProblemAttemptGOPoll"] { display:none; }
+div#curr-pa-events.hideTouchLog div[data-doc-type="TouchLog"] { display:none; }
 
 div#screen-wrapper { float:left; position:absolute; top:10px; left:540px; }
 svg#screen { width:1024px; height:768px; border:1px solid #CC0; }

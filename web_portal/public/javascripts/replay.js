@@ -331,7 +331,17 @@ $(function() {
       })
   })
 
-  $('input#event-text-visibility').on('change', function(e) { setEventTextVisibility($(this).prop('checked')) })
+  $('input#event-text-visibility').on('change', function(e) {
+    var f = $(this).prop('checked') ? 'removeClass' : 'addClass'
+    $(this).closest('ul')[f]('hide-all')
+    setEventTextVisibility($(this).prop('checked'))
+  })
+
+  $('ul#filter-events > li[data-doc-type] > input').on('change', function(e) {
+    var cssClass = 'hide' + $(this).parent().attr('data-doc-type')
+      , f =  $(this).prop('checked') ? 'removeClass' : 'addClass'
+    $('div#curr-pa-events')[f](cssClass)
+  })
 
   $('input#user')
     .on('keyup paste cut', function(e) {

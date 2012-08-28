@@ -20,9 +20,19 @@ block wrapper
         td
           select#problem-attempts
             option(value="0") Select a problem attempt
-  input#event-text-visibility(type="checkbox", checked="checked", name="event-text-visibility")
-  label(for="event-text-visibility") Event Text
-  br
+  ul#filter-events
+    li
+      input#event-text-visibility(type="checkbox", checked="checked", name="event-text-visibility")
+      label(for="event-text-visibility") Event Text
+    li(data-doc-type="ProblemAttempt", class="doc-type-color")
+      input(type="checkbox", checked="checked", name="show-pa-events")
+      label(for="show-pa-events") Problem Attempt
+    li(data-doc-type="ProblemAttemptGOPoll", class="doc-type-color")
+      input(type="checkbox", checked="checked", name="show-go-polling-events")
+      label(for="show-go-polling-events") Game Object Polling
+    li(data-doc-type="TouchLog", class="doc-type-color")
+      input(type="checkbox", checked="checked", name="show-pa-events")
+      label(for="show-touch-events") Touch
   div#curr-pa-events 
   div#screen-wrapper
     svg#screen
