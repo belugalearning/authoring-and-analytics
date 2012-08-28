@@ -56,6 +56,19 @@ function WebPortal(config) {
       res.send(body, sc)
     })
   })
+  server.get('/problem-attempt/:paId/static-generated-pdef', function(req,res) {
+    var url = format('%s/%s/%s/static-generated-pdef.plist', self.config.couchServerURI, self.config.appWebService.loggingService.databaseName, req.params.paId)
+    request({ url:url, 'Content-Type':'application/xml' }, function(e,r,b) {
+      var sc = r && r.statusCode
+      if (sc == 200) {
+        req.query.download && req.query.download.toLowerCase() === 'true' && res.header('Content-Disposition', format('attachment; filename=static-generated-pdef-' + req.params.paId + '.plist'))
+        res.header('Content-Type', 'application/xml')
+        res.send(b)
+      } else {
+        res.send(format('could not retrieve plist.\nerror="%s"\nstatusCode=%d',e,sc), sc || 500)
+      }
+    })
+  })
 }
 
 WebPortal.prototype.paEventsForUr = function(ur, callback) {
