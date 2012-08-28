@@ -232,12 +232,9 @@ function processBatch(batch, callback) {
 
       var rows = JSON.parse(b).rows
 
-      for (var i=0; i<numValid; i++) {
-        var record = valid[i]
-        var row = rows[i]
-
+      for (var i=0, record, row;  (record = valid[i]) && (row = rows[i]);  i++) {
         if (row.error) {
-          if (row.error == 'not_found') {
+          if (row.error == 'not_found') { // TODO: will this error text will be retained across couch versions? Is there a better way of checking for not found?
             record.action = 'INSERT'
             docsForInsertOrUpdate.push(record.doc)
           } else {
