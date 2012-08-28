@@ -164,6 +164,23 @@ function processBatch(batch, callback) {
           doc = JSON.parse(jsonString)
           doc.batchDate = batchDate
           doc.batchUUID = batchUUID
+
+          if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) == '[object Array]') {
+            for (var i=0, event;  event=doc.events[i]; i++) {
+              if (event.eventType == 'PROBLEM_ATTEMPT_START') {
+                var pdef = event.additionalData && event.additionalData.pdef
+                if (pdef) {
+                  doc._attachments = {
+                    "static-generated-pdef.plist": {
+                      "content-type": "application\/xml"
+                      , data: new Buffer(pdef).toString('base64')
+                    }
+                  }
+                }
+                break
+              }
+            }
+          }
         } catch (e) {
           err = 'INVALID_JSON'
         }
