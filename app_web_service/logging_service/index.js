@@ -14,6 +14,7 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , dbURI
   , genDesignDoc = 'logging-design-doc'
   , userDesignDoc = 'user-related-views'
+  , paMetaDesignDoc = 'pa-meta-design-doc'
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
@@ -53,7 +54,7 @@ module.exports = function(config) {
   dbName = config.appWebService.loggingService.databaseName
   dbURI = couchServerURI + dbName + '/'
 
-  //updateDesignDocs([userDesignDoc])
+  //updateDesignDocs([paMetaDesignDoc])
 
   processPendingBatches(function(numProcessed) {
     var f = arguments.callee
@@ -283,11 +284,13 @@ function updateDesignDocs(docsToUpdate, callback) {
   var toUpdate = 0
   ~docsToUpdate.indexOf(genDesignDoc) && toUpdate++
   ~docsToUpdate.indexOf(userDesignDoc) && toUpdate++
+  ~docsToUpdate.indexOf(paMetaDesignDoc) && toUpdate++
   if (!toUpdate) {
     callback(400, 'no docs to update')
     return
   }
 
+  var ddBodies = {}
   var sentError = false
 
   var updateDesignDoc = function(docName, body, callback) {
@@ -325,7 +328,7 @@ function updateDesignDocs(docsToUpdate, callback) {
     })
   }
 
-  var genDocBody = {
+  ddBodies[genDesignDoc] = {
     views: {
       'app-errors': {
         map: (function (doc) {
@@ -418,7 +421,7 @@ function updateDesignDocs(docsToUpdate, callback) {
     }
   }
 
-  var userDocBody = {
+  ddBodies[userDesignDoc] = {
     views: {
       'problemattempt-events-by-user-date': {
         map: (function(doc) {
@@ -455,20 +458,53 @@ function updateDesignDocs(docsToUpdate, callback) {
     }
   }
 
-  if (~docsToUpdate.indexOf(genDesignDoc)) {
-    updateDesignDoc(genDesignDoc, genDocBody, function(e, statusCode) {
+  ddBodies[paMetaDesignDoc] = {
+    views: {
+      'problemattempt-summary-by-user-date': {
+        map:(function(doc) {
+          var startEv
+            , pdef
+            , isMeta
+            , isNP
+            , descMatch
+            , toolKeyMatch
+
+          if (doc.type == 'ProblemAttempt' &&
+              Object.prototype.toString.call(doc.events) == '[object Array]' &&
+              (startEv = doc.events[0]) &&
+              startEv.additionalData &&
+              (pdef = startEv.additionalData.pdef.replace(/>\s+</g, '><')))
+          {
+            isMeta = pdef.indexOf('<key>META_QUESTION</key>') != -1
+            isNP = pdef.indexOf('<key>NUMBER_PICKER</key>') != -1
+
+            descMatch = pdef.match(new RegExp('<key>' + (isNP ? 'NUMBER_PICKER_DESCRIPTION' : (isMeta ? 'META_QUESTION_TITLE' : 'PROBLEM_DESCRIPTION')) + '</key><string>(.*?)</string>'))
+            toolKeyMatch = pdef.match(/<key>TOOL_KEY<\/key><string>(.*?)<\/string>/)
+            
+            emit(
+              [doc.user, startEv.date]
+              , { user: doc.user
+                , problemAttempt: doc._id
+                , problem: doc.problemId
+                , problemRev: doc.problemRev
+                , startDate: new Date(startEv.date * 1000).toJSON()
+                , isMetaQuestion: isMeta
+                , isNumberPicker: isNP
+                , description: descMatch && descMatch[1] || ''
+                , tool: toolKeyMatch && toolKeyMatch[1] || ''
+              })
+          }
+        }).toString()
+      }
+    }
+  }
+
+  docsToUpdate.forEach(function(ddName) {
+    updateDesignDoc(ddName, ddBodies[ddName], function(e, statusCode) {
       if (!sentError) {
         if (e) sentError = true
         if (e || !--toUpdate) callback && callback(e, statusCode)
       }
     })
-  }
-  if (~docsToUpdate.indexOf(userDesignDoc)) {
-    updateDesignDoc(userDesignDoc, userDocBody, function(e, statusCode) {
-      if (!sentError) {
-        if (e) sentError = true
-        if (e || !--toUpdate) callback && callback(e, statusCode)
-      }
-    })
-  }
+  })
 }
