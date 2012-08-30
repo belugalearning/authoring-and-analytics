@@ -790,15 +790,22 @@ function getProblemInfoFromPList(plistString, callback) {
   }
 
   var stringValueForKey = function(key) {
-    var elm = xmlDoc.get(util.format('//string[preceding-sibling::key[1][text() = "%s"]]', key))
-    return elm && elm.text()
+    // The following does not work for plists with text containing '£' - libxml reads the <string> element as <ustring>. Workaround with keyElm/valElm is ok
+    // TODO:investigate
+    //var elm = xmlDoc.get(util.format('//string[preceding-sibling::key[1][text() = "%s"]]', key))
+    //return elm && elm.text()
+
+    var keyElm = xmlDoc.get(util.format('//key[text() = "%s"]', key))
+      , valElm = keyElm && keyElm.nextElement()
+    return valElm && valElm.text()
   }
 
   var toolName = stringValueForKey('TOOL_KEY')
     , tool = toolName && kcm.cloneDocByTypeName('tool', toolName)
     , isMetaQ = xmlDoc.get('//key[text() = "META_QUESTION"]')
     , isNumberPicker = xmlDoc.get('//key[text() = "NUMBER_PICKER"]')
-    , desc = stringValueForKey( isMetaQ ? 'META_QUESTION_TITLE' : isNumberPicker ? 'NUMBER_PICKER_DESCRIPTION' : 'PROBLEM_DESCRIPTION' )
+    , descElmName = isMetaQ ? 'META_QUESTION_TITLE' : isNumberPicker ? 'NUMBER_PICKER_DESCRIPTION' : 'PROBLEM_DESCRIPTION'
+    , desc = stringValueForKey(descElmName)
     , internalDesc = stringValueForKey('INTERNAL_DESCRIPTION')
     , missingStrings = []
 
