@@ -131,43 +131,37 @@ function userMatchingNickAndPassword(nick, password, callback) {
 };
 
 function updateDesignDoc(callback) {
-    console.log('AppWebService -> usersService\tupdating design doc:\t%s_design/%s', databaseURI, designDoc);
+  console.log('AppWebService -> usersService\tupdating design doc:\t%s_design/%s', databaseURI, designDoc)
 
-    var dd = {
-        _id: '_design/' + designDoc
-        , views: {
-            'users-by-nick' : {
-                map: (function(doc) { if ('USER' == doc.type) emit(doc.nick, null); }).toString()
-            }
-            , 'users-by-nick-password' : {
-                map: (function(doc) { if ('USER' == doc.type) emit([doc.nick, doc.password], null); }).toString()
-            }
-        }
-    };
+  var dd = {
+    _id: '_design/' + designDoc
+    , views: {
+      'users-by-nick' : {
+        map: (function(doc) { if ('USER' == doc.type) emit(doc.nick, null); }).toString()
+      }
+      , 'users-by-nick-password' : {
+        map: (function(doc) { if ('USER' == doc.type) emit([doc.nick, doc.password], null); }).toString()
+      }
+    }
+  }
 
-    getDoc(dd._id, function(e,r,b) {
-        var requestObj = { headers: { 'content-type': 'application/json', 'accepts': 'application/json' } };
-        var sc = r && r.statusCode
+  getDoc(dd._id, function(e,r,b) {
+    if (!r || !~[200,404].indexOf(r.statusCode)) {
+      callback('error retrieving design doc from database', sc)
+      return
+    }
 
-        switch (sc) {
-            case 404:
-                requestObj.method = 'POST';
-                requestObj.uri = databaseURI;
-                requestObj.body = JSON.stringify(dd);
-            break;
-            case 200:
-                requestObj.method = 'PUT';
-                requestObj.uri = databaseURI + dd._id;
-                dd._rev = JSON.parse(b)._rev;
-                requestObj.body = JSON.stringify(dd);
-            break;
-            default:
-                callback('error retrieving design doc from database', sc);
-                return;
-            break;
-        }
-        request(requestObj, function(e,r,b) { callback(e,sc); });
-    });
+    if (r.statusCode == 200) dd._rev = JSON.parse(b)._rev
+
+    request({
+      uri: databaseURI + dd._id
+      , method: 'PUT'
+      , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
+      , body: JSON.stringify(dd)
+    }, function(e,r,b) {
+      callback(e, r && r.statusCode || 500)
+    })
+  })
 }
 
 function getDoc(id, callback) {
