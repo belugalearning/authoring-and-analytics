@@ -27,8 +27,8 @@ module.exports = function(config) {
             console.log('Error - could not connect to Couch Server testing for existence of database:"%s"', databaseURI);
             return;
         }
-        if (201 != r.statusCode && 412 != r.statusCode) {
-            console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r.statusCode);
+        if (!r || 201 != r.statusCode && 412 != r.statusCode) {
+            console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r && r.statusCode);
             return;
         }
 
@@ -53,8 +53,8 @@ function syncUsers(clientDeviceUsers, device, callback) {
     var urIds = _.pluck(clientDeviceUsers, 'id');
 
     request(encodeURI(databaseURI + '_all_docs?include_docs=true&keys=' + JSON.stringify(urIds)), function(e,r,b) {
-        if (200 != r.statusCode) {
-            callback(e, r.statusCode);
+        if (!r || 200 != r.statusCode) {
+            callback(e, r && r.statusCode || 500);
             return;
         }
 
@@ -113,7 +113,7 @@ function syncUsers(clientDeviceUsers, device, callback) {
                 , headers: { 'content-type':'application/json', accepts:'application/json' }
                 , body: JSON.stringify({ docs: bulkUpdateDocs })
             }, function(e,r,b) {
-                if (log) console.log('bulk update response:\nerror:%s\nstatusCode: %s\nbulk update response body:\n%s', e, r.statusCode, JSON.stringify(b,null,2));
+                if (log) console.log('bulk update response:\nerror:%s\nstatusCode: %s\nbulk update response body:\n%s', e, r && r.statusCode, JSON.stringify(b,null,2));
                 if (log) console.log('------------------------------------------------');
             });
         } else {
@@ -147,8 +147,9 @@ function updateDesignDoc(callback) {
 
     getDoc(dd._id, function(e,r,b) {
         var requestObj = { headers: { 'content-type': 'application/json', 'accepts': 'application/json' } };
+        var sc = r && r.statusCode
 
-        switch (r.statusCode) {
+        switch (sc) {
             case 404:
                 requestObj.method = 'POST';
                 requestObj.uri = databaseURI;
@@ -161,11 +162,11 @@ function updateDesignDoc(callback) {
                 requestObj.body = JSON.stringify(dd);
             break;
             default:
-                callback('error retrieving design doc from database', r.statusCode);
+                callback('error retrieving design doc from database', sc);
                 return;
             break;
         }
-        request(requestObj, function(e,r,b) { callback(e,r.statusCode); });
+        request(requestObj, function(e,r,b) { callback(e,sc); });
     });
 }
 
