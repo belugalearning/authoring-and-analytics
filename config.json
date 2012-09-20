@@ -1,5 +1,5 @@
 {
-  "couchServerURI": "http://localhost:5984"
+  "couchServerURI": "http://pull.zubi.me:5984"
   , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
   , "appWebService" : {
     "port": 3000
