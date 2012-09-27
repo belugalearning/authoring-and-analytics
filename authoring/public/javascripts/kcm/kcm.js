@@ -573,7 +573,7 @@
             $('#concept-db-id').text(data._id);
             $('#concept-description').val(data.nodeDescription).prop('disabled', '');
             $('#concept-tags').html($.tmpl('cnTagDIV', $.map(data.tags, function(tag) { return { tag:tag }; })));
-            $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; })));
+            $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; }), { nodeId:data._id}));
  
         } else {
             $('table[data-panel="concept-node-data"]').addClass('none-selected');
@@ -1921,7 +1921,7 @@
                 <div/>\
             </td>\
             <td class="txt">\
-                <span class="pipeline-id">{{html _id}}</span>\
+                <a class="pipeline-id" href="/kcm/concept-nodes/${$item.nodeId}/pipeline/{{html _id}}/download" type="application/zip">{{html _id}}</a>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
                 <select class="workflow-status">\

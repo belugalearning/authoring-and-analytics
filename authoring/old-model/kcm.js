@@ -732,7 +732,7 @@ function insertProblem(plist, callback) {
 }
 
 function getPDef(problemId, callback) {
-  request({
+  return request({
     uri: databaseURI + problemId + '/pdef.plist'
     , method: 'GET'
     , headers: { 'content-type':'application/json', accepts:'application/xml' }

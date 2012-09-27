@@ -2,6 +2,8 @@ var fs = require('fs')
   , _ = require('underscore')
   , util = require('util')
   , exec = require('child_process').exec
+  , stream = require('stream')
+  , zipstream = require('zipstream')
   , kcmModel
 ;
 
@@ -381,6 +383,86 @@ module.exports = function(config, kcm_model, kcm) {
         }
       })
     }
+    , downloadPipeline: function(req, res) {
+      var plId = req.params.pipelineId
+      if (!plId) {
+        res.send('requires pipeline id', 500)
+        return
+      }
+
+      res.header('Content-Disposition', 'attachment; filename=pipeline-' + plId + '.zip')
+      res.header('Content-Type', 'application/zip')
+
+      var pl = kcm.getDoc(plId, 'pipeline')
+      if (!pl) {
+        res.send('could not retrieve pipeline: '+plId, 500)
+        return
+      }
+
+      var sentError = false
+        , plistStreams = []
+
+      var zip = zipstream.createZip({ level:1 })
+      zip.pipe(res)
+
+      var PListStream = function PListStream(name) {
+        this.name = name + '.plist'
+        this.readable = true
+        this.writable = true
+        this.chunks = []
+      }
+      util.inherits(PListStream, stream.Stream)
+      PListStream.prototype.write = function(chunk) {
+        if (!this.chunks) {
+          this.emit('data', chunk)
+          return
+        }
+        this.chunks.push(chunk)
+      }
+      PListStream.prototype.end = function() {
+        if (!this.chunks) this.emit('end')
+        else this.ended = true
+      }
+      PListStream.prototype.start = function() {
+        var self = this
+        this.chunks.forEach(function(c) { self.emit('data', c) })
+        delete this.chunks
+        if (this.ended) this.emit('end')
+      }
+
+      pl.problems.forEach(function(problemId, i) {
+        plistStreams[i] = new PListStream(problemId)
+        kcmModel.getPDef(problemId).pipe(plistStreams[i])
+      })
+
+      var plistStream = plistStreams[pl.problems.length] = new PListStream('#meta-pipeline')
+      plistStream.write(
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' +
+        '<plist version="1.0">' +
+          '<dict>' +
+            '<key>NODE_ID</key>' +
+            '<string>'+req.params.conceptNodeId+'</string>' +
+            '<key>PIPELINE_NAME</key>' +
+            '<string>'+pl.name+'</string>' +
+            '<key>PROBLEMS</key>' +
+            '<array>' +
+              pl.problems.map(function(problemId) { return '<string>' + problemId + '.plist</string>' }).join('') +
+            '</array>' +
+          '</dict>' +
+        '</plist>')
+      plistStream.end()
+
+      ;(function recZipAddFile(i) {
+        var plistStream = plistStreams[i]
+        if (plistStream) {
+          zip.addFile(plistStream, { name:plistStream.name }, function() { recZipAddFile(i+1) })
+          plistStream.start()
+        } else {
+          zip.finalize()
+        }
+      })(0)
+    }
     , addNewPipelineToConceptNode: function(req, res) {
         var cnId = req.body.conceptNodeId
           , cnRev = req.body.conceptNodeRev
@@ -515,7 +597,7 @@ module.exports = function(config, kcm_model, kcm) {
       , sendPList: function(req, res, sendAsAttachment) {
         var problemId = req.params.problemId
         if (!problemId) {
-          res.send('requires problemId')
+          res.send('requires problemId', 500)
           return
         }
 

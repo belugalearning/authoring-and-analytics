@@ -1,6 +1,7 @@
 var express = require('express')
   , _ = require('underscore')
   , urlParser = require('url')
+  , crypto = require('crypto')
   , initOldModel = require('./old-model')
   , sessionService = require('./session-service')
   , routeHandlers = require('./routes')
@@ -9,6 +10,13 @@ var express = require('express')
 
 var server = express.createServer()
 var noAuthRequired = [/^\/kcm\/app-import-content\/.*/]
+
+server.guid = function() {
+  return crypto.randomBytes(16)
+    .toString('hex')
+    .replace(/^(.{8})(.{4})(.{4})(.{4})/i, '$1-$2-$3-')
+    .toUpperCase()
+}
 
 module.exports = function(config) {
   server.kcm = new KCM(config)
@@ -110,6 +118,7 @@ function setupRoutes() {
   server.post('/kcm/insert-concept-node-tag', server.routeHandlers.kcm.insertConceptNodeTag)
   server.post('/kcm/delete-concept-node-tag', server.routeHandlers.kcm.deleteConceptNodeTag)
   server.post('/kcm/edit-concept-node-tag', server.routeHandlers.kcm.editConceptNodeTag)
+  server.get('/kcm/concept-nodes/:conceptNodeId/pipeline/:pipelineId/download', server.routeHandlers.kcm.downloadPipeline)
   server.post('/kcm/pipelines/upload-pipeline-folder', server.routeHandlers.kcm.uploadPipelineFolder)
   server.post('/kcm/insert-pipeline', server.routeHandlers.kcm.addNewPipelineToConceptNode)
   server.post('/kcm/delete-pipeline', server.routeHandlers.kcm.deletePipeline)
