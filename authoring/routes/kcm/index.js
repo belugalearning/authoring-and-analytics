@@ -431,7 +431,7 @@ module.exports = function(config, kcm_model, kcm) {
       }
 
       pl.problems.forEach(function(problemId, i) {
-        plistStreams[i] = new PListStream(problemId)
+        plistStreams[i] = new PListStream('pdef_'+i)
         kcmModel.getPDef(problemId).pipe(plistStreams[i])
       })
 
@@ -447,7 +447,7 @@ module.exports = function(config, kcm_model, kcm) {
             '<string>'+pl.name+'</string>' +
             '<key>PROBLEMS</key>' +
             '<array>' +
-              pl.problems.map(function(problemId) { return '<string>' + problemId + '.plist</string>' }).join('') +
+              pl.problems.map(function(problemId, index) { return '<string>pdef_' + index + '.plist</string>' }).join('') +
             '</array>' +
           '</dict>' +
         '</plist>')
