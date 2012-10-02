@@ -109,7 +109,7 @@
             kcm.pipelines[data.id] = data.doc
             if (inFocus && $(inFocus).attr('data-type') == 'concept-node') {
               var n = d3.select(inFocus).data()[0]
-              if (n.pipelines.indexOf(data.id)) {
+              if (~n.pipelines.indexOf(data.id)) {
                 updateMapNodes()
               }
             }
