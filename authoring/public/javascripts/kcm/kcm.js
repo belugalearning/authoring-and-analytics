@@ -1966,7 +1966,7 @@
             </td>\
             <td class="txt">\
                 <div class="last-modified">Mod: {{html lastModified}}</div>\
-                <a href="/kcm/problem/{{html id}}">{{html id}}</a>\
+                <a href="/kcm/problem/{{html id}}" target="_blank">{{html id}}</a>\
                 <div class="problem-desc">{{html desc}}</div>\
             </td>\
         </tr>'.replace(/(>|}})\s+/g, '$1'));
