@@ -1955,7 +1955,7 @@ function getAppCannedDatabases(userId, callback) {
           callback(util.format('error zipping content:"%s"', e), 500)
           return
         }
-        callback(null, 200, path + '/canned-databases.zip')
+        callback(null, 200, path + '/canned-dbs.zip')
       })
     }
   }
