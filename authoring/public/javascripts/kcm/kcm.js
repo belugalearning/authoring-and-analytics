@@ -94,7 +94,7 @@
           } else {
             kcm.nodes[data.id] = data.doc
             updateMapNodes()
-            if (data.doc.currentVersion.user == kcm.user) {
+            if (data.doc.currentVersion.user == kcm.user._id) {
               setFocus($('g#'+data.id)[0])
               $('#concept-description').select()
             }
@@ -433,11 +433,11 @@
     $('[data-type="binary-relation-pair"]').remove()
 
     $.each($.extend({}, kcm.binaryRelations, kcm.chainedBinaryRelations), function(key, br) {
-      if (!kcm.viewSettings.links[br._id]) {
-        kcm.viewSettings.links[br._id] = { visible:true, colour:'000' }
+      if (!kcm.user.viewSettings.links[br._id]) {
+        kcm.user.viewSettings.links[br._id] = { visible:true, colour:'000' }
       }
 
-      var vs = kcm.viewSettings.links[br._id]
+      var vs = kcm.user.viewSettings.links[br._id]
         , g = relIdContainerDict[br._id]
         , validMembers = $.grep(br.members, function(p) { return kcm.nodes[p[0]] && kcm.nodes[p[1]] })
         , links
@@ -1008,10 +1008,10 @@
 
     function onLinkViewSettingsEdit(e) {
         var id = $(this).closest('tr').attr('data-id')
-          , lVS = kcm.viewSettings.links[id]
+          , lVS = kcm.user.viewSettings.links[id]
         ;
         if (!lVS) {
-            kcm.viewSettings.links[id] = { visible:true, colour:'000' };
+            kcm.user.viewSettings.links[id] = { visible:true, colour:'000' };
         }
         switch ($(this).attr('type')) {
             case 'checkbox':
@@ -1036,12 +1036,12 @@
             break;
         }
         updateMapLinks();
-        saveViewSettings();
+        saveUserSettings()
     }
 
   function updateViewSettingsDisplay() {
     var allRelations = $.map($.extend({}, kcm.binaryRelations, kcm.chainedBinaryRelations), function(r) { return r })
-    var $trs = $.tmpl('brViewSettingsTR', $.map(allRelations, function(r) { return $.extend({}, r, kcm.viewSettings.links[r._id]) }))
+    var $trs = $.tmpl('brViewSettingsTR', $.map(allRelations, function(r) { return $.extend({}, r, kcm.user.viewSettings.links[r._id]) }))
     $('table#links-view-settings')
       .children('tbody')
         .remove()
@@ -1049,88 +1049,54 @@
       .append($('<tbody/>').html($trs))
   }
 
-    function saveViewSettings() {
-        var fn = arguments.callee;
-        if (!fn.cache) fn.cache = { saveInProgress:false, queuedSave:false };
+    function saveUserSettings() {
+      var fn = arguments.callee
+      if (!fn.cache) fn.cache = { saveInProgress:false, queuedSave:false }
 
-        if (fn.cache.saveInProgress) {
-            fn.cache.queuedSave = true;
-            return;
+      if (fn.cache.saveInProgress) {
+        fn.cache.queuedSave = true
+        return
+      }
+      fn.cache.saveInProgress = true
+
+      var next = function() {
+        fn.cache.saveInProgress = false
+        if (fn.cache.queuedSave) {
+          fn.cache.queuedSave = false
+          fn()
         }
-        fn.cache.saveInProgress = true;
-        
-        $.ajax({
-            url:'/kcm/update-view-settings'
-            , type:'POST'
-            , contentType:'application/json'
-            , data: JSON.stringify({ viewSettings: kcm.viewSettings })
-            , success: function(rev) {
-                kcm.viewSettings._rev = rev;
-                fn.cache.saveInProgress = false;
-                if (fn.cache.queuedSave) {
-                    fn.cache.queuedSave = false;
-                    fn();
-                }
-            }
-            , error: function() {
-                fn.cache.saveInProgress = false;
-                if (fn.cache.queuedSave) {
-                    fn.cache.queuedSave = false;
-                    fn();
-                }
-                ajaxErrorHandler('Error saving updated view settings').apply(null, [].slice.call(arguments));
-            }
-        });
-    }
+      }
 
-    function saveExportSettings() {
-        var fn = arguments.callee;
-        if (!fn.cache) fn.cache = { saveInProgress:false, queuedSave:false };
-
-        if (fn.cache.saveInProgress) {
-            fn.cache.queuedSave = true;
-            return;
+      $.ajax({
+        url:'/kcm/update-user'
+        , type:'POST'
+        , contentType:'application/json'
+        , data: JSON.stringify({ user: kcm.user })
+        , success: function(rev) {
+          kcm.user._rev = rev
+          next()
         }
-        fn.cache.saveInProgress = true;
-        
-        $.ajax({
-            url:'/kcm/update-export-settings'
-            , type:'POST'
-            , contentType:'application/json'
-            , data: JSON.stringify({ exportSettings: kcm.exportSettings })
-            , success: function(rev) {
-                kcm.exportSettings._rev = rev;
-                fn.cache.saveInProgress = false;
-                if (fn.cache.queuedSave) {
-                    fn.cache.queuedSave = false;
-                    fn();
-                }
-            }
-            , error: function() {
-                fn.cache.saveInProgress = false;
-                if (fn.cache.queuedSave) {
-                    fn.cache.queuedSave = false;
-                    fn();
-                }
-                ajaxErrorHandler('Error saving updated export settings').apply(null, [].slice.call(arguments));
-            }
-        });
+        , error: function() {
+          next()
+          ajaxErrorHandler('Error saving updated export settings').apply(null, [].slice.call(arguments))
+        }
+      })
     }
 
     function changeExportAllNodes(e) {
-        kcm.exportSettings.exportAllNodes = $(e.target).prop('checked');
-        saveExportSettings();
+        kcm.user.exportSettings.exportAllNodes = $(e.target).prop('checked');
+        saveUserSettings()
     }
 
     function changePipelineWorkflowStatusSetting(e) {
         var key = $(this).attr('data-key');
         var val = $(this).val();
-        kcm.exportSettings[key] = isNaN(val) ? val : Number(val);
-        saveExportSettings();
+        kcm.user.exportSettings[key] = isNaN(val) ? val : Number(val);
+        saveUserSettings()
     }
 
     function updateExportSettingsDisplay() {
-        var es = kcm.exportSettings;
+        var es = kcm.user.exportSettings;
 
         // export all nodes checkbox
         $('#export-all-nodes').prop('checked', es.exportAllNodes === true);
@@ -1156,9 +1122,9 @@
 
         showSingleInputModal('Enter Tag:', function(tag) {
             if (tag) {
-                kcm.exportSettings[key].push(tag);
+                kcm.user.exportSettings[key].push(tag);
                 updateExportSettingsDisplay();
-                saveExportSettings();
+                saveUserSettings()
             }
         });
     }
@@ -1171,22 +1137,22 @@
         e.stopPropagation();
         e.preventDefault();
 
-        kcm.exportSettings[key].splice($(this).closest('.cn-tag').index(), 1);
+        kcm.user.exportSettings[key].splice($(this).closest('.cn-tag').index(), 1);
         updateExportSettingsDisplay();
-        saveExportSettings();
+        saveUserSettings()
     }
 
     function editExportSettingTag(e) {
         var $tr = $(this).closest('tr')
           , type = $tr.attr('data-type')
           , key = $tr.attr('data-key')
-          , array = kcm.exportSettings[key]
+          , array = kcm.user.exportSettings[key]
         ;
 
         editTag(e, array, function(newText, tagIx, undoCallback) {
             array.splice(tagIx, 1, newText);
             updateExportSettingsDisplay();
-            saveExportSettings();
+            saveUserSettings()
         });
     }
 

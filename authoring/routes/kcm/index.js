@@ -267,15 +267,14 @@ module.exports = function(config, kcm_model, kcm) {
             });
         });
     }
-    , updateViewSettings: function(req, res) {
-        kcmModel.updateViewSettings(req.body.viewSettings, function(e, statusCode, rev) {
-            res.send(e || rev, statusCode || 500);
-        });
-    }
-    , updateExportSettings: function(req, res) {
-        kcmModel.updateExportSettings(req.body.exportSettings, function(e, statusCode, rev) {
-            res.send(e || rev, statusCode || 500);
-        });
+    , updateUser: function(req, res) {
+      if (req.body.user._id !== req.session.user._id) {
+        req.send(401)
+        return
+      }
+      kcmModel.updateUser(req.body.user, function(e, statusCode, rev) {
+        res.send(e || rev, statusCode || 500)
+      })
     }
     , getMap: function(req, res) {
       // TODO: update all pipelines to have workflowStatus set then delete this
@@ -283,7 +282,7 @@ module.exports = function(config, kcm_model, kcm) {
         if (typeof pl.workflowStatus === 'undefined') pl.workflowStatus = 0 
       })
 
-      var map = { user:req.session.user._id, pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq }
+      var map = { user:kcm.docStores.users[req.session.user._id], pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq }
       var clone
 
       _.each(kcm.docStores.relations, function(r, id) {
@@ -296,12 +295,7 @@ module.exports = function(config, kcm_model, kcm) {
         }
       })
 
-      kcmModel.queryView('by-user-type', 'keys', [[req.session.user._id,'ExportSettings'], [req.session.user._id,'ViewSettings']], 'include_docs', true, function(e,r,b) {
-        var rows = JSON.parse(b).rows
-        map.exportSettings = rows[0].doc
-        map.viewSettings = rows[1].doc
-        res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
-      })
+      res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
     }
     , insertConceptNode: function(req, res) {
       kcmModel.insertConceptNode(

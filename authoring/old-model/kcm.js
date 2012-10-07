@@ -83,8 +83,7 @@ module.exports = function(config, kcmModel) {
     , pullReplicate: pullReplicate
     , updateDesignDoc: updateDesignDoc
     , queryView: queryView
-    , updateViewSettings: updateViewSettings
-    , updateExportSettings: updateExportSettings
+    , updateUser: updateUser
     , insertProblem: insertProblem
     , getPDef: getPDef
     , updatePDef: updatePDef
@@ -462,28 +461,14 @@ function pullReplicate(source, filter, continuous, cancel) {
   })
 }
 
-function updateExportSettings(updatedSettings, callback) {
-  if (!updatedSettings || 'ExportSettings' != updatedSettings.type) {
-    callback('invalid export settings document', 500)
+function updateUser(user, callback) {
+  if (!user || 'User' !== user.type) {
+    callback('invalid user document', 500)
     return
   }
-  updateDoc(updatedSettings, function(e,r,b) {
+  updateDoc(user, function(e,r,b) {
     if (201 != r.statusCode) {
-      callback(util.format('error updating export settings. Database reported error: "%s"', e), r.statusCode)
-      return
-    }
-    callback(null,201,JSON.parse(b).rev)
-  })
-}
-
-function updateViewSettings(updatedSettings, callback) {
-  if (!updatedSettings || 'ViewSettings' != updatedSettings.type) {
-    callback('invalid view settings document', 500)
-    return
-  }
-  updateDoc(updatedSettings, function(e,r,b) {
-    if (201 != r.statusCode) {
-      callback(util.format('error updating view settings. Database reported error: "%s"', e), r.statusCode)
+      callback(util.format('error updating user. Database reported error: "%s"', e), r.statusCode)
       return
     }
     callback(null,201,JSON.parse(b).rev)
