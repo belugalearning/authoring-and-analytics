@@ -47,22 +47,28 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , getAppCannedDatabases: function(req, res) {
-      kcmModel.getAppCannedDatabases(req.session.user._id, function(e, statusCode, contentZip) {
+      kcmModel.getAppCannedDatabases(req.session.user._id, function(e, statusCode, path) {
         if (200 != statusCode) {
           res.send(e || 'error retrieving canned application content', statusCode || 500)
           return
         }
-        res.download(contentZip, 'canned-dbs.zip')
+        exec('zip canned-dbs.zip -r *', { cwd:path }, function(e, stdout, stderr) {
+          if (e) res.send(util.format('error zipping databases: "%s"', e), 500)
+          else res.download(path+'/canned-dbs.zip')
+        })
       })
     }
     , appImportContent: function(req, res) {
       for (var id in kcm.docStores.users) {
         if (kcm.docStores.users[id].loginName == req.params.loginName) {
-          kcmModel.getAppContent(id, function(e, statusCode, contentZip) {
+          kcmModel.getAppCannedDatabases(id, function(e, statusCode, path) {
             if (200 != statusCode) {
               res.send(e, statusCode || 500)
             } else {
-              res.download(contentZip, 'canned-content.zip')
+              exec('zip ../canned-content.zip -r *', { cwd:path + '/canned-content' }, function(e, stdout, stderr) {
+                if (e) res.send(util.format('error zipping content: "%s"', e), 500)
+                else res.download(path + '/canned-content.zip')
+              })
             }
           })
           return

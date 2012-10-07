@@ -1950,13 +1950,7 @@ function getAppCannedDatabases(userId, callback) {
     if (typeof next === 'function') {
       next.apply(null, [].slice.call(arguments, 1))
     } else {
-      exec('zip canned-dbs.zip -r all-users.db user-state-template.db canned-content', { cwd:path }, function(e, stdout, stderr) {
-        if (e) {
-          callback(util.format('error zipping content:"%s"', e), 500)
-          return
-        }
-        callback(null, 200, path + '/canned-dbs.zip')
-      })
+      callback(null, 200, path)
     }
   }
 
