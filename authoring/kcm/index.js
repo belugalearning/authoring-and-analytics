@@ -27,6 +27,45 @@ function KCM(config) {
     , users: {}
   }
 
+  //************ PUT EXPORT SETTINGS & VIEW SETTINGS ON USER DOC AND DELETE VS / ES DOCS ***************//
+  if (1) {
+    request.get(self.dbURI + '/_design/kcm-views/_view/by-type?include_docs=true&reduce=false&keys=%5B%22User%22,%22ExportSettings%22,%22ViewSettings%22%5D', function(e,r,b) {
+      var sc = r && r.statusCode
+      if (sc !== 200) {
+        console.log('failed to retrieve user/viewsettings/exportsetting docs')
+        return
+      }
+      var users = {}
+        , toDel = []
+
+      JSON.parse(b).rows.forEach(function(r) {
+        if (r.doc.type == 'User') users[r.id] = r.doc
+        else {
+          var del = r.doc
+          var settings = JSON.parse(JSON.stringify(r.doc))
+
+          del._deleted = true
+          toDel.push(del)
+
+          users[settings.user][settings.type == 'ViewSettings' ? 'viewSettings' : 'exportSettings'] = settings
+          delete settings._id
+          delete settings._rev
+          delete settings.user
+        }
+      })
+
+      request({
+        method:'POST'
+        , uri: self.dbURI + '/_bulk_docs'
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+        , body: JSON.stringify({ docs:toDel.concat( _.map(users,function(r){return r}) ) })
+      }, function(e,r,b) {
+        console.log('bulk update add callback. e="%s" statusCode=%d', e, r.statusCode)
+      })
+    })
+  }
+  //************ PUT EXPORT SETTINGS & VIEW SETTINGS ON USER DOC AND DELETE VS / ES DOCS ***************//
+
   request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
     if (!r || r.statusCode != 200) {
       // TODO: handle
