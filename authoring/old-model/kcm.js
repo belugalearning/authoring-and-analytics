@@ -108,7 +108,7 @@ module.exports = function(config, kcmModel) {
     , updatePipelineName: updatePipelineName
     , pipelineProblemDetails: pipelineProblemDetails
     , reorderPipelineProblems: reorderPipelineProblems
-    , getAppContent: getAppContent
+    , getAppCannedDatabases: getAppCannedDatabases
     , getDoc: getDoc
     , getDocs: getDocs
     , updateDoc: updateDoc // TODO: Shoud not give direct access to this function if we're doing undo functionality.
@@ -1921,27 +1921,82 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
-function getAppContent(userId, callback) {
+function getAppCannedDatabases(userId, callback) {
+  // download includes:
+  //  1) all-users.db
+  //  2) user-state-template.db
+  //  3) canned-content/ (i.e. KCM)
+  
   var writeLog = true
+    , path = '/tmp/' + generateUUID()
+    , contentPath = path + '/canned-content'
+    , pdefsPath = contentPath + '/pdefs'
+    , contentDBPath = contentPath + '/content.db'
+    , allUsersDBPath = path + '/all-users.db'
+    , userStateTemplateDBPath = path + '/user-state-template.db'
+    , exportLogWriteStream
 
-  queryView('by-user-type', 'key', [userId, 'ExportSettings'], 'include_docs', true, function(e,r,b) {
-    var rows = r && r.statusCode == 200 && JSON.parse(b).rows
+  fs.mkdirSync(path)
+  fs.mkdirSync(contentPath)
+  fs.mkdirSync(pdefsPath)
 
-    if (!rows || !rows.length) {
-      callback(util.format('Could not retrieve export settings. Database error:"%s"', e), r && r.statusCode != 200 ? r.statusCode : 500)
-      return
+  var origCallback = callback
+  callback = function() {
+    if (exportLogWriteStream) exportLogWriteStream.end()
+    origCallback.apply(null, [].slice.call(arguments))
+  }
+
+  var gotoNext = function(next) {
+    if (typeof next === 'function') {
+      next.apply(null, [].slice.call(arguments, 1))
+    } else {
+      exec('zip canned-dbs.zip -r all-users.db user-state-template.db canned-content', { cwd:path }, function(e, stdout, stderr) {
+        if (e) {
+          callback(util.format('error zipping content:"%s"', e), 500)
+          return
+        }
+        callback(null, 200, path + '/canned-databases.zip')
+      })
     }
+  }
 
-    var exportSettings = rows[0].doc
+  // 1) all-users.db
+  var createAllUsers = function() {
+    var args = arguments
+      , db = new sqlite3.Database(allUsersDBPath)
+
+    db.serialize(function() {
+      db.run("CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, processed_batches_pending_applicaton TEXT, last_server_process_batch_date REAL)")
+      db.run("CREATE TABLE BatchesPendingApplication (batch_id TEXT PRIMARY KEY ASC, batch_date REAL, user_id TEXT)")
+      db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, completed INTEGER)")
+      db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
+      db.close(function() { gotoNext.apply(null, args) })
+    })
+  }
+  
+  // 2) user-state-template.db
+  var createUserStateTemplate = function() {
+    var args = arguments
+      , db = new sqlite3.Database(userStateTemplateDBPath)
+
+    db.serialize(function() {
+      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, first_completed REAL, last_played REAL, last_completed REAL, last_result INTEGER)")
+      db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
+      db.close(function() { gotoNext.apply(null, args) })
+    })
+  }
+
+  // 3) KCM
+  var createContent = function() {
+    var args = arguments
+      , user = kcm.docStores.users[userId]
+      , exportSettings = user.exportSettings
       , exportAllNodes  = exportSettings.exportAllNodes === true
       , nodeInclusionTags = exportSettings.nodeInclusionTags
       , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
       , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
       , pipelineNames = exportSettings.pipelineNames
       , pipelineWorkflowStatusLevels
-      , path
-      , dbPath
-      , pdefsPath
       , exportLogWriteStream
 
 
@@ -1961,16 +2016,7 @@ function getAppContent(userId, callback) {
       return
     }
 
-    path = '/tmp/' + generateUUID()
-    pdefsPath = path + '/pdefs'
-    dbPath = path + '/content.db'
-
-    fs.mkdirSync(path)
-    fs.mkdirSync(pdefsPath)
-
-    //console.log('content path:', path)
-
-    if (writeLog) exportLogWriteStream = fs.createWriteStream(path + '/export-log.txt') 
+    if (writeLog) exportLogWriteStream = fs.createWriteStream(contentPath + '/export-log.txt') 
     if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
 
     var content = getAppContentJSON()
@@ -1988,15 +2034,7 @@ function getAppContent(userId, callback) {
           callback(e || 'error writing problem pdefs', statusCode || 500)
           return
         }
-
-        if (writeLog) exportLogWriteStream.end()
-        exec('zip content.zip -r pdefs content.db export-log.txt', { cwd:path }, function(e, stdout, stderr) {
-          if (e) {
-            callback(util.format('error zipping content:"%s"', e), 500)
-            return
-          }
-          callback(null, 200, path + '/content.zip')
-        })
+        gotoNext.apply(null, args)
       })
     })
 
@@ -2130,7 +2168,7 @@ function getAppContent(userId, callback) {
     }
 
     function createSQLiteDB(content, cb) {
-      var db = new sqlite3.Database(dbPath)
+      var db = new sqlite3.Database(contentDBPath)
       db.serialize(function() {
         var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag) }).join('')
         var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix) }).join('')
@@ -2199,7 +2237,9 @@ function getAppContent(userId, callback) {
         })
       })  
     }
-  })
+}
+
+  createAllUsers(createUserStateTemplate, createContent)
 }
 
 // TODO: The following functions should be shared across model modules

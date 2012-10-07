@@ -46,13 +46,13 @@ module.exports = function(config, kcm_model, kcm) {
         res.download(zipFile, 'canned-db.zip')
       })
     }
-    , getAppContent: function(req, res) {
-      kcmModel.getAppContent(req.session.user._id, function(e, statusCode, contentZip) {
+    , getAppCannedDatabases: function(req, res) {
+      kcmModel.getAppCannedDatabases(req.session.user._id, function(e, statusCode, contentZip) {
         if (200 != statusCode) {
           res.send(e || 'error retrieving canned application content', statusCode || 500)
           return
         }
-        res.download(contentZip, 'canned-content.zip')
+        res.download(contentZip, 'canned-dbs.zip')
       })
     }
     , appImportContent: function(req, res) {

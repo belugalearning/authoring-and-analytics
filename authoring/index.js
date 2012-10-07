@@ -102,7 +102,7 @@ function setupRoutes() {
   // TODO: improve uri's below - more in the uri less in req.body
   server.get('/kcm', server.routeHandlers.kcm.getMap)
   server.get('/kcm/pull-replicate', server.routeHandlers.kcm.pullReplicate) //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
-  server.get('/kcm/get-app-content', server.routeHandlers.kcm.getAppContent)
+  server.get('/kcm/get-app-canned-databases', server.routeHandlers.kcm.getAppCannedDatabases)
   server.get('/kcm/app-import-content/:loginName', server.routeHandlers.kcm.appImportContent)
   server.get('/kcm/download-tokcm-dirs', server.routeHandlers.kcm.downloadToKCMDirs)
   server.post('/kcm/update-user', server.routeHandlers.kcm.updateUser)
