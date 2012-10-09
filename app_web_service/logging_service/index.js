@@ -196,13 +196,14 @@ function processBatch(batch, callback) {
       , getMatchingDocsURI = numValid && encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', dbURI, JSON.stringify(uuids)))
       , docsForInsertOrUpdate = []
 
-    var recordBatch = function() {
+    var recordBatch = function(deviceId) {
       // summary/aggregate doc with information about whole batch
       var batchDoc = {
         _id: batchUUID
         , type: 'LogBatch'
         , batchDate: batchDate
         , batchProcessDate: Math.round(new Date().getTime() / 1000)
+        , device: deviceId
         , records: records
         , _attachments: {
           "raw-log": {
@@ -249,6 +250,7 @@ function processBatch(batch, callback) {
       }
 
       var rows = JSON.parse(b).rows
+        , deviceId
 
       for (var i=0, record, row;  (record = valid[i]) && (row = rows[i]);  i++) {
         if (row.error) {
@@ -260,6 +262,8 @@ function processBatch(batch, callback) {
             record.rowRetrievalError = row.error
           }
         } else {
+          deviceId = deviceId || record.doc.device
+
           if (batchDate > row.doc.batchDate) {
             record.action = 'UPDATE'
             record.doc._rev = row.doc._rev
@@ -269,7 +273,7 @@ function processBatch(batch, callback) {
           }
         }
       }
-      recordBatch()
+      recordBatch(deviceId)
     })
   })
 }
