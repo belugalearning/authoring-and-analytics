@@ -1960,8 +1960,9 @@ function getAppCannedDatabases(userId, callback) {
       , db = new sqlite3.Database(allUsersDBPath)
 
     db.serialize(function() {
-      db.run("CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, processed_batches_pending_applicaton TEXT, last_server_process_batch_date REAL)")
-      db.run("CREATE TABLE BatchesPendingApplication (batch_id TEXT PRIMARY KEY ASC, batch_date REAL, user_id TEXT)")
+      db.run("CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, last_server_process_batch_date REAL)")
+      db.run("CREATE TABLE BatchesPendingProcessingOrApplication (batch_id TEXT, batch_date REAL, user_id TEXT)")
+      db.run("CREATE TABLE ProcessedBatchesPendingApplicaton (batch_id TEXT, user_id TEXT)")
       db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, completed INTEGER)")
       db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
       db.close(function() { gotoNext.apply(null, args) })
