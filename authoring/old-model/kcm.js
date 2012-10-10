@@ -669,7 +669,19 @@ function queryView(view) {
   request.get(uri, callback)
 }
 
-function insertProblem(plist, callback) {
+function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
+  var pl = kcmModel.getDoc(plId, 'pipeline')
+    , cn = kcmModel.getDoc(cnId, 'concept node')
+
+  if (!pl || !cn) {
+    callback((pl ? 'Concept Node': 'Pipeline') + ' node found', 404)
+    return
+  }
+  if (pl._rev !== plRev || cn._rev !== cnRev) {
+    callback((pl ? 'Concept Node': 'Pipeline') + ' revision conflict', 412)
+    return
+  }
+  
   fs.readFile(plist, 'utf8', function(e, plistString) {
     if (e) {
       if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
@@ -691,6 +703,8 @@ function insertProblem(plist, callback) {
       , headers: { 'Content-Type': 'application/json' }
       , body: JSON.stringify({
         type: 'problem'
+        , pipeline: plId
+        , conceptNode: cnId
         , problemDescription: info.problemDescription
         , internalDescription: info.internalDescription
         , problemNotes: ''
@@ -1428,6 +1442,8 @@ function uploadPipelineFolder(user, o, callback) {
     docsToSave.push({
       _id: pl.problems[i]
       , type: 'problem'
+      , pipeline: pl._id
+      , conceptNode: cn._id
       , problemDescription: info.problemDescription
       , internalDescription: info.internalDescription
       , toolId: info.toolId

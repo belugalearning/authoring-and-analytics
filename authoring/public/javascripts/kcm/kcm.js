@@ -1338,10 +1338,15 @@
 
     function populateHiddenUploadProblemInputs(e) {
         var plId = $(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')
-          , plRev = kcm.pipelines[plId]._rev
+          , pl = kcm.pipelines[plId]
+          , plRev = pl._rev
+          , cnId = kcm.conceptNode
+          , cnRev = kcm.nodes[cnId]._rev
         ;
         $('input[name="pipeline-id"]').val(plId);
         $('input[name="pipeline-rev"]').val(plRev);
+        $('input[name="concept-node-id"]').val(cnId);
+        $('input[name="concept-node-rev"]').val(cnRev);
         $('input[type="file"][name="pdefs"]').click();
     }
 

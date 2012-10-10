@@ -514,6 +514,8 @@ module.exports = function(config, kcm_model, kcm) {
         , problems = []
         , plId = req.body['pipeline-id']
         , plRev = req.body['pipeline-rev']
+        , cnId = req.body['concept-node-id']
+        , cnRev = req.body['concept-node-rev']
 
       if (typeof files == 'undefined') {
         res.send('no files found on form', 500)
@@ -542,7 +544,7 @@ module.exports = function(config, kcm_model, kcm) {
             ;(function createProblem(pdef) {
               var numProblems
 
-              kcmModel.insertProblem(pdef, function(e, statusCode, newProblem) {
+              kcmModel.insertProblem(pdef, plId, plRev, cnId, cnRev, function(e, statusCode, newProblem) {
                 if (201 != statusCode) {
                   res.send('Error creating problem:\n' + e, statusCode || 500)
                   return
