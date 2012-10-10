@@ -1391,11 +1391,17 @@ function uploadPipelineFolder(user, o, callback) {
       return
     }
 
+    if (pl.conceptNode !== cn._id) {
+      callback('concept node id on pipeline conflicts with supplied pipeline id')
+      return
+    }
+
     nextVersion(pl, user, 'uploadPipelineFolder')
   } else {
     pl = firstVersion(user, 'uploadPipelineFolder')
     pl._id = generateUUID()
     pl.type = 'pipeline'
+    pl.conceptNode = o.cnId
 
     docsToSave.push(cn)
     nextVersion(cn, user, 'uploadPipelineFolder', pl._id)
@@ -1475,6 +1481,7 @@ function addNewPipelineToConceptNode(user, pipelineName, conceptNodeId, conceptN
   var pl = firstVersion(user, 'addNewPiplineToConceptNode', null)
   pl._id = generateUUID()
   pl.type = 'pipeline'
+  pl.conceptNode = conceptNodeId
   pl.name = pipelineName
   pl.problems = []
   pl.workflowStatus = 0
