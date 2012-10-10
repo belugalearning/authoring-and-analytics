@@ -123,7 +123,7 @@ function setupRoutes() {
   server.post('/kcm/delete-pipeline', server.routeHandlers.kcm.deletePipeline)
   server.put('/kcm/pipeline/:id/:rev/update-workflow-status/:status', server.routeHandlers.kcm.updatePipelineWorkflowStatus)
   server.put('/kcm/pipeline/:id/:rev/update-name/:name', server.routeHandlers.kcm.updatePipelineName)
-  server.get('/kcm/pipelines/:pipelineId?', server.routeHandlers.kcm.pipelinePage)
+  server.get('/kcm/pipelines/:pipelineId?', server.routeHandlers.kcm.pipelinePage)  // TODO: *********** Is this still used? Does it still work?
   server.get('/kcm/pipeline-sequence-tables/', server.routeHandlers.kcm.pipelineSequenceTables)
   server.post('/kcm/pipeline-problem-details', server.routeHandlers.kcm.pipelineProblemDetails)
   server.post('/kcm/pipeline-sequence/update', server.routeHandlers.kcm.updatePipelineSequence)
