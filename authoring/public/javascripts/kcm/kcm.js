@@ -1790,20 +1790,99 @@
     var search = function() {
       var currMatch = matches[currMatchIx]
         , s = $('input#map-search').val().toLowerCase()
-        , nodes = $.map(kcm.nodes, function(n) { return n })
+        , validSearch = !!s.length
 
-      if (s.length) {
-        matches = $.grep(nodes, function(n) { return ~n._id.toLowerCase().indexOf(s) || ~n.nodeDescription.toLowerCase().indexOf(s) })
-      } else {
-        matches = []
+      if (validSearch) {
+        matches = $.map(kcm.nodes, function(n) { return n })
+
+        var nodeTextPattern = s.match(/^((?:.*?[^\\])*?(?=~?\[|$))/)[1] // i.e. match everything up to first non-escaped '[' or '~['
+
+        if (nodeTextPattern.length) {
+          matches = matches.filter(function(m) {
+            return ~m._id.indexOf(nodeTextPattern) || ~m.nodeDescription.indexOf(nodeTextPattern)
+          })
+        }
+
+        if (matches.length) {
+          var sRest = s.substring(nodeTextPattern.length)
+          if (sRest) {
+            var filterRE = /~?\[((?=])|.*?[^\\](?=]))]/ 
+              , filters = sRest.match(RegExp(filterRE.source, 'g'))
+
+            validSearch = filters && filters.join('') === sRest
+
+            if (validSearch) {
+              for (var i=0, filter; filter=filters[i]; i++) {
+                var negate = filter.charAt(0) == '~'
+                if (negate) filter = filter.substring(1)
+
+                var parts = filter.match(/(^\[|:)(.*?[^\\])*?(?=:|]$)/g)
+                validSearch = parts.join('') + ']' === filter
+
+                parts = parts.map(function(p) { return p.match(/^(?:\[|:)(.*)/)[1] })
+                var key = parts[0]
+                
+                if (key == 't' || key == 'tag') {
+                  var tagText = parts[1].toLowerCase()
+                  matches = matches.filter(function(n) {
+                    if (!tagText) return negate == !n.tags.length
+                    for (var i=0,tag; tag=n.tags[i]; i++) {
+                      if (~tag.toLowerCase().indexOf(tagText)) return !negate
+                    }
+                    return negate
+                  })
+                } else if (key == 'pl' || key == 'pipeline') {
+                  var pls = $.map(kcm.pipelines, function(pl) { return pl })
+                  var plText = parts[1]
+                  if (plText) pls = pls.filter(function(pl) { return ~pl._id.indexOf(plText) || ~pl.name.indexOf(plText) })
+                  if (pls.length && parts[2]) {
+                    var wfsParts = parts[2].match(/^([<>=]?)(=?)(.*)/)
+                      , lt = wfsParts[1] == '<'
+                      , gt = wfsParts[1] == '>'
+                      , eq = wfsParts[2] == '=' || (!lt && !gt)
+                      , wfsValue = /^\d+$/.test(wfsParts[3]) ? parseInt(wfsParts[3]) : undefined
+
+                    if (typeof(wfsValue) == 'undefined') {
+                      for (var i=0, wfs; wfs=kcm.pipelineWorkflowStatuses[i]; i++) {
+                        if (wfsParts[3].toLowerCase() == wfs.abbreviation.toLowerCase() || wfsParts[3].toLowerCase() == wfs.name.toLowerCase()) {
+                          wfsValue = wfs.value
+                          break
+                        }
+                      }
+                    }
+
+                    if (typeof wfsValue !== 'number') {
+                      validSearch = false
+                      break
+                    }
+
+                    pls = pls.filter(function(pl) {
+                      var wfs = pl.workflowStatus
+                      return lt && wfs < wfsValue || gt && wfs > wfsValue || eq && wfs === wfsValue
+                    })
+                  }
+                  var nodeIds = $.unique( $.map(pls, function(pl) { return pl.conceptNode }) )
+
+                  matches = matches.filter(function(n) {
+                    return negate == !~nodeIds.indexOf(n._id)
+                  })
+                } else {
+                  validSearch = false
+                  break
+                }
+              }
+            }
+          }
+        }
       }
       
-      if (matches.length) {
+      if (validSearch && matches.length) {
         if (currMatch) currMatchIx = matches.indexOf(currMatch)
         if (!~currMatchIx) currMatchIx = 0
         highlightNode()
       } else {
         currMatchIx = -1
+        matches = []
         $('#map-search-numbers').text('0 / 0')
         setFocus(null)
         $('input#map-search').focus()
