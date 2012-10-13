@@ -94,9 +94,8 @@ block wrapper
               option(value="==") == 
               option(value=">=") >=
             select(data-key="pipelineWorkflowStatusLevel")
-              option(value="0") Untested
-              option(value="32") Tested
-              option(value="64") Production-Ready
+              each wfs in map.pipelineWorkflowStatuses
+                option(value="#{wfs.value}") #{wfs.name}
     table(data-panel="upload-pipeline-folder")
       thead
         tr

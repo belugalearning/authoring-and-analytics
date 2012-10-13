@@ -573,7 +573,7 @@
             $('#concept-db-id').text(data._id);
             $('#concept-description').val(data.nodeDescription).prop('disabled', '');
             $('#concept-tags').html($.tmpl('cnTagDIV', $.map(data.tags, function(tag) { return { tag:tag }; })));
-            $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; }), { nodeId:data._id}));
+            $('[data-section="pipelines"]').html($.tmpl('cnPipelineTR', $.map(data.pipelines, function(plId) { return kcm.pipelines[plId]; }), { workflowStatuses:kcm.pipelineWorkflowStatuses }));
  
         } else {
             $('table[data-panel="concept-node-data"]').addClass('none-selected');
@@ -1892,13 +1892,13 @@
                 <div/>\
             </td>\
             <td class="txt">\
-                <a class="pipeline-id" href="/kcm/concept-nodes/${$item.nodeId}/pipeline/{{html _id}}/download" type="application/zip">{{html _id}}</a>\
+                <a class="pipeline-id" href="/kcm/concept-nodes/{{html conceptNode}}/pipeline/{{html _id}}/download" type="application/zip">{{html _id}}</a>\
                 <br/>\
                 <input type="text", value="{{html name}}"/>\
                 <select class="workflow-status">\
-                    <option value="0" {{if workflowStatus == 0}}selected="selected"{{/if}}>U</option>\
-                    <option value="32" {{if workflowStatus == 32}}selected="selected"{{/if}}>T</option>\
-                    <option value="64" {{if workflowStatus == 64}}selected="selected"{{/if}}>P</option>\
+                  {{each(i,wfs) $item.workflowStatuses}}\
+                    <option value="${wfs.value}" {{if workflowStatus == wfs.value}}selected="selected"{{/if}}>${wfs.abbreviation}</option>\
+                  {{/each}}\
                 </select>\
             </td>\
             <td class="controls">\

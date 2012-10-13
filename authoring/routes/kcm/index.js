@@ -283,19 +283,13 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , getMap: function(req, res) {
-      // TODO: update all pipelines to have workflowStatus set then delete this
-      _.each(kcm.docStores.pipelines, function(pl) {
-        if (typeof pl.workflowStatus === 'undefined') pl.workflowStatus = 0 
-      })
-
-      var map = { user:kcm.docStores.users[req.session.user._id], pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq }
-      var clone
+      var map = { user:kcm.docStores.users[req.session.user._id], pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq, pipelineWorkflowStatuses:req.app.config.authoring.pipelineWorkflowStatuses }
 
       _.each(kcm.docStores.relations, function(r, id) {
         if (r.relationType == 'binary') {
           map.binaryRelations[id] = r
         } else if (r.relationType == 'chained-binary') {
-          clone = kcm.getDocClone(r._id, 'relation')
+          var clone = kcm.getDocClone(r._id, 'relation')
           clone.members = kcm.chainedBinaryRelationMembers(r)
           map.chainedBinaryRelations[id] = clone
         }
