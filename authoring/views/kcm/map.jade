@@ -63,14 +63,14 @@ block wrapper
             a(href='/kcm/get-app-canned-databases') Export KCM
         tr.field(data-key="nodeExclusionTags", data-type="tag")
           td
-            div#add-node-exclusion-tag.add-btn.panel-right-btn
+            div.add-btn.panel-right-btn
             | Exclude All Nodes Tagged:
-            div#tags-exclude-cn.tags-box.empty
-        tr.field(data-key="nodeRequiredTags", data-type="tag")
+            div.tags-box.empty
+        tr.field(data-key="conceptNodeRequiredTags", data-type="tag")
           td
-            div#add-node-required-tag.add-btn.panel-right-btn
+            div.add-btn.panel-right-btn
             | Require Concept Node Tags:
-            div#tags-required-cn.tags-box.empty
+            div.tags-box.empty
         if map.user.devteam
           tr.field
             td
@@ -78,12 +78,12 @@ block wrapper
               | Include Every Other Node
           tr.field(data-key="nodeInclusionTags", data-type="tag")
             td
-              div#add-node-inclusion-tag.add-btn.panel-right-btn
+              div.add-btn.panel-right-btn
               | Include All Other Nodes Tagged:
-              div#tags-include-cn.tags-box.empty
+              div.tags-box.empty
           tr.field(data-key="nodeTagsToBitCols", data-type="tag")
             td
-              div#add-tag-to-bit-col.add-btn.panel-right-btn
+              div.add-btn.panel-right-btn
               | Tags To Bit Cols:
               div#tags-to-bit-cols.tags-box.empty
           tr.field(data-key="nodeTagPrefixesToTextCols", data-type="tag")
