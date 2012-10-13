@@ -61,25 +61,26 @@ block wrapper
         tr.field
           td(style="text-align:right")
             a(href='/kcm/get-app-canned-databases') Export KCM
-        tr.field
-          td
-            input#export-all-nodes(type="checkbox")
-            | Export All Nodes
-        tr.field(data-key="nodeInclusionTags", data-type="tag")
-          td
-            div#add-node-inclusion-tag.add-btn.panel-right-btn
-            | Export All Nodes Tagged:
-            div#tags-include-cn.tags-box.empty
-        tr.field(data-key="nodeTagsToBitCols", data-type="tag")
-          td
-            div#add-tag-to-bit-col.add-btn.panel-right-btn
-            | Tags To Bit Cols:
-            div#tags-to-bit-cols.tags-box.empty
-        tr.field(data-key="nodeTagPrefixesToTextCols", data-type="tag")
-          td
-            div#add-tag-prefix-to-text-col.add-btn.panel-right-btn
-            | Tag Prefixes To Text Cols:
-            div#tag-prefixes-to-text-cols.tags-box.empty
+        if map.user.devteam
+          tr.field
+            td
+              input#export-all-nodes(type="checkbox")
+              | Export All Non-Excluded Nodes
+          tr.field(data-key="nodeInclusionTags", data-type="tag")
+            td
+              div#add-node-inclusion-tag.add-btn.panel-right-btn
+              | Export All Non-Excluded Nodes Tagged:
+              div#tags-include-cn.tags-box.empty
+          tr.field(data-key="nodeTagsToBitCols", data-type="tag")
+            td
+              div#add-tag-to-bit-col.add-btn.panel-right-btn
+              | Tags To Bit Cols:
+              div#tags-to-bit-cols.tags-box.empty
+          tr.field(data-key="nodeTagPrefixesToTextCols", data-type="tag")
+            td
+              div#add-tag-prefix-to-text-col.add-btn.panel-right-btn
+              | Tag Prefixes To Text Cols:
+              div#tag-prefixes-to-text-cols.tags-box.empty
         tr.field(data-key="pipelineNames", data-type="tag")
           td
             div#add-pipeline-to-export.add-btn.panel-right-btn
