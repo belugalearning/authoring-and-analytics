@@ -467,8 +467,9 @@ function updateUser(user, callback) {
     return
   }
   updateDoc(user, function(e,r,b) {
-    if (201 != r.statusCode) {
-      callback(util.format('error updating user. Database reported error: "%s"', e), r.statusCode)
+    var sc = r && r.statusCode || 500
+    if (sc !== 201) {
+      callback(util.format('error updating user. Database reported error: "%s"', e || b), r.statusCode)
       return
     }
     callback(null,201,JSON.parse(b).rev)
