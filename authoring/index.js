@@ -99,7 +99,7 @@ function setupRoutes() {
   server.get('/user-portal/:userId/activity-feed', server.routeHandlers.userPortal.activityFeedPage)
   server.get('/user-portal/all-activity-feed', server.routeHandlers.userPortal.allActivitiesReversed)
 
-  // TODO: improve uri's below - more in the uri less in req.body
+  // TODO: improve paths below - more in the uri less in req.body
   server.get('/kcm', server.routeHandlers.kcm.getMap)
   server.get('/kcm/pull-replicate', server.routeHandlers.kcm.pullReplicate) //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
   server.get('/kcm/get-app-canned-databases', server.routeHandlers.kcm.getAppCannedDatabases)
