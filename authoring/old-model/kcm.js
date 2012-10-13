@@ -1945,7 +1945,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
-function getAppCannedDatabases(userId, callback) {
+function getAppCannedDatabases(userId, pipelineWorkfowStatuses, callback) {
   // download includes:
   //  1) all-users.db
   //  2) user-state-template.db
@@ -2010,7 +2010,9 @@ function getAppCannedDatabases(userId, callback) {
     var args = arguments
       , user = kcm.docStores.users[userId]
       , exportSettings = user.exportSettings
-      , exportAllNodes  = exportSettings.exportAllNodes === true
+      , nodeExclusionTags = exportSettings.nodeExclusionTags
+      , conceptNodeRequiredTags = exportSettings.conceptNodeRequiredTags
+      , exportAllNodes  = exportSettings.exportAllNodes === true // export all OTHER nodes
       , nodeInclusionTags = exportSettings.nodeInclusionTags
       , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
       , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
@@ -2019,7 +2021,7 @@ function getAppCannedDatabases(userId, callback) {
       , exportLogWriteStream
 
 
-    var allWfStatusLevels = [0,32,64]
+    var allWfStatusLevels = _.pluck(pipelineWorkflowStatuses, 'value')
     switch (exportSettings.pipelineWorkflowStatusOperator) {
       case '<=':
         pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel })
@@ -2058,98 +2060,102 @@ function getAppCannedDatabases(userId, callback) {
     })
 
     function getAppContentJSON(jsonCallback) {
-      var pipelines = {}
-        , pl, plWfStatus
-        , problems = {}
-        , nodes
-        , nodeIds
-        , binaryRelations = []
-        , problems
+      var masteryPairs = kcm.cloneDocByTypeName('relation', 'Mastery').members
 
-      // pipelines & problems
-      for (var plId in kcm.docStores.pipelines) {
-        pl = kcm.docStores.pipelines[plId]
-        plWfStatus = pl.workflowStatus || 0
-        
-        if (pl.problems.length && ~pipelineNames.indexOf(pl.name) && ~pipelineWorkflowStatusLevels.indexOf(plWfStatus)) {
-          pipelines[plId] = { id:plId, rev:pl._rev, name:pl.name, workflowStatus:plWfStatus, problems:pl.problems }
+      // which nodes & pipelines to include
+      var incNodes = {}
+        , incPipelines = []
 
-          pl.problems.forEach(function(prId) {
-            var problem = kcm.docStores.problems[prId]
-            problems[prId] = { id:problem._id, rev:problem._rev }
+      _.each(kcm.docStores.nodes, function(n) {
+        if (!~n.tags.indexOf('mastery')) return
+        if (_.intersection(exportSettings.nodeExclusionTags, n.tags).length) return
+
+        var conceptNodes = _.map(
+          _filter(masteryPairs, function(p) { return p[1] == n._id })
+          , function(p) { return kcm.docStores.nodes[p[0]] })
+
+        conceptNodes = JSON.parse(JSON.stringify(
+          conceptNodes.filter(function(cn) {
+            if (_.intersection(exportSettings.nodeExclusionTags, cn.tags).length) return false
+            return !exportSettings.conceptNodeRequiredTags.length || _.intersection(exportSettings.conceptNodeRequiredTags, cn.tags).length
+          })
+        ))
+
+        conceptNodes.forEach(function(cn) {
+          var cnPipelines = cn.pipelines.map(function(plId) { return kcm.docStores.pipelines[plId] })
+          cnPipelines = cnPipelines.filter(function(pl) {
+            return pl.problems.length && ~allWfStatusLevels.indexOf(pl.workflowStatus) && ~exportSettings.pipelineNames.indexOf(pl.name)
+          })
+
+          cn.pipelines = _.pluck(cnPipelines, '_id')
+
+          if (cnPipelines.length) {
+            cn.hasPipelineInExport = true 
+            incPipelines = incPipelines.concat(cnPipelines)
+          }
+        })
+
+        conceptNodes = conceptNodes.filter(function(cn) {
+          return cn.hasPipelineInExport || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, cn.tags).length
+        })
+
+        if (conceptNodes.length || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, n.tags).length) {
+          incNodes[n._id] = n
+
+          conceptNodes.forEach(function(cn) {
+            incNodes[cn._id] = cn
           })
         }
-      }
+      })
+
+      // pipelines & problems
+      var pipelines = {}
+        , problems = {}
+
+      incPipelines.forEach(function(pl) {
+        pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:plWfStatus, problems:pl.problems }
+
+        pl.problems.forEach(function(prId) {
+          var problem = kcm.docStores.problems
+          problems[prId] = { id:problem._id, rev:problem._rev }
+      })
 
       // nodes
-      nodes = getNodes()
-      nodeIds = Object.keys(nodes) 
+      var nodes = {}
+      var tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
+      _.each(incNodes, function(n) {
+        nodes[id] = { id:n._id, rev:n._rev, pipelines:n.pipelines, x:n.x, y:n.y, workflowStatus:0 }
+        
+        if (n.pipelines.length) {
+          nodes[id].workflowStatus = Math.min.apply(Math, _.map(nodes[id].pipelines, function(plId) { return pipelines[plId].workflowStatus }))
+        }
+
+        nodeTagsToBitCols.forEach(function(tag) {
+          nodes[id][tag] = ~n.tags.indexOf(tag) ? 1 : 0
+        })
+
+        nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
+          var re = tagTextRegExps[i]
+            , matchingTags = _.filter(n.tags, function(tag) { return tag.match(re) != null })
+          nodes[id][tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
+        })
+      })
 
       // binary relations
       _.each(kcm.docStores.relations, function(r) {
         if (!~['binary','chained-binary'].indexOf(r.relationType)) return
 
-        var brMembers = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
+        var pairs = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
 
         binaryRelations.push({
           id: r._id
           , rev: r._rev
           , name: r.name
-          , members: brMembers.filter(function(pair) { return ~nodeIds.indexOf(pair[0]) && ~nodeIds.indexOf(pair[1]) })
+          , members: pairs.filter(function(p) { return nodes[p[0]] && nodes[p[1]] })
         })
       })
 
       return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
-
-      function getNodes() {
-        var plIds = Object.keys(pipelines)
-          , nodes = {}
-          , tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
-
-        if (exportAllNodes) {
-          console.log('EXPORT ALL N')
-          _.each(kcm.docStores.nodes, function(node, id) {
-            nodes[id] = node
-          })
-        } else {
-          // include nodes with included pipelines or containing included tags
-          _.each(kcm.docStores.nodes, function(node, id) {
-            if (_.intersection(plIds, node.pipelines).length || _.intersection(nodeInclusionTags, node.tags).length) {
-              nodes[id] = node
-            }
-          })
-
-          // ensure mastery nodes of all included nodes are themselves included
-          if (!~nodeInclusionTags.indexOf('mastery')) {
-            kcm.cloneRelationNamed('Mastery')
-              .members
-                .forEach(function(link) {
-                  if (nodes[link[0]]) nodes[link[1]] = kcm.docStores.nodes[link[1]]
-                })
-          }
-        }
-
-        _.each(nodes, function(n, id) {
-          nodes[id] = { id:n._id, rev:n._rev, pipelines:_.intersection(plIds, n.pipelines), x:n.x, y:n.y, workflowStatus:0 }
-          
-          if (n.pipelines.length) {
-            nodes[id].workflowStatus = Math.min.apply(Math, _.map(nodes[id].pipelines, function(plId) { return pipelines[plId].workflowStatus }))
-          }
-
-          nodeTagsToBitCols.forEach(function(tag) {
-            nodes[id][tag] = ~n.tags.indexOf(tag) ? 1 : 0
-          })
-
-          nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
-            var re = tagTextRegExps[i]
-              , matchingTags = _.filter(n.tags, function(tag) { return tag.match(re) != null })
-
-            nodes[id][tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
-          })
-        })
-
-        return nodes
-      }
     }
 
     function writePDefs(problems, cb) {

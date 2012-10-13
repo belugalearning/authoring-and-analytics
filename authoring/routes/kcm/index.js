@@ -47,7 +47,7 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , getAppCannedDatabases: function(req, res) {
-      kcmModel.getAppCannedDatabases(req.session.user._id, function(e, statusCode, path) {
+      kcmModel.getAppCannedDatabases(req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
         if (200 != statusCode) {
           res.send(e || 'error retrieving canned application content', statusCode || 500)
           return
