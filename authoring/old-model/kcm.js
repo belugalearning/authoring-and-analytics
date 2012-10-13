@@ -2070,7 +2070,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
         if (_.intersection(exportSettings.nodeExclusionTags, n.tags).length) return
 
         var conceptNodes = _.map(
-          _filter(masteryPairs, function(p) { return p[1] == n._id })
+          _.filter(masteryPairs, function(p) { return p[1] == n._id })
           , function(p) { return kcm.docStores.nodes[p[0]] })
 
         conceptNodes = JSON.parse(JSON.stringify(
@@ -2112,7 +2112,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
         , problems = {}
 
       incPipelines.forEach(function(pl) {
-        pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:plWfStatus, problems:pl.problems }
+        pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:pl.workflowStatus, problems:pl.problems }
 
         pl.problems.forEach(function(prId) {
           var problem = kcm.docStores.problems
@@ -2123,7 +2123,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
       // nodes
       var nodes = {}
       var tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
-      _.each(incNodes, function(n) {
+      _.each(incNodes, function(n, id) {
         nodes[id] = { id:n._id, rev:n._rev, pipelines:n.pipelines, x:n.x, y:n.y, workflowStatus:0 }
         
         if (n.pipelines.length) {
@@ -2142,6 +2142,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
       })
 
       // binary relations
+      var binaryRelations = []
       _.each(kcm.docStores.relations, function(r) {
         if (!~['binary','chained-binary'].indexOf(r.relationType)) return
 
