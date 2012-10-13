@@ -69,7 +69,6 @@
     }
     ws.onmessage = function(message) {
       var data = JSON.parse(message.data)
-      console.log('message data:', data) // ----------- !!!!!!!!!!!!!!!!!!!!!!!!
       
       if (data.seq <= kcm.update_seq) return
       kcm.update_seq = data.seq
@@ -126,7 +125,6 @@
               if (~relations.indexOf(data.id)) cbrsToUpdate.push(id)
             })
             updateChainedBinaryRelationsMembers(cbrsToUpdate, function(updates) {
-              console.log('updates:', updates)
               for (var cbrId in updates) {
                 kcm.chainedBinaryRelations[cbrId].members = updates[cbrId]
               }
