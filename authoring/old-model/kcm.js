@@ -2004,7 +2004,6 @@ function getAppCannedDatabases(userId, pipelineWorkfowStatuses, callback) {
       db.close(function() { gotoNext.apply(null, args) })
     })
   }
-
   // 3) KCM
   var createContent = function() {
     var args = arguments
@@ -2118,6 +2117,7 @@ function getAppCannedDatabases(userId, pipelineWorkfowStatuses, callback) {
         pl.problems.forEach(function(prId) {
           var problem = kcm.docStores.problems
           problems[prId] = { id:problem._id, rev:problem._rev }
+        })
       })
 
       // nodes
