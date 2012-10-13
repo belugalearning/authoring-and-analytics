@@ -64,22 +64,22 @@ block wrapper
         tr.field(data-key="nodeExclusionTags", data-type="tag")
           td
             div#add-node-exclusion-tag.add-btn.panel-right-btn
-            | Exclude Nodes Tagged:
+            | Exclude All Nodes Tagged:
             div#tags-exclude-cn.tags-box.empty
         tr.field(data-key="nodeRequiredTags", data-type="tag")
           td
             div#add-node-required-tag.add-btn.panel-right-btn
-            | Only Include Nodes Tagged:
+            | Require Concept Node Tags:
             div#tags-required-cn.tags-box.empty
         if map.user.devteam
           tr.field
             td
               input#export-all-nodes(type="checkbox")
-              | Export All Non-Excluded Nodes
+              | Include Every Other Node
           tr.field(data-key="nodeInclusionTags", data-type="tag")
             td
               div#add-node-inclusion-tag.add-btn.panel-right-btn
-              | Export All Non-Excluded Nodes Tagged:
+              | Include All Other Nodes Tagged:
               div#tags-include-cn.tags-box.empty
           tr.field(data-key="nodeTagsToBitCols", data-type="tag")
             td
