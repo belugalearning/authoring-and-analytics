@@ -38,6 +38,23 @@ function KCM(config) {
       if (o) o[row.id] = row.doc
     })
 
+    if (1) {
+      var users = []
+      _.each(self.docStores.users, function(ur) {
+        delete ur.exportSettings.nodeRequiredTags
+        ur.exportSettings.conceptNodeRequiredTags = []
+        users.push(ur)
+      })
+      request({
+        uri: self.dbURI + '/_bulk_docs'
+        , method: 'POST'
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+        , body: JSON.stringify({docs:users})
+      }, function(e,r,b) {
+        console.log('*** update ur export settings. ', e, r &&r.statusCode)
+      })
+    }
+
     // TEMP - LOCATE ALL DTOOL PROBS
     if (false) {
       var dtool = self.cloneDocByTypeName('tool', 'DistributionTool')
