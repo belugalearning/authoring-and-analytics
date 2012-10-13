@@ -1945,7 +1945,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
-function getAppCannedDatabases(userId, pipelineWorkfowStatuses, callback) {
+function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
   // download includes:
   //  1) all-users.db
   //  2) user-state-template.db
