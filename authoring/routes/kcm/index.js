@@ -61,7 +61,7 @@ module.exports = function(config, kcm_model, kcm) {
     , appImportContent: function(req, res) {
       for (var id in kcm.docStores.users) {
         if (kcm.docStores.users[id].loginName == req.params.loginName) {
-          kcmModel.getAppCannedDatabases(id, function(e, statusCode, path) {
+          kcmModel.getAppCannedDatabases(id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
             if (200 != statusCode) {
               res.send(e, statusCode || 500)
             } else {
