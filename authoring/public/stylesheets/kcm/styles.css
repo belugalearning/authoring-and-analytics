@@ -88,7 +88,7 @@ form#upload-plists { visibility:hidden; }
 [data-panel="concept-node-data"].none-selected div#insert-tag-btn { visibility:hidden; }
 
 [data-panel="export-settings"] tr.field > td { padding:3px; }
-[data-panel="export-settings"] .panel-right-btn { float:right; margin:0; }
+[data-panel="export-settings"] .panel-right-btn { float:right; margin:0 10px 0 0; }
 [data-panel="export-settings"] .tags-box.empty { display:none; }
 [data-panel="export-settings"] .tags-box { margin-top:4px; }
 
