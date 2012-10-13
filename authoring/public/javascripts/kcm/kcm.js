@@ -1795,7 +1795,7 @@
       if (validSearch) {
         matches = $.map(kcm.nodes, function(n) { return n })
 
-        var nodeTextPattern = s.match(/^((?:.*?[^\\])*?(?=~?\[|$))/)[1] // i.e. match everything up to first non-escaped '[' or '~['
+        var nodeTextPattern = s.match(/^([^\\]|\\.)*?(\\$|(?=~?\[|$))/g)[0] // i.e. match everything up to first non-escaped '[' or '~['
 
         if (nodeTextPattern.length) {
           matches = matches.filter(function(m) {
@@ -1806,8 +1806,7 @@
         if (matches.length) {
           var sRest = s.substring(nodeTextPattern.length)
           if (sRest) {
-            var filterRE = /~?\[((?=])|.*?[^\\](?=]))]/ 
-              , filters = sRest.match(RegExp(filterRE.source, 'g'))
+            var filters = sRest.match(/~?\[([^\\]|\\.)*?]/g)
 
             validSearch = filters && filters.join('') === sRest
 
@@ -1816,25 +1815,44 @@
                 var negate = filter.charAt(0) == '~'
                 if (negate) filter = filter.substring(1)
 
-                var parts = filter.match(/(^\[|:)(.*?[^\\])*?(?=:|]$)/g)
+                var parts = filter.match(/(^\[|:)([^\\]|\\.)*?(?=:|]$)/g)
                 validSearch = parts.join('') + ']' === filter
 
-                parts = parts.map(function(p) { return p.match(/^(?:\[|:)(.*)/)[1] })
+                parts = parts.map(function(p) { return p.substring(1) })
                 var key = parts[0]
                 
                 if (key == 't' || key == 'tag') {
-                  var tagText = parts[1].toLowerCase()
-                  matches = matches.filter(function(n) {
-                    if (!tagText) return negate == !n.tags.length
-                    for (var i=0,tag; tag=n.tags[i]; i++) {
-                      if (~tag.toLowerCase().indexOf(tagText)) return !negate
-                    }
-                    return negate
-                  })
+                  if (!parts[1] || !parts[1].length) {
+                    matches = matches.filter(function(n) { return negate == !n.tags.length })
+                  } else {
+                    var tagOptions = parts[1].match(/([^\\|]|\\.)+?(?=\||$)/g)
+                    validSearch = !!tagOptions && tagOptions.join('|') === parts[1]
+                    if (!validSearch) break
+
+                    matches = matches.filter(function(n) {
+                      for (var i=0,tag; tag=n.tags[i]; i++) {
+                        for (var j=0,opt; opt=tagOptions[j]; j++) {
+                          if (~tag.toLowerCase().indexOf(opt)) return !negate
+                        }
+                      }
+                      return negate
+                    })
+                  }
                 } else if (key == 'pl' || key == 'pipeline') {
                   var pls = $.map(kcm.pipelines, function(pl) { return pl })
-                  var plText = parts[1]
-                  if (plText) pls = pls.filter(function(pl) { return ~pl._id.indexOf(plText) || ~pl.name.indexOf(plText) })
+                  if (parts[1] && parts[1].length) {
+                    var plTextOptions = parts[1].match(/([^\\|]|\\.)+?(?=\||$)/g)
+                    validSearch = !!plTextOptions && plTextOptions.join('|') === parts[1]
+                    if (!validSearch) break
+
+                    pls = pls.filter(function(pl) {
+                      var id = pl._id.toLowerCase()
+                        , name = pl.name.toLowerCase()
+                      for (var i=0, opt; opt=plTextOptions[i]; i++) {
+                        if (~id.indexOf(opt) || ~name.indexOf(opt)) return true
+                      }
+                    })
+                  }
                   if (pls.length && parts[2]) {
                     var wfsParts = parts[2].match(/^([<>=]?)(=?)(.*)/)
                       , lt = wfsParts[1] == '<'
@@ -1844,7 +1862,7 @@
 
                     if (typeof(wfsValue) == 'undefined') {
                       for (var i=0, wfs; wfs=kcm.pipelineWorkflowStatuses[i]; i++) {
-                        if (wfsParts[3].toLowerCase() == wfs.abbreviation.toLowerCase() || wfsParts[3].toLowerCase() == wfs.name.toLowerCase()) {
+                        if (wfsParts[3] == wfs.abbreviation.toLowerCase() || wfsParts[3] == wfs.name.toLowerCase()) {
                           wfsValue = wfs.value
                           break
                         }
