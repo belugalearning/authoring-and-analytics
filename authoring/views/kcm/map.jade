@@ -61,6 +61,16 @@ block wrapper
         tr.field
           td(style="text-align:right")
             a(href='/kcm/get-app-canned-databases') Export KCM
+        tr.field(data-key="nodeExclusionTags", data-type="tag")
+          td
+            div#add-node-exclusion-tag.add-btn.panel-right-btn
+            | Exclude Nodes Tagged:
+            div#tags-exclude-cn.tags-box.empty
+        tr.field(data-key="nodeRequiredTags", data-type="tag")
+          td
+            div#add-node-required-tag.add-btn.panel-right-btn
+            | Only Include Nodes Tagged:
+            div#tags-required-cn.tags-box.empty
         if map.user.devteam
           tr.field
             td
