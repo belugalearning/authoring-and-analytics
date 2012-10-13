@@ -2115,7 +2115,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
         pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:pl.workflowStatus, problems:pl.problems }
 
         pl.problems.forEach(function(prId) {
-          var problem = kcm.docStores.problems
+          var problem = kcm.docStores.problems[prId]
           problems[prId] = { id:problem._id, rev:problem._rev }
         })
       })
