@@ -38,53 +38,6 @@ function KCM(config) {
       if (o) o[row.id] = row.doc
     })
 
-    if (1) {
-      var users = []
-      _.each(self.docStores.users, function(ur) {
-        delete ur.exportSettings.nodeRequiredTags
-        ur.exportSettings.conceptNodeRequiredTags = []
-        users.push(ur)
-      })
-      request({
-        uri: self.dbURI + '/_bulk_docs'
-        , method: 'POST'
-        , headers: { 'content-type':'application/json', accepts:'application/json' }
-        , body: JSON.stringify({docs:users})
-      }, function(e,r,b) {
-        console.log('*** update ur export settings. ', e, r &&r.statusCode)
-      })
-    }
-
-    // TEMP - LOCATE ALL DTOOL PROBS
-    if (false) {
-      var dtool = self.cloneDocByTypeName('tool', 'DistributionTool')
-      if (!dtool) console.log('can\'t get distribution tool')
-      var dtoolProbs = _.filter(self.docStores.problems, function(p) { return p.toolId === dtool._id })
-
-      console.log('dtoolProbs on db:', dtoolProbs.length)
-
-      var pls = _.map(self.docStores.pipelines, function(pl) {
-        var pl = self.getDocClone(pl._id, 'pipeline')
-        pl.dtoolProbs = _.intersection(pl.problems, _.pluck(dtoolProbs, '_id'))
-        return pl
-      })
-      pls = _.filter(pls, function(pl) { return pl.dtoolProbs.length })
-
-      console.log('pls containing dtool probs:', pls.length)
-      console.log('pls:', _.pluck(pls, 'name'))
-
-      var nodes = _.map(self.docStores.nodes, function(n) {
-        var n = self.getDocClone(n._id, 'concept node')
-        n.dtoolPls = _.filter(pls, function(pl) { return ~n.pipelines.indexOf(pl._id) })
-        return n
-      })
-      nodes = _.filter(nodes, function(n) { return n.dtoolPls.length })
-
-      var lognodes = _.map(_.sortBy(nodes,function(n){return n.y}), function(n) { return { _id:n._id, desc:n.nodeDescription, dtpls:_.pluck(n.dtoolPls, 'name'), x:n.x, y:n.y } })
-      console.log('nodes containing dtool pls:')
-      console.log(lognodes)
-    }
-
     // set up db _changes stream listen / emit
     request.get(self.dbURI, function(e,r,b) {
       var couchDBStream
