@@ -416,7 +416,7 @@
         .each(function(d,i) {
           var bbox = d3.select(this).select('text.node-description').node().getBBox()
           d3.select(this).select('rect.node-bg')
-            .attr('width', bbox.width + 2 * nodeTextPadding)
+            .attr('width', bbox.width + 4 * nodeTextPadding)
             .attr('height', bbox.height + 2 * nodeTextPadding)
             .attr('transform', 'translate('+(-(nodeTextPadding+bbox.width/2))+','+(-(nodeTextPadding+bbox.height/2))+')')
         })
