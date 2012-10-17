@@ -1815,6 +1815,9 @@
 
                 var parts = filter.match(/(^\[|:)([^\\]|\\.)*?(?=:|]$)/g)
                 validSearch = parts.join('') + ']' === filter
+                console.log('pre', parts)
+                parts.forEach(function(part, i) { parts[i] = part.replace(/\\(?=:|])/g, '') })
+                console.log('post', parts)
 
                 parts = parts.map(function(p) { return p.substring(1) })
                 var key = parts[0]
