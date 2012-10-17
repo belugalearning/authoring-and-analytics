@@ -69,8 +69,7 @@ function configServer() {
 
 // routes
 function setupRoutes() {
-  server.get('/', server.routeHandlers.index)
-  server.get('/sitemap', server.routeHandlers.siteMap)
+  server.get('/', function(req,res) { res.redirect('/kcm') })
 
   server.get('/content/element-assessment-criteria', server.routeHandlers.content.elementAssessmentCriteriaPage)
   server.get('/content/assessment-criterion-problems/:criterionId', server.routeHandlers.content.assessmentCriterionProblemsTable)

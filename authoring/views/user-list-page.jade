@@ -1,8 +1,0 @@
-extends layout
-
-block wrapper
-  table#user-list
-    each user in users
-      tr
-        td
-          a(href="/user-portal/#{user.doc._id}/activity-feed") #{user.doc.nickName}
