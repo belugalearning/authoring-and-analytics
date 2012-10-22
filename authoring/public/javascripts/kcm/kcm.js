@@ -1829,6 +1829,7 @@
                     var tagOptions = parts[1].match(/([^\\|]|\\.)+?(?=\||$)/g)
                     validSearch = !!tagOptions && tagOptions.join('|') === parts[1]
                     if (!validSearch) break
+                    tagOptions.forEach(function(option, i) { tagOptions[i] = option.replace(/\\\|/g, '|') })
 
                     matches = matches.filter(function(n) {
                       for (var i=0,tag; tag=n.tags[i]; i++) {
@@ -1845,6 +1846,7 @@
                     var plTextOptions = parts[1].match(/([^\\|]|\\.)+?(?=\||$)/g)
                     validSearch = !!plTextOptions && plTextOptions.join('|') === parts[1]
                     if (!validSearch) break
+                    plTextOptions.forEach(function(option, i) { plTextOptions[i] = option.replace(/\\\|/g, '|') })
 
                     pls = pls.filter(function(pl) {
                       var id = pl._id.toLowerCase()
