@@ -5,6 +5,7 @@ var fs = require('fs')
   , libxmljs = require('libxmljs')
   , exec = require('child_process').exec
   , sqlite3 = require('sqlite3').verbose()
+  , plist = require('plist')
 
 var kcmDatabaseName
   , kcm // new model - gradually transition to retrieving docs from here & updating/deleting via its controllers
@@ -1945,7 +1946,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
-function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
+function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, callback) {
   // download includes:
   //  1) all-users.db
   //  2) user-state-template.db
@@ -2004,6 +2005,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
       db.close(function() { gotoNext.apply(null, args) })
     })
   }
+  
   // 3) KCM
   var createContent = function() {
     var args = arguments
@@ -2019,46 +2021,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
       , pipelineWorkflowStatusLevels
       , exportLogWriteStream
 
-
-    var allWfStatusLevels = _.pluck(pipelineWorkflowStatuses, 'value')
-    switch (exportSettings.pipelineWorkflowStatusOperator) {
-      case '<=':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel })
-      break
-      case '==':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l == exportSettings.pipelineWorkflowStatusLevel })
-      break
-      case '>=':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l >= exportSettings.pipelineWorkflowStatusLevel })
-      break
-      default:
-        callback(util.format('invalid pipeline workflow status operator:"%s"', exportSettings.pipelineWorkflowStatusOperator), 500)
-      return
-    }
-
-    if (writeLog) exportLogWriteStream = fs.createWriteStream(contentPath + '/export-log.txt') 
-    if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
-
-    var content = getAppContentJSON()
-    if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
-
-    //console.log('\n\nJSON:\n%s\n', JSON.stringify(content,null,2))
-
-    createSQLiteDB(content, function(e, statusCode) {
-      if (201 != statusCode) {
-        callback(e || 'error creating content database', statusCode || 500)
-        return
-      }
-      writePDefs(content.problems, function(e, statusCode, pdefs) {
-        if (201 != statusCode) {
-          callback(e || 'error writing problem pdefs', statusCode || 500)
-          return
-        }
-        gotoNext.apply(null, args)
-      })
-    })
-
-    function getAppContentJSON(jsonCallback) {
+    var getAppContentJSON = function(jsonCallback) {
       var masteryPairs = kcm.cloneDocByTypeName('relation', 'Mastery').members
 
       // which nodes & pipelines to include
@@ -2159,38 +2122,69 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
       return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
     }
 
-    function writePDefs(problems, cb) {
-      var pIds = _.map(problems, function(p) { return p.id })
-      var pdefs = []
+    // set problem pdefs as property
+    var getPDefs = function(problems, next) {
+      var numProblems = problems.length
+        , numPDefs = 0
+        , sentError = false
 
-      ;(function getPDefsRec() {
-        var i = pdefs.length
-        , id = pIds[i]
-
-        if (i == pIds.length) {
-          //console.log('all pdefs retrieved')
-          writePDefsRec(0)
-        } else {
-          //console.log('get pdef at index', i)
-          request({
-            uri: databaseURI + id + '/pdef.plist'
-          }, function(e,r,b) {
-            pdefs[i] = b
-            getPDefsRec()
-          })
-        }
-      })()
-
-      function writePDefsRec(i) {
-        if (i == pdefs.length) {
-          //console.log('all pdefs written')
-          cb(null, 201)
-        } else {
-          //console.log('write pdef at index:',i)
-          fs.writeFileSync(pdefsPath + '/' + pIds[i] + '.plist', pdefs[i])
-          writePDefsRec(i+1)
-        }
+      if (!numProblems) {
+        next()
+        return
       }
+
+      problems.forEach(function(p) {
+        request({ uri: databaseURI + p.id + '/pdef.plist' }, function(e,r,b) {
+          if (sentError) return
+          var sc = r && r.statusCode || 500
+          if (e || sc !== 200) {
+            callback(util.format('error retrieving pdef for problem id="%s" from database, error="%s", statusCode=%d', p.id, e || b, sc), sc)
+            sentError = true
+            return
+          }
+
+          var onSuccess = function(pdef) {
+            p.pdef = JSON.stringify(pdef)
+            if (++numPDefs == numProblems) next()
+          }
+
+          if (/^bplist/.test(b)) {
+            console.log('decompile', p.id) // ******************************************************************
+            var pPath = util.format('%s/%s.plist', pdefsPath, p.id)
+            fs.writeFile(pPath, b, 'utf8', function(e) {
+              if (e) {
+                callback(util.format('error writing binary plist id="%s". error="%s"', p.id, e))
+                sentError = true
+                return
+              }
+
+              exec(plutilCommand + pPath, function(e) {
+                if (e) {
+                  callback(util.format('error decompiling plist id="%s". error="%s"', p.id, e))
+                  sentError = true
+                  return
+                }
+
+                var pdef = plist.parseFileSync(pPath)
+                if (!pdef) {
+                  callback(util.format('error parsing decompiled plist id="%s". error="%s"', p.id, e))
+                  sentError = true
+                  return
+                }
+                onSuccess(pdef)
+              })
+            })
+          } else {
+            var pdef = plist.parseStringSync(b)
+            if (!pdef) {
+              callback(util.format('error parsing plist id="%s". error="%s"', p.id, e))
+              sentError = true
+              return
+            }
+            onSuccess(pdef)
+          }
+        })
+      })
     }
 
     function createSQLiteDB(content, cb) {
@@ -2224,12 +2218,12 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
         plIns.finalize()
 
         exportLogWriteStream.write('\n================================================\nCREATE TABLE Problems\n')
-        db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT)")
+        db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT, pdef TEXT, lastSavedPDef TEXT, editStack TEXT, stackCurrentIndex INTEGER, stackLastSaveIndex INTEGER)")
         exportLogWriteStream.write('\n================================================\nINSERT INTO Problems\n')
-        var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?)")
+        var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?,?, ?,?,?, ?)")
         content.problems.forEach(function(p) {
           exportLogWriteStream.write('['+p.id+']')
-          probsIns.run(p.id, p.rev)
+          probsIns.run(p.id, p.rev, p.pdef, p.pdef, '[]', 0, 0)
         })
         probsIns.finalize()
 
@@ -2263,7 +2257,39 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
         })
       })  
     }
-}
+
+    var allWfStatusLevels = _.pluck(pipelineWorkflowStatuses, 'value')
+    switch (exportSettings.pipelineWorkflowStatusOperator) {
+      case '<=':
+        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel })
+      break
+      case '==':
+        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l == exportSettings.pipelineWorkflowStatusLevel })
+      break
+      case '>=':
+        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l >= exportSettings.pipelineWorkflowStatusLevel })
+      break
+      default:
+        callback(util.format('invalid pipeline workflow status operator:"%s"', exportSettings.pipelineWorkflowStatusOperator), 500)
+      return
+    }
+
+    if (writeLog) exportLogWriteStream = fs.createWriteStream(contentPath + '/export-log.txt') 
+    if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
+
+    var content = getAppContentJSON()
+    if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
+
+    getPDefs(content.problems, function() { // only reachable on getPDefs success
+      createSQLiteDB(content, function(e, statusCode) {
+        if (201 != statusCode) {
+          callback(e || 'error creating content database', statusCode || 500)
+        } else {
+          gotoNext.apply(null, args)
+        }
+      })
+    })
+  }
 
   createAllUsers(createUserStateTemplate, createContent)
 }

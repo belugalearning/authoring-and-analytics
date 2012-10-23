@@ -8,6 +8,7 @@ var fs = require('fs')
 ;
 
 var format = util.format;
+var plutilCommand = format('perl %s/../plutil.pl ', __dirname)
 
 module.exports = function(config, legacyKCMController, kcm) {
   kcmController = legacyKCMController
@@ -47,7 +48,7 @@ module.exports = function(config, legacyKCMController, kcm) {
       })
     }
     , getAppCannedDatabases: function(req, res) {
-      kcmController.getAppCannedDatabases(req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+      kcmController.getAppCannedDatabases(plutilCommand, req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
         if (200 != statusCode) {
           res.send(e || 'error retrieving canned application content', statusCode || 500)
           return
@@ -61,7 +62,7 @@ module.exports = function(config, legacyKCMController, kcm) {
     , appImportContent: function(req, res) {
       for (var id in kcm.docStores.users) {
         if (kcm.docStores.users[id].loginName == req.params.loginName) {
-          kcmController.getAppCannedDatabases(id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+          kcmController.getAppCannedDatabases(plutilCommand, id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
             if (200 != statusCode) {
               res.send(e, statusCode || 500)
             } else {
@@ -731,50 +732,49 @@ module.exports = function(config, legacyKCMController, kcm) {
 }
 
 function decompileFormPList(plist, callback) {
-    var path = plist && plist.path || undefined
-      , command = format('perl %s/../plutil.pl %s.plist', __dirname, path)
-      , isBinary
-    ;
+  var path = plist && plist.path || undefined
+    , command = plutilCommand + path
+    , isBinary
 
-    if (!path) {
-        callback(format('plist not found at path "%s".\n\tplist:\n', path, plist));
-        return
+  if (!path) {
+    callback(format('plist not found at path "%s".\n\tplist:\n', path, plist))
+    return
+  }
+
+  fs.rename(path, path + '.plist', function(e) {
+    if (e) {
+      callback(format('error renaming file: "%s"',e))
+      return
     }
 
-    fs.rename(path, path + '.plist', function(e) {
-        if (e) {
-            callback(format('error renaming file: "%s"',e));
-            return;
+    fs.readFile(path+'.plist', function(e,data) {
+      if (e) {
+        callback(format('error reading file - error reported: "%s"',e))
+        return
+      }
+
+      isBinary = data.toString('utf8').substring(0,6) == 'bplist'
+      if (!isBinary) {
+        // not a compiled plist
+        callback(null, path+'.plist')
+        return
+      }
+
+      exec(command, function(err, stdout, stderr) {
+        if (err) {
+          callback(format('plutil was unable to process the file. error: "%s"', err))
+          return
         }
 
-        fs.readFile(path+'.plist', function(e,data) {
-            if (e) {
-                callback(format('error reading file - error reported: "%s"',e));
-                return;
-            }
+        if (!/BinaryToXML/.test(stdout)) {
+          callback('plutil output format unrecognised')
+          return
+        }
 
-            isBinary = data.toString('utf8').substring(0,6) == 'bplist';
-            if (!isBinary) {
-                // not a compiled plist
-                callback(null, path+'.plist');
-                return;
-            }
-
-            exec(command, function(err, stdout, stderr) {
-                if (err) {
-                    callback(format('plutil was unable to process the file. error: "%s"', err));
-                    return;
-                }
-
-                if (!/BinaryToXML/.test(stdout)) {
-                    callback('plutil output format unrecognised');
-                    return;
-                }
-
-                callback(null, path+'.text.plist');
-            });
-        });
-    });
+        callback(null, path+'.text.plist')
+      })
+    })
+  })
 }
 
 function formatDateString(jsonDate) {
