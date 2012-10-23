@@ -4,13 +4,13 @@ var fs = require('fs')
   , exec = require('child_process').exec
   , stream = require('stream')
   , zipstream = require('zipstream')
-  , kcmModel
+  , kcmController
 ;
 
 var format = util.format;
 
-module.exports = function(config, kcm_model, kcm) {
-  kcmModel = kcm_model
+module.exports = function(config, legacyKCMController, kcm) {
+  kcmController = legacyKCMController
 
   return {
     pullReplicate: function(req, res) {
@@ -26,16 +26,16 @@ module.exports = function(config, kcm_model, kcm) {
         ;
         
         if (source.length > 1) {
-            kcmModel.pullReplicate(source, filter, continuous, cancel);
+            kcmController.pullReplicate(source, filter, continuous, cancel);
             res.send('Replication request received OK. Check stdout for further details');
         } else {
             res.send(500);
         }
     }
     , cannedDatabase: function(req, res) {
-      var uuid = kcmModel.generateUUID()
+      var uuid = kcmController.generateUUID()
         , dbPath = config.couchDatabasesDirectory
-        , dbName = kcmModel.databaseName
+        , dbName = kcmController.databaseName
         , zipFile = format('/tmp/canned-db-%s.zip', uuid)
 
       exec(format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
@@ -47,7 +47,7 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , getAppCannedDatabases: function(req, res) {
-      kcmModel.getAppCannedDatabases(req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+      kcmController.getAppCannedDatabases(req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
         if (200 != statusCode) {
           res.send(e || 'error retrieving canned application content', statusCode || 500)
           return
@@ -61,7 +61,7 @@ module.exports = function(config, kcm_model, kcm) {
     , appImportContent: function(req, res) {
       for (var id in kcm.docStores.users) {
         if (kcm.docStores.users[id].loginName == req.params.loginName) {
-          kcmModel.getAppCannedDatabases(id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+          kcmController.getAppCannedDatabases(id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
             if (200 != statusCode) {
               res.send(e, statusCode || 500)
             } else {
@@ -77,7 +77,7 @@ module.exports = function(config, kcm_model, kcm) {
       res.send(util.format('user with loginName="%s" does not exist', req.params.loginName), 412)
     }
     , downloadToKCMDirs: function(req, res) {
-        kcmModel.queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function(e,r,b) {
+        kcmController.queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function(e,r,b) {
             if (!r) {
                 res.send('failed to connect to database', 500);
                 return;
@@ -95,7 +95,7 @@ module.exports = function(config, kcm_model, kcm) {
 
             var mRel = rows[0].doc;
 
-            kcmModel.queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
+            kcmController.queryView('concept-nodes', 'include_docs', true, function(e,r,b) {
                 if (!r) {
                     res.send('failed to connect to database', 500);
                     return;
@@ -151,7 +151,7 @@ module.exports = function(config, kcm_model, kcm) {
                     }
                 });
 
-                var uuid = kcmModel.generateUUID()
+                var uuid = kcmController.generateUUID()
                 var uuidPath = '/tmp/' + uuid;
                 var rootPath = format('%s/tokcm/Number', uuidPath);
 
@@ -278,7 +278,7 @@ module.exports = function(config, kcm_model, kcm) {
         req.send(401)
         return
       }
-      kcmModel.updateUser(req.body.user, function(e, statusCode, rev) {
+      kcmController.updateUser(req.body.user, function(e, statusCode, rev) {
         res.send(e || rev, statusCode || 500)
       })
     }
@@ -298,7 +298,7 @@ module.exports = function(config, kcm_model, kcm) {
       res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
     }
     , insertConceptNode: function(req, res) {
-      kcmModel.insertConceptNode(
+      kcmController.insertConceptNode(
         req.session.user._id
         , { nodeDescription:req.body.nodeDescription
           , x:req.body.x
@@ -310,7 +310,7 @@ module.exports = function(config, kcm_model, kcm) {
       )
     }
     , deleteConceptNode: function(req, res) {
-      kcmModel.deleteConceptNode(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
+      kcmController.deleteConceptNode(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
         if (201 != statusCode) {
           e += ' You will need to refresh the page to bring back an up-to-date version of the map.'
         }
@@ -318,22 +318,22 @@ module.exports = function(config, kcm_model, kcm) {
       })
     }
     , updateConceptNodeDescription: function(req, res) {
-        kcmModel.updateConceptNodeDescription(req.session.user._id, req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode) {
+        kcmController.updateConceptNodeDescription(req.session.user._id, req.params.conceptNodeId, req.body.rev, req.body.nodeDescription, function(e, statusCode) {
             res.send(e, statusCode || 500);
         });
     }
     , insertConceptNodeTag: function(req, res) {
-      kcmModel.insertConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, null, req.body.tag, function(e, statusCode, conceptNodeRevision) {
+      kcmController.insertConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, null, req.body.tag, function(e, statusCode, conceptNodeRevision) {
         res.send(e, statusCode || 500)
       })
     }
     , deleteConceptNodeTag: function(req, res) {
-      kcmModel.deleteConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode) {
+      kcmController.deleteConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.tagText, function(e, statusCode) {
           res.send(e, statusCode || 500)
       })
     }
     , editConceptNodeTag: function(req, res) {
-        kcmModel.editConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.currentText, req.body.newText, function(e, statusCode) {
+        kcmController.editConceptNodeTag(req.session.user._id, req.body.conceptNodeId, req.body.conceptNodeRev, req.body.tagIndex, req.body.currentText, req.body.newText, function(e, statusCode) {
             res.send(e, statusCode || 500);
         })
     }
@@ -349,7 +349,7 @@ module.exports = function(config, kcm_model, kcm) {
             res.send(e, 500)
           } else {
             if (!--awaiting) {
-              kcmModel.uploadPipelineFolder(req.session.user._id, req.body, function(e, statusCode) {
+              kcmController.uploadPipelineFolder(req.session.user._id, req.body, function(e, statusCode) {
                 res.send(e, statusCode || 500)
               })
             }
@@ -359,7 +359,7 @@ module.exports = function(config, kcm_model, kcm) {
 
       req.body.pdefs.forEach(function(pdef, i) {
         if (pdef.slice(0, encodedCompiledFileStart.length) == encodedCompiledFileStart) {
-          var path = '/tmp/' + kcmModel.generateUUID()
+          var path = '/tmp/' + kcmController.generateUUID()
           fs.writeFile(path, pdef, 'base64', function(e) {
             decompileFormPList({ path: path }, function(e, decompiledPath) {
               if (e) {
@@ -426,7 +426,7 @@ module.exports = function(config, kcm_model, kcm) {
 
       pl.problems.forEach(function(problemId, i) {
         plistStreams[i] = new PListStream('pdef_'+i)
-        kcmModel.getPDef(problemId).pipe(plistStreams[i])
+        kcmController.getPDef(problemId).pipe(plistStreams[i])
       })
 
       var plistStream = plistStreams[pl.problems.length] = new PListStream('#meta-pipeline')
@@ -462,42 +462,42 @@ module.exports = function(config, kcm_model, kcm) {
           , cnRev = req.body.conceptNodeRev
           , plName = req.body.pipelineName
         ;
-        kcmModel.addNewPipelineToConceptNode(req.session.user._id, plName, cnId, cnRev, function(e, statusCode) {
+        kcmController.addNewPipelineToConceptNode(req.session.user._id, plName, cnId, cnRev, function(e, statusCode) {
             res.send(e, statusCode || 500)
         });
     }
     , deletePipeline: function(req, res) {
-        kcmModel.deletePipeline(req.session.user._id, req.body.pipelineId, req.body.pipelineRev, req.body.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
+        kcmController.deletePipeline(req.session.user._id, req.body.pipelineId, req.body.pipelineRev, req.body.conceptNodeId, req.body.conceptNodeRev, function(e, statusCode) {
             res.send(e, statusCode || 500);
         });
     }
     , reorderConceptNodePipelines: function(req, res) {
-        kcmModel.reorderConceptNodePipelines(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, req.body.pipelineId, req.body.oldIndex, req.body.newIndex, function(e,statusCode) {
+        kcmController.reorderConceptNodePipelines(req.session.user._id, req.params.conceptNodeId, req.body.conceptNodeRev, req.body.pipelineId, req.body.oldIndex, req.body.newIndex, function(e,statusCode) {
             res.send(e, statusCode || 500)
         })
     }
     , removeProblemFromPipeline: function(req,res) {
-        kcmModel.removeProblemFromPipeline(req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {
+        kcmController.removeProblemFromPipeline(req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {
             res.send(e || rev, statusCode || 500);
         });
     }
     , updatePipelineWorkflowStatus: function(req,res) {
-        kcmModel.updatePipelineWorkflowStatus(req.session.user._id, req.params.id, req.params.rev, req.params.status, function(e, statusCode, rev) {
+        kcmController.updatePipelineWorkflowStatus(req.session.user._id, req.params.id, req.params.rev, req.params.status, function(e, statusCode, rev) {
             res.send(e || rev, statusCode || 500);
         });
     }
     , updatePipelineName: function(req,res) {
-        kcmModel.updatePipelineName(req.params.id, req.params.rev, req.params.name, function(e, statusCode, rev) {
+        kcmController.updatePipelineName(req.params.id, req.params.rev, req.params.name, function(e, statusCode, rev) {
             res.send(e || rev, statusCode || 500);
         });
     }
     , updatePipelineSequence: function(req, res) {
-        kcmModel.updatePipelineSequence(req.body.pipelineId, req.body.problems, function(e,statusCode) {
+        kcmController.updatePipelineSequence(req.body.pipelineId, req.body.problems, function(e,statusCode) {
             res.send(e, statusCode || 500);
         });
     }
     , pipelineProblemDetails: function(req, res) {
-        kcmModel.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
+        kcmController.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
             res.send(e || problemDetails, statusCode);
         });
     }
@@ -538,7 +538,7 @@ module.exports = function(config, kcm_model, kcm) {
             ;(function createProblem(pdef) {
               var numProblems
 
-              kcmModel.insertProblem(pdef, plId, plRev, cnId, cnRev, function(e, statusCode, newProblem) {
+              kcmController.insertProblem(pdef, plId, plRev, cnId, cnRev, function(e, statusCode, newProblem) {
                 if (201 != statusCode) {
                   res.send('Error creating problem:\n' + e, statusCode || 500)
                   return
@@ -549,13 +549,13 @@ module.exports = function(config, kcm_model, kcm) {
                 if (numProblems < numFiles) {
                   createProblem(decompiledPDefs[numProblems])
                 } else {
-                  kcmModel.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e, statusCode, plUpdate) {
+                  kcmController.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id;}), function(e, statusCode, plUpdate) {
                     if (201 != statusCode) {
                       res.send(e, statusCode || 500)
                       return
                     }
 
-                    kcmModel.pipelineProblemDetails(plId, plUpdate.rev, function(e, statusCode, problemDetails) {
+                    kcmController.pipelineProblemDetails(plId, plUpdate.rev, function(e, statusCode, problemDetails) {
                       res.send(e || { problemDetails:problemDetails, pipelineId:plUpdate.id, pipelineRev:plUpdate.rev }, statusCode || 500)
                     })
                   })
@@ -597,7 +597,7 @@ module.exports = function(config, kcm_model, kcm) {
           return
         }
 
-        kcmModel.getPDef(problemId, function(e,r,b) {
+        kcmController.getPDef(problemId, function(e,r,b) {
           if (r.statusCode == 200) {
             if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
             res.header('Content-Type', 'application/xml')
@@ -617,7 +617,7 @@ module.exports = function(config, kcm_model, kcm) {
             return
           }
 
-          kcmModel.updatePDef(req.params.problemId, plist, function(e) {
+          kcmController.updatePDef(req.params.problemId, plist, function(e) {
             if (e) res.send(e, 500)
             else res.redirect('/kcm/problem/' + req.params.problemId)
           })
@@ -626,12 +626,12 @@ module.exports = function(config, kcm_model, kcm) {
     }
 
     , reorderPipelineProblems: function(req, res) {
-        kcmModel.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
+        kcmController.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
             res.send(e || plRev, statusCode || 500);
         });
     }
     , updateConceptNodePosition: function(req,res) {
-        kcmModel.updateConceptNodePosition(req.session.user._id, req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
+        kcmController.updateConceptNodePosition(req.session.user._id, req.body.id, req.body.rev, req.body.x, req.body.y, function(e, statusCode, nodeRevision) {
             res.send(e || nodeRevision, statusCode || 500);
         });
     }
@@ -677,7 +677,7 @@ module.exports = function(config, kcm_model, kcm) {
         , pair = req.body.pair
 
       var addPair = function() {
-        kcmModel.addOrderedPairToBinaryRelation(req.session.user._id, relation.id, relation.rev, pair[0], pair[1], function(e, statusCode) {
+        kcmController.addOrderedPairToBinaryRelation(req.session.user._id, relation.id, relation.rev, pair[0], pair[1], function(e, statusCode) {
           res.send(e, statusCode || 500)
         })
       }
@@ -697,7 +697,7 @@ module.exports = function(config, kcm_model, kcm) {
       if (relation.type == 'existing') {
         addPair()
       } else {
-        // Update kcmModel.insertBinaryRelation() to take req.session.user._id as first parameter - and make it comply with document versioning
+        // Update kcmController.insertBinaryRelation() to take req.session.user._id as first parameter - and make it comply with document versioning
         res.send('CREATION OF BINARY RELATIONS FROM THE KCM IS CURRENTLY DISABLED. - See Code Comments for instructions to enable.', 500)
         return
 
@@ -708,7 +708,7 @@ module.exports = function(config, kcm_model, kcm) {
           return
         }
 
-        kcmModel.insertBinaryRelation(relation.name, relation.description, function(e, statusCode) {
+        kcmController.insertBinaryRelation(relation.name, relation.description, function(e, statusCode) {
           var row = JSON.parse(b)
 
           if (201 != statusCode) {
@@ -723,7 +723,7 @@ module.exports = function(config, kcm_model, kcm) {
       }
     }
     , removePairFromBinaryRelation: function(req, res) {
-      kcmModel.removeOrderedPairFromBinaryRelation(req.session.user._id, req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode) {
+      kcmController.removeOrderedPairFromBinaryRelation(req.session.user._id, req.params.binaryRelationId, req.body.rev, req.body.pair, function(e, statusCode) {
         res.send(e, statusCode || 500)
       })
     }

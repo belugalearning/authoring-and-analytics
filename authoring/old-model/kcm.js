@@ -13,8 +13,8 @@ var kcmDatabaseName
   , databaseURI
   , relationTypes = ['binary']
 
-module.exports = function(config, kcmModel) {
-  kcm = kcmModel
+module.exports = function(config, kcm_) {
+  kcm = kcm_
   couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/')
   kcmDatabaseName = config.authoring.kcmDatabaseName
   designDoc = config.authoring.kcmDatabaseDesignDoc
@@ -671,8 +671,8 @@ function queryView(view) {
 }
 
 function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
-  var pl = kcmModel.getDoc(plId, 'pipeline')
-    , cn = kcmModel.getDoc(cnId, 'concept node')
+  var pl = kcm.getDoc(plId, 'pipeline')
+    , cn = kcm.getDoc(cnId, 'concept node')
 
   if (!pl || !cn) {
     callback((pl ? 'Concept Node': 'Pipeline') + ' node found', 404)
