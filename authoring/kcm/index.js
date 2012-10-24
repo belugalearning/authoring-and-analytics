@@ -29,6 +29,7 @@ function KCM(config) {
 
   request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
     if (!r || r.statusCode != 200) {
+      console.error('failed to retrieve KCM all docs')
       // TODO: handle
       return
     }
