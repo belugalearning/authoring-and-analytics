@@ -2,18 +2,18 @@
   "couchServerURI": "http://pull.zubi.me:5984"
   , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
   , "appWebService" : {
-    "port": 3000
+    "port": 3007
     , "loggingService": {
-      "databaseName": "june2012-logging"
+      "databaseName": "logging-geometry"
     }
     , "usersService": {
-      "databaseName": "june2012-users"
+      "databaseName": "users-geometry"
       , "databaseDesignDoc": "users-views"
     }
   }
   , "authoring" : {
-    "port": 3001
-    , "kcmDatabaseName": "tmp-blm-kcm3"
+    "port": 3009
+    , "kcmDatabaseName": "kcm-geometry"
     , "kcmDatabaseDesignDoc": "kcm-views"
     , "pipelineWorkflowStatuses": [
       { "value":0, "name":"Untested", "abbreviation":"U" },
@@ -23,6 +23,6 @@
     ]
   }
   , "webPortal": {
-    "port": 3002
+    "port": 3008
   }
 }
