@@ -1,28 +1,28 @@
-{
+{                                                                                                                                                                                                                                                                               
   "couchServerURI": "http://pull.zubi.me:5984"
   , "couchDatabasesDirectory": "/home/couchdb/build-couchdb/build/var/lib/couchdb/"
-  , "appWebService" : {
-    "port": 3007
+  , "appWebService" : { 
+    "port": 3000
     , "loggingService": {
-      "databaseName": "logging-geometry"
-    }
+      "databaseName": "june2012-logging"
+    }   
     , "usersService": {
-      "databaseName": "users-geometry"
+      "databaseName": "june2012-users"
       , "databaseDesignDoc": "users-views"
-    }
+    }   
   }
-  , "authoring" : {
-    "port": 3009
-    , "kcmDatabaseName": "kcm-geometry"
+  , "authoring" : { 
+    "port": 3001
+    , "kcmDatabaseName": "tmp-blm-kcm3"
     , "kcmDatabaseDesignDoc": "kcm-views"
     , "pipelineWorkflowStatuses": [
       { "value":0, "name":"Untested", "abbreviation":"U" },
       { "value":32, "name":"Tested", "abbreviation":"T" },
       { "value":48, "name":"Authored", "abbreviation":"A" },
       { "value":64, "name":"Production-Ready", "abbreviation":"P" }
-    ]
+    ]   
   }
   , "webPortal": {
-    "port": 3008
+    "port": 3002
   }
 }
