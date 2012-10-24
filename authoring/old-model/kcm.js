@@ -2218,7 +2218,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
         plIns.finalize()
 
         exportLogWriteStream.write('\n================================================\nCREATE TABLE Problems\n')
-        db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT, pdef TEXT, lastSavedPDef TEXT, editStack TEXT, stackCurrentIndex INTEGER, stackLastSaveIndex INTEGER)")
+        db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT, pdef TEXT, last_saved_pdef TEXT, edit_stack TEXT, stack_current_index INTEGER, stack_last_save_index INTEGER)")
         exportLogWriteStream.write('\n================================================\nINSERT INTO Problems\n')
         var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?,?, ?,?,?, ?)")
         content.problems.forEach(function(p) {
