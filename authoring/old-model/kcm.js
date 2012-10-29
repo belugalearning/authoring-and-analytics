@@ -742,8 +742,8 @@ function getPDef(problemId, callback) {
   }, callback)
 }
 
-function updatePDef(problemId, plist, callback) {
-  fs.readFile(plist, 'utf8', function(e, plistString) {
+function updatePDef(problemId, plistPath, callback) {
+  fs.readFile(plistPath, 'utf8', function(e, plistString) {
     if (e) {
       if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
       return
@@ -769,7 +769,7 @@ function updatePDef(problemId, plist, callback) {
 
     if (!problem._attachments) problem._attachments = {};
     problem._attachments['pdef.plist'] = {
-      data: new Buffer(plist).toString('base64')
+      data: new Buffer(plistString).toString('base64')
       , 'Content-Type': 'application/xml'
     }
 
@@ -778,7 +778,7 @@ function updatePDef(problemId, plist, callback) {
       , uri: databaseURI + problemId
       , body: JSON.stringify(problem)
     }, function(e,r,b) {
-      callback(r.statusCode != 201 && util.format('failed to update plist. statusCode:%s, database error:%s', r.statusCode, e) || null);
+      callback(r.statusCode != 201 && util.format('failed to update pdef. statusCode:%s, database error:%s', r.statusCode, e) || null);
     })
   })
 }
