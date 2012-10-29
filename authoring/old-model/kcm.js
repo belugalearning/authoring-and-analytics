@@ -88,6 +88,7 @@ module.exports = function(config, kcm_) {
     , insertProblem: insertProblem
     , getPDef: getPDef
     , updatePDef: updatePDef
+    , appEditPDef: appEditPDef
     , insertConceptNode: insertConceptNode
     , deleteConceptNode: deleteConceptNode
     , updateConceptNodePosition: updateConceptNodePosition
@@ -826,6 +827,69 @@ function getProblemInfoFromPList(plistString, callback) {
   }
 }
 
+function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
+  var user
+
+  for (var urId in kcm.docStores.users) {
+    if (kcm.docStores.users[urId].loginName == userLoginName) {
+      user = kcm.docStores.users[urId]
+      break
+    }
+  }
+
+  if (!user) {
+    callback(util.format('user with loginName "%s" not found', userLoginName), 404)
+    return
+  }
+
+  var problem = kcm.getDocClone(pId, 'problem')
+
+  if (!problem) {
+    callback(util.format('problem with id "%s" not found', pId), 404)
+    return
+  }
+
+  if (problem._rev !== pRev) {
+    // TODO: return details of most recent edits since _rev=rev
+    callback(JSON.stringify({ rev:problem._rev }), 409)
+    return
+  }
+
+  // TODO: instead of converting pdef json to plist & setting pdef.plist attachment on problem, just set pdef property on doc
+  // nextVersion(problem, user._id, 'appEditPDef')
+
+  var plistString = plist.build(pdef).toString()
+  // N.B. for some reason this module converts all string keys to data keys and base 64 encodes the string
+  var pdefXML = libxmljs.parseXmlString(plistString)
+  pdefXML.find('//data').forEach(function(dn) {
+    var decoded = new Buffer(dn.text(), 'base64').toString()
+    dn.text(decoded)
+    dn.name('string')
+  })
+  plistString = pdefXML.toString()
+
+  var info = getProblemInfoFromPList(plistString)
+  if (info.error) {
+    callback(info.error.match(/^[^\n]*/)[0], 400)
+    return
+  }
+
+  request({
+    method: 'PUT'
+    , uri: databaseURI + problem._id
+    , body: JSON.stringify(problem)
+  }, function(e,r,b) {
+    var sc = r && r.statusCode || 500
+    if (sc !== 201) {
+      callback(util.format('failed to update pdef. statusCode:%s, database error:%s', r.statusCode, e), sc)
+    } else {
+      var newRev = JSON.parse(b).rev
+      callback(null, sc, newRev)
+    }
+  })
+}
+
+// Nodes
 function insertConceptNode(user, o, callback) {
   var errors = ''
   if (typeof o.nodeDescription != 'string' || !o.nodeDescription.length) errors += 'String value required for "nodeDescription". "'

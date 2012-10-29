@@ -9,7 +9,7 @@ var express = require('express')
   , KCMWebSocketServer = require('./kcm-websocket-server')
 
 var server = express.createServer()
-var noAuthRequired = [/^\/kcm\/app-import-content\/.*/]
+var noAuthRequired = [/^\/kcm\/app-import-content\/.*/, /^\/kcm\/app-edit-pdef(\/.*)?$/]
 
 server.guid = function() {
   return crypto.randomBytes(16)
@@ -54,6 +54,10 @@ function configServer() {
     server.use(express.favicon())
     server.use(express.bodyParser())
     server.use(express.cookieParser())
+    /*server.use(function(req,res,next) {
+      console.log(new Date(), req.url)
+      next()
+    })//*/
     server.use(server.sessionService.httpRequestHandler)
     server.use(express.methodOverride())
     server.use(server.router)
@@ -75,7 +79,10 @@ function setupRoutes() {
   server.get('/kcm', server.kcmRouteHandlers.getMap)
   server.get('/kcm/pull-replicate', server.kcmRouteHandlers.pullReplicate) //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
   server.get('/kcm/get-app-canned-databases', server.kcmRouteHandlers.getAppCannedDatabases)
+
   server.get('/kcm/app-import-content/:loginName', server.kcmRouteHandlers.appImportContent)
+  server.post('/kcm/app-edit-pdef', server.kcmRouteHandlers.appEditPDef)
+
   server.get('/kcm/download-tokcm-dirs', server.kcmRouteHandlers.downloadToKCMDirs)
   server.post('/kcm/update-user', server.kcmRouteHandlers.updateUser)
   server.get('/kcm/canned-database', server.kcmRouteHandlers.cannedDatabase)

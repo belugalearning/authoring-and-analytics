@@ -77,6 +77,11 @@ module.exports = function(config, legacyKCMController, kcm) {
       }
       res.send(util.format('user with loginName="%s" does not exist', req.params.loginName), 412)
     }
+    , appEditPDef: function(req, res) {
+      kcmController.appEditPDef(req.body.userLoginName, req.body._id, req.body._rev, req.body.pdef, function(e, statusCode, b) {
+        res.send(e || b, statusCode)
+      })
+    }
     , downloadToKCMDirs: function(req, res) {
         kcmController.queryView('relations-by-name', 'key', 'Mastery', 'include_docs', true, function(e,r,b) {
             if (!r) {
