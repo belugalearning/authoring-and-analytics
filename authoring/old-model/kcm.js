@@ -116,6 +116,7 @@ module.exports = function(config, kcm_) {
   }
 }
 
+// versioning
 function firstVersion(user, action, actionData) {
   return {
     currentVersion: {
@@ -671,6 +672,7 @@ function queryView(view) {
   request.get(uri, callback)
 }
 
+// Problems
 function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
   var pl = kcm.getDoc(plId, 'pipeline')
     , cn = kcm.getDoc(cnId, 'concept node')
@@ -1124,6 +1126,7 @@ function editConceptNodeTag(user, conceptNodeId, conceptNodeRev, tagIndex, curre
   })
 }
 
+// Relations
 function insertBinaryRelation(name, description, callback) {
   if ('string' != typeof name) {
     if ('function' == typeof callback) callback('could not insert relation - name required', 500)
@@ -1362,6 +1365,7 @@ function removeOrderedPairFromBinaryRelation(user, relationId, relationRev, pair
   })
 }
 
+// Pipelines
 function uploadPipelineFolder(user, o, callback) {
   var cn, pl
     , errors = []
@@ -1946,6 +1950,7 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
   })
 }
 
+// Export KCM
 function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, callback) {
   // download includes:
   //  1) all-users.db
@@ -2335,7 +2340,7 @@ function deleteDoc(id, rev, callback) {
   }, callback)
 }
 
-//
+// Unused
 function validatedResponseCallback(validStatusCodes, callback) {
   if (typeof validStatusCodes == 'number') validStatusCodes = [ validStatusCodes ]
     return function(e, r, b) {
