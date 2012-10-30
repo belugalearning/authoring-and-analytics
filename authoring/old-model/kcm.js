@@ -2087,7 +2087,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
       , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
       , pipelineNames = exportSettings.pipelineNames
-      , pipelineWorkflowStatusLevels
+      , includedPipelineWorkflowStatuses
       , exportLogWriteStream
 
     var getAppContentJSON = function(jsonCallback) {
@@ -2115,7 +2115,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
         conceptNodes.forEach(function(cn) {
           var cnPipelines = cn.pipelines.map(function(plId) { return kcm.docStores.pipelines[plId] })
           cnPipelines = cnPipelines.filter(function(pl) {
-            return pl.problems.length && ~allWfStatusLevels.indexOf(pl.workflowStatus) && ~exportSettings.pipelineNames.indexOf(pl.name)
+            return pl.problems.length && ~includedPipelineWorkflowStatuses.indexOf(pl.workflowStatus) && ~exportSettings.pipelineNames.indexOf(pl.name)
           })
 
           cn.pipelines = _.pluck(cnPipelines, '_id')
@@ -2218,7 +2218,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
           }
 
           if (/^bplist/.test(b)) {
-            console.log('decompile', p.id) // ******************************************************************
             var pPath = util.format('%s/%s.plist', pdefsPath, p.id)
             fs.writeFile(pPath, b, 'utf8', function(e) {
               if (e) {
@@ -2330,13 +2329,13 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     var allWfStatusLevels = _.pluck(pipelineWorkflowStatuses, 'value')
     switch (exportSettings.pipelineWorkflowStatusOperator) {
       case '<=':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel })
+        includedPipelineWorkflowStatuses = _.filter(allWfStatusLevels, function(l) { return l <= exportSettings.pipelineWorkflowStatusLevel })
       break
       case '==':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l == exportSettings.pipelineWorkflowStatusLevel })
+        includedPipelineWorkflowStatuses = _.filter(allWfStatusLevels, function(l) { return l == exportSettings.pipelineWorkflowStatusLevel })
       break
       case '>=':
-        pipelineWorkflowStatusLevels = _.filter(allWfStatusLevels, function(l) { return l >= exportSettings.pipelineWorkflowStatusLevel })
+        includedPipelineWorkflowStatuses = _.filter(allWfStatusLevels, function(l) { return l >= exportSettings.pipelineWorkflowStatusLevel })
       break
       default:
         callback(util.format('invalid pipeline workflow status operator:"%s"', exportSettings.pipelineWorkflowStatusOperator), 500)
