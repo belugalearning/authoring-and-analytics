@@ -856,7 +856,7 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
   }
 
   // TODO: instead of converting pdef json to plist & setting pdef.plist attachment on problem, just set pdef property on doc
-  // nextVersion(problem, user._id, 'appEditPDef')
+  nextVersion(problem, user._id, 'appEditPDef')
 
   var plistString = plist.build(pdef).toString()
   // N.B. for some reason this module converts all string keys to data keys and base 64 encodes the string
@@ -873,6 +873,14 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
     callback(info.error.match(/^[^\n]*/)[0], 400)
     return
   }
+  problem.problemDescription = info.problemDescription
+  problem.internalDescription = info.internalDescription
+  problem.dataModified = new Date()
+
+  problem._attachments['pdef.plist'] = {
+    data: new Buffer(plistString).toString('base64')
+    , 'Content-Type': 'application/xml'
+  }
 
   request({
     method: 'PUT'
@@ -881,10 +889,10 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
   }, function(e,r,b) {
     var sc = r && r.statusCode || 500
     if (sc !== 201) {
-      callback(util.format('failed to update pdef. statusCode:%s, database error:%s', r.statusCode, e), sc)
+      callback(util.format('failed to update pdef.\nstatusCode:%s\ndatabase error:%s', r.statusCode, e || b), sc)
     } else {
       var newRev = JSON.parse(b).rev
-      callback(null, sc, newRev)
+      callback(null, 201, newRev)
     }
   })
 }
