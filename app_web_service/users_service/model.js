@@ -45,10 +45,6 @@ module.exports = function(config) {
 }
 
 function syncUsers(clientDeviceUsers, callback) {
-  var log = false
-
-  if (log) console.log('\n----------------------------------------------------------------')
-  if (log) console.log('clientDeviceUsers:%s', JSON.stringify(clientDeviceUsers,null,2))
   var urIds = _.pluck(clientDeviceUsers, 'id')
 
   request(encodeURI(databaseURI + '_all_docs?include_docs=true&keys=' + JSON.stringify(urIds)), function(e,r,b) {
@@ -61,16 +57,16 @@ function syncUsers(clientDeviceUsers, callback) {
       , newUserIds = _.difference(urIds, _.pluck(existingUsers, '_id')) // users that need adding to the server
       , newUsers = _.map(newUserIds, function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
 
-    if (log) console.log('Server versions of client users:', JSON.stringify(existingUsers,null,2))
-    if (log) console.log('\nnewUserIds:', JSON.stringify(newUserIds,null,2))
-    if (log) console.log('newUsers:', JSON.stringify(newUsers,null,2))
-
     // mapped array with client/server update status for each user that already exists on the server and the concatenated completed nodes of client/server
     var existingUsersData = _.map(existingUsers, function(serverUr) {
       var clientUr = _.find(clientDeviceUsers, function(u) { return u.id == serverUr._id })
 
       if (!clientUr.nodesCompleted) clientUr.nodesCompleted = []
       if (!serverUr.nodesCompleted) serverUr.nodesCompleted = []
+
+      // remove duplicates from nodesCompleted arrays
+      clientUr.nodesCompleted = _.uniq(clientUr.nodesCompleted)
+      serverUr.nodesCompleted = _.uniq(serverUr.nodesCompleted)
 
       var nodesCompleted = _.uniq(serverUr.nodesCompleted.concat(clientUr.nodesCompleted))
         , numNodesCompleted = nodesCompleted.length
@@ -83,17 +79,14 @@ function syncUsers(clientDeviceUsers, callback) {
         , nodesCompleted: nodesCompleted
       }
     })
+
     _.each(existingUsersData, function(urData) {
       urData.clientUr.nodesCompleted = urData.nodesCompleted
       urData.serverUr.nodesCompleted = urData.nodesCompleted
     })
-    if (log) console.log('\nexistingUsersData:', JSON.stringify(existingUsersData,null,2))
 
     var clientUpdates = _.pluck( _.filter(existingUsersData, function(urData) { return urData.updateOnClient }), 'clientUr' )
     var serverUpdates = _.pluck( _.filter(existingUsersData, function(urData) { return urData.updateOnServer }), 'serverUr' )
-
-    if (log) console.log('\nclientUpdates:', JSON.stringify(clientUpdates,null,2))
-    if (log) console.log('\nserverUpdates:', JSON.stringify(serverUpdates,null,2))
 
     // call the callback function with the client updates
     callback(null, 200, clientUpdates)
@@ -108,8 +101,6 @@ function syncUsers(clientDeviceUsers, callback) {
         , type: 'USER'
       }
     }).concat(serverUpdates)
-    
-    if (log) console.log('\nbulkUpdateDocs:', JSON.stringify(bulkUpdateDocs,null,2))
 
     if (bulkUpdateDocs.length) {
       request({
@@ -118,11 +109,8 @@ function syncUsers(clientDeviceUsers, callback) {
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs: bulkUpdateDocs })
       }, function(e,r,b) {
-        if (log) console.log('bulk update response:\nerror:%s\nstatusCode: %s\nbulk update response body:\n%s', e, r && r.statusCode, JSON.stringify(b,null,2))
-        if (log) console.log('------------------------------------------------')
+        // TODO: handle errors
       })
-    } else {
-      if (log) console.log('------------------------------------------------')
     }
   })
 }
