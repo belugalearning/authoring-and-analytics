@@ -344,7 +344,7 @@ module.exports = function(config, legacyKCMController, kcm) {
         })
     }
     , uploadPipelineFolder: function(req, res) {
-      var encodedCompiledFileStart = new Buffer('bplist').toString('base64')
+      var compiledPrefixRE = /^YnBsaXN0/ //i.e. starts with bplist
       var awaiting = req.body.pdefs.length
       var sentError = false
 
@@ -364,7 +364,7 @@ module.exports = function(config, legacyKCMController, kcm) {
       }
 
       req.body.pdefs.forEach(function(pdef, i) {
-        if (pdef.slice(0, encodedCompiledFileStart.length) == encodedCompiledFileStart) {
+        if (compiledPrefixRE.test(pdef)) {
           var path = '/tmp/' + kcmController.generateUUID()
           fs.writeFile(path, pdef, 'base64', function(e) {
             decompileFormPList({ path: path }, function(e, decompiledPath) {
@@ -738,7 +738,7 @@ module.exports = function(config, legacyKCMController, kcm) {
 
 function decompileFormPList(plist, callback) {
   var path = plist && plist.path || undefined
-    , command = plutilCommand + path
+    , command = plutilCommand + path + '.plist'
     , isBinary
 
   if (!path) {
