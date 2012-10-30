@@ -44,8 +44,7 @@ module.exports = function(config) {
   }
 }
 
-// device will be null
-function syncUsers(clientDeviceUsers, device, callback) {
+function syncUsers(clientDeviceUsers, callback) {
   var log = false
 
   if (log) console.log('\n----------------------------------------------------------------')
