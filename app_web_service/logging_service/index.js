@@ -10,31 +10,42 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , interSep = String.fromCharCode(parseInt('91', 16)) // unicode "private use one" UTF-8: 0xC291 - represented as 0x91 in javascript string
   , intraSep = String.fromCharCode(parseInt('92', 16)) // unicode "private use two" UTF-8: 0xC292 - represented as 0x92 in javascript string 
   , couchServerURI
-  , dbName
-  , dbURI
+  , mainLoggingDbName
+  , mainLoggingDbURI
   , genDesignDoc = 'logging-design-doc'
   , userDesignDoc = 'user-related-views'
   , paMetaDesignDoc = 'pa-meta-design-doc'
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
+  , userDBDirectory
 
 module.exports = function(config) {
-  couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/')
-  dbName = config.appWebService.loggingService.databaseName
-  dbURI = couchServerURI + dbName + '/'
+  couchServerURI = config.couchServerURI.replace(/\/$/, '')
+  mainLoggingDbName = config.appWebService.loggingService.databaseName
+  mainLoggingDbURI = util.format('%s/%s', couchServerURI, mainLoggingDbName)
 
   //updateDesignDocs([paMetaDesignDoc])
 
-  processPendingBatches(function(numProcessed) {
-    var f = arguments.callee
-
-    //console.log('processed %d batches at %s', numProcessed, new Date().toString())
-    if (numProcessed > 0) {
-      processPendingBatches(f)
-    } else {
-      setTimeout((function() { processPendingBatches(f) }), 5000)
+  request.get(util.format('%s/%s/user-db-directory', couchServerURI, allLogsDatabase), function(e,r,b) {
+    if (!r || r.statusCode !== 200) {
+      console.error('error retrieving doc with id user-db-directory - cannot process log batches as a result.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
+      return
     }
+
+    userDBDirectory = JSON.parse(b)
+
+    // initiate process batches loop
+    processPendingBatches(function(numProcessed) {
+      var f = arguments.callee
+
+      //console.log('processed %d batches at %s', numProcessed, new Date().toString())
+      if (numProcessed > 0) {
+        processPendingBatches(f)
+      } else {
+        setTimeout((function() { processPendingBatches(f) }), 5000)
+      }
+    })
   })
 
   return uploadBatchRequestHandler
@@ -54,14 +65,14 @@ function uploadBatchRequestHandler(req, res) {
 
   fs.readFile(batchFilePath, function(e, buffer) {
     var lead0s = new Array(9).join('0')
-    , dWords = []
+      , dWords = []
 
     for (var i=0; i<5; i++) {
       dWords[i] = (lead0s + buffer.readUInt32BE(4*i).toString(16)).match(/([0-9a-f]{8})$/i)[1]
     }
 
     var batchDate = dWords[0]
-    var batchUUID = dWords.slice(1).join('')
+      , batchUUID = dWords.slice(1).join('')
 
     zlib.unzip(buffer.slice(20), function(e, inflatedBuffer) {
       fs.writeFile( util.format('%s/batch-%s-%s', pendingLogBatchesDir, batchDate, batchUUID), inflatedBuffer, function(e) {
@@ -105,7 +116,7 @@ function processPendingBatches(callback) {
   })
 }
 
-function processBatch(batch, callback) {
+function processBatch(batch, pbCallback) {
   var path = util.format('%s/%s', pendingLogBatchesDir, batch)
     , match = batch.match(batchFileNameRE)
     , batchDate = parseInt(match[1], 16)
@@ -113,7 +124,7 @@ function processBatch(batch, callback) {
 
   fs.readFile(path, 'utf8', function(e, str) {
     if (e) {
-      callback('error reading batch file')
+      pbCallback('error reading batch file')
       return
     }
 
@@ -161,10 +172,92 @@ function processBatch(batch, callback) {
       , invalid = _.difference(records, valid)
       , uuids = _.pluck(valid, 'uuid')
       , numValid = uuids.length
-      , getMatchingDocsURI = numValid && encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', dbURI, JSON.stringify(uuids)))
-      , docsForInsertOrUpdate = []
+      , deviceId
+      , recordsByUrDb = {}
+      , mainLoggingDbRecords = []
+      , sentError = false
 
-    var recordBatch = function(deviceId) {
+    var sendError = function(e) {
+      if (!sentError) {
+        pbCallback(e)
+        sentError = true
+      }
+    }
+
+    var assignRecordActions = function(dbName, recs, callback) {
+      var uuids = _.pluck(recs, 'uuid')
+      var matchingDocsURI = encodeURI(util.format('%s/%s/_all_docs?include_docs=true&keys=%s', couchServerURI, dbName, JSON.stringify(uuids)))
+      var docsForInsertOrUpdate = []
+
+      request(matchingDocsURI, function(e,r,b) {
+        var sc = r && r.statusCode
+        if (sc !== 200) {
+          // TODO: Needs Handling!
+          sendError('Error retrieving database records.\n\tDatabase Name: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbName, JSON.stringify(recs), e || b, sc || 0)
+          return
+        }
+
+        var rows = JSON.pare(b).rows
+
+        for (var i=0, record, row;  (record = recs[i]) && (row = rows[i]);  i++) {
+          if (row.error) {
+            if (row.error == 'not_found') { // TODO: will this error text will be retained across couch versions? Is there a better way of checking for not found?
+              record.action = 'INSERT'
+              docsForInsertOrUpdate.push(record.doc)
+            } else {
+              record.action = 'IGNORE_ON_UNHANDLED_ROW_RETRIVAL_ERROR'
+              record.rowRetrievalError = row.error
+            }
+          } else {
+            deviceId = deviceId || record.doc.device
+
+            if (batchDate > row.doc.batchDate) {
+              record.action = 'UPDATE'
+              record.doc._rev = row.doc._rev
+              docsForInsertOrUpdate.push(record.doc)
+            } else {
+              record.action = 'IGNORE_SUPERSEDED_VERSION'
+            }
+          }
+        }
+        callback(docsForInsertOrUpdate)
+      })
+    }
+
+    var ensureUrDbExists = function(urId, callback) {
+      if (userDBDirectory[urId]) {
+        callback()
+      } else {
+        request({ uri: util.format('%s/%s', couchServerURI, urId), method: 'PUT' }, function(e,r,b) {
+          var sc = r && r.statusCode
+          if (!~[201,412].indexOf(sc)) sendError(util.format('error creating user database for user id="%s".\n\tError: %s\n\tSort Code: %d', e || b, sc || 0))
+          else callback()
+        })
+      }
+    }
+
+    var writeUserDocs = function(urId, docs, callback) {
+      if (!docs.length) {
+        callback()
+        return
+      }
+
+      request({
+        method:'POST'
+        , uri: util.format('%s/%s/_bulk_docs', couchServerURI, urId)
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+        , body: JSON.stringify({ docs:docs })
+      }, function(e,r,b) {
+        var sc = r && r.statusCode
+        if (sc !== 201) {
+          sendError(util.format('error recording user log docs for user id="%s"\n\tError: %s\n\tSort Code: %d', urId, e || b, sc || 0))
+        } else {
+          callback()
+        }
+      })
+    }
+
+    var recordBatch = function() {
       // summary/aggregate doc with information about whole batch
       var batchDoc = {
         _id: batchUUID
@@ -181,23 +274,27 @@ function processBatch(batch, callback) {
         }
       }
 
-      // bulk insert/update: send each document in the batch, together with the batchDoc above
-      request({
-        method:'POST'
-        , uri: dbURI + '_bulk_docs'
-        , headers: { 'content-type':'application/json', accepts:'application/json' }
-        , body: JSON.stringify({ docs: [ batchDoc ].concat( docsForInsertOrUpdate ) })
-      }, function(e,r,b) {
-        if (!r) {
-          callback('no database response to record log batch bulk request')
-          return
-        }
-        if (r.statusCode != 201) {
-          callback(util.format('error recording log batch\n\terror: %s\n\tstatusCode: %d\n\tresponse body: %s', e, r.statusCode, b))
-          return
-        }
-        callback()
-      })
+      var saveDocs = function() {
+        // bulk insert/update: send each document in the batch, together with the batchDoc above
+        request({
+          method:'POST'
+          , uri: mainLoggingDbURI + '/_bulk_docs'
+          , headers: { 'content-type':'application/json', accepts:'application/json' }
+          , body: JSON.stringify({
+              docs: [ batchDoc ].concat( _.pluck(mainLoggingDbRecords, 'doc') )
+          })
+        }, function(e,r,b) {
+          var sc = r && r.statusCode
+            , error = sc !== 201 && util.format('error recording log batch\n\tError: %s\n\tStatus Code: %d', e || b, sc || 0)
+          pbCallback(error)
+        })
+      }
+
+      if (!mainLoggingDbRecords.length) {
+        saveDocs()
+      } else {
+        assignRecordActions(mainLoggingDbName, mainLoggingDbRecords, saveDocs)
+      }
     }
 
     if (0 == numValid) {
@@ -205,44 +302,37 @@ function processBatch(batch, callback) {
       return
     }
 
-    request(getMatchingDocsURI, function(e,r,b) {
-      if (!r) {
-        // can't connect to db, just return
-        callback('no response from database')
-        return
-      }
-      if (200 != r.statusCode) {
-        // TODO: handle
-        callback(util.format('Request Error\n\turi: "%s"\n\terror: "%s"\n\tstatusCode: %d\n\t', getMatchingDocsURI, e, r.statusCode))
-        return
-      }
+    // separate out valid records into dbs that they're going to be recorded on 
+    // and set deviceId
+    valid.forEach(function(r) {
+      deviceId = deviceId || r.doc.device
 
-      var rows = JSON.parse(b).rows
-        , deviceId
-
-      for (var i=0, record, row;  (record = valid[i]) && (row = rows[i]);  i++) {
-        if (row.error) {
-          if (row.error == 'not_found') { // TODO: will this error text will be retained across couch versions? Is there a better way of checking for not found?
-            record.action = 'INSERT'
-            docsForInsertOrUpdate.push(record.doc)
-          } else {
-            record.action = 'IGNORE_ON_UNHANDLED_ROW_RETRIVAL_ERROR'
-            record.rowRetrievalError = row.error
-          }
-        } else {
-          deviceId = deviceId || record.doc.device
-
-          if (batchDate > row.doc.batchDate) {
-            record.action = 'UPDATE'
-            record.doc._rev = row.doc._rev
-            docsForInsertOrUpdate.push(record.doc)
-          } else {
-            record.action = 'IGNORE_SUPERSEDED_VERSION'
-          }
-        }
+      var ur = r.doc.user
+      if (typeof ur == 'string') {
+        var urDbRecords = recordsByUrDb[ur]
+        if (!urDbRecords) urDbRecords = recordsByUrDb[ur] = []
+        urDbRecords[ur].push(r)
+      } else {
+        mainLoggingDbRecords.push(r)
       }
-      recordBatch(deviceId)
     })
+
+    var userIds = Object.keys(recordsByUrDb)
+      , usersRemaining = userIds.length
+
+    if (usersRemaining) {
+      userIds.forEach(function(urId) {
+        ensureUrDbExists(urId, function() {
+          assignRecordActions(urId, recordsByUrDb[urId], function(docsForInsertOrUpdate) {
+            writeUserDocs(urId, docsForInsertOrUpdate, function() {
+              if (!--usersRemaining) recordBatch()
+            })
+          })
+        })
+      })
+    } else {
+      recordBatch()
+    }
   })
 }
 
@@ -266,7 +356,7 @@ function updateDesignDocs(docsToUpdate, callback) {
   var sentError = false
 
   var updateDesignDoc = function(docName, body, callback) {
-    var uri = dbURI + '_design/' + docName
+    var uri = mainLoggingDbURI + '_design/' + docName
     console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
 
     request.get(uri, function(e,r,b) {
