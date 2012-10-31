@@ -1,13 +1,11 @@
 var express = require('express');
 
 var server = express.createServer()
-  , loggingService
   , usersService
 ;
 
 module.exports = function(config) {
-    loggingService = require('./logging_service')(config);
-    server.post('/app-logging/upload', loggingService.uploadBatchRequestHandler);
+    server.post('/app-logging/upload', require('./logging_service')(config))
 
     usersService = require('./users_service')(config);
     server.post('/app-users/sync-users', usersService.syncUsers);

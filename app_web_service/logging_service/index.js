@@ -37,9 +37,7 @@ module.exports = function(config) {
     }
   })
 
-  return {
-    uploadBatchRequestHandler: uploadBatchRequestHandler
-  }
+  return uploadBatchRequestHandler
 }
 
 // http request handler handler
