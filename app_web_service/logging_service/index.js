@@ -19,36 +19,6 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
 
-// previously log batches were uploaded without batch uuid
-// edit pending log filenames from form: "batch-<DATE>" to form: "batch-<DATE>-<UUID>"
-// TODO: Delete when no longer required
-if (false) {
-  (function() {
-    fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
-      var batchesToRename = _.filter(dirFiles, function(file) { return /^batch-[0-9a-f]{8}$/i.test(file) })
-      var len = batchesToRename.length
-      var uri = encodeURI(util.format('%s_uuids?count=%d', couchServerURI, len))
-
-      if (0 == len) return
-
-      request(uri, function(e,r,b) {
-        if (!r || 200 != r.statusCode) {
-          console.log('error generating uuids. error="%s", statusCode=%d', e, r && r.statusCode)
-          return
-        }
-
-        var uuids = JSON.parse(b).uuids
-
-        for (var i=0; i<len; i++) {
-          var oldPath = util.format('%s/%s', pendingLogBatchesDir, batchesToRename[i])
-          var newPath = util.format('%s-%s', oldPath, uuids[i])
-          fs.rename(oldPath, newPath, function(e) { /*console.log('rename batch complete. error:',e)*/ })
-        }
-      })
-    })
-  })()
-}
-
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/([^/])$/, '$1/')
   dbName = config.appWebService.loggingService.databaseName
