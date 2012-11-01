@@ -231,7 +231,7 @@ function processBatch(batch, pbCallback) {
       if (userDbDirectory[urId]) {
         callback()
       } else {
-        var urDbURI = util.format('%s/ur-logging-%s', couchServerURI, urId)
+        var urDbURI = util.format('%s/ur-logging-%s', couchServerURI, urId.toLowerCase())
 
         request({ uri:urDbURI, method: 'PUT' }, function(e,r,b) {
           var sc = r && r.statusCode
