@@ -18,7 +18,8 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
-  , userDBDirectory
+  , userDbDirectory
+  , userDbDirectoryURI
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/\/$/, '')
@@ -27,13 +28,15 @@ module.exports = function(config) {
 
   //updateDesignDocs([paMetaDesignDoc])
 
-  request.get(util.format('%s/%s/user-db-directory', couchServerURI, allLogsDatabase), function(e,r,b) {
+  userDbDirectoryURI = util.format('%s/%s/user-db-directory', couchServerURI, allLogsDatabase)
+
+  request.get(userDbDirectoryURI, function(e,r,b) {
     if (!r || r.statusCode !== 200) {
       console.error('error retrieving doc with id user-db-directory - cannot process log batches as a result.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
       return
     }
 
-    userDBDirectory = JSON.parse(b)
+    userDbDirectory = JSON.parse(b)
 
     // initiate process batches loop
     processPendingBatches(function(numProcessed) {
@@ -225,13 +228,24 @@ function processBatch(batch, pbCallback) {
     }
 
     var ensureUrDbExists = function(urId, callback) {
-      if (userDBDirectory[urId]) {
+      if (userDbDirectory[urId]) {
         callback()
       } else {
-        request({ uri: util.format('%s/%s', couchServerURI, urId), method: 'PUT' }, function(e,r,b) {
+        var urDbURI = util.format('%s/ur-logging-%s', couchServerURI, urId)
+
+        request({ uri:urDbURI, method: 'PUT' }, function(e,r,b) {
           var sc = r && r.statusCode
-          if (!~[201,412].indexOf(sc)) sendError(util.format('error creating user database for user id="%s".\n\tError: %s\n\tSort Code: %d', e || b, sc || 0))
-          else callback()
+          // race-condition possibility - db could have been created between ensureUrDbExists() being called and this callback => allow 412
+          if (!~[201,412].indexOf(sc)) {
+            sendError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
+          } else {
+            if (sc == 201) {
+              userDbDirectory[urId] = urDbURI
+              writeUpdatedUserDbDirectory()
+              // TODO: add design docs?
+            }
+            callback()
+          }
         })
       }
     }
@@ -244,13 +258,13 @@ function processBatch(batch, pbCallback) {
 
       request({
         method:'POST'
-        , uri: util.format('%s/%s/_bulk_docs', couchServerURI, urId)
+        , uri: userDbDirectory[urId] + '/_bulk_docs'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs:docs })
       }, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 201) {
-          sendError(util.format('error recording user log docs for user id="%s"\n\tError: %s\n\tSort Code: %d', urId, e || b, sc || 0))
+          sendError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, userDbDirectory[urId], e || b, sc || 0))
         } else {
           callback()
         }
@@ -322,6 +336,7 @@ function processBatch(batch, pbCallback) {
 
     if (usersRemaining) {
       userIds.forEach(function(urId) {
+        // callback from any of the following functions implies success
         ensureUrDbExists(urId, function() {
           assignRecordActions(urId, recordsByUrDb[urId], function(docsForInsertOrUpdate) {
             writeUserDocs(urId, docsForInsertOrUpdate, function() {
@@ -332,6 +347,38 @@ function processBatch(batch, pbCallback) {
       })
     } else {
       recordBatch()
+    }
+  })
+}
+
+function writeUpdatedUserDbDirectory() {
+  var fn = arguments.callee
+    , cache = fn.cache
+
+  if (!cache) cache = fn.cache = { isUpdating:false, pendingUpdates:false }
+
+  if (cache.isUpdating) {
+    cache.pendingUpdates = true
+    return
+  }
+
+  cache.isUpdating = true
+  cache.pendingUpdates = false
+
+  request({
+    method:'PUT'
+    , uri: userDbDirectoryURI
+    , body: JSON.stringify(userDbDirectory)
+  }, function(e,r,b) {
+    cache.isUpdating = false
+
+    var sc = r && r.statusCode || 0
+    if (sc !== 201) {
+      // TODO: handle error! for the moment just trying again in hope of something better.
+      fn()
+    } else {
+      userDbDirectory._rev = JSON.parse(b).rev
+      if (cache.pendingUpdates) fn()
     }
   })
 }
