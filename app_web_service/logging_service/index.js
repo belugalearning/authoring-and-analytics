@@ -18,25 +18,25 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , pendingLogBatchesDir = __dirname + '/pending-batches'
   , errorLogBatchesDir = __dirname + '/error-batches'
   , errorsWriteStream = fs.createWriteStream(__dirname + '/errors.log', { flags: 'a' })
-  , userDbDirectory
-  , userDbDirectoryURI
+  , userDbDirectoryDoc
+  , userDbDirectoryDocURI
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/\/$/, '')
   mainLoggingDbName = config.appWebService.loggingService.databaseName
   mainLoggingDbURI = util.format('%s/%s', couchServerURI, mainLoggingDbName)
 
-  //updateDesignDocs([paMetaDesignDoc])
+  //updateDesignDocs(mainLoggingDbURI, [paMetaDesignDoc])
 
-  userDbDirectoryURI = util.format('%s/%s/user-db-directory', couchServerURI, allLogsDatabase)
+  userDbDirectoryDocURI = util.format('%s/user-db-directory', mainLoggingDbURI)
 
-  request.get(userDbDirectoryURI, function(e,r,b) {
+  request.get(userDbDirectoryDocURI, function(e,r,b) {
     if (!r || r.statusCode !== 200) {
       console.error('error retrieving doc with id user-db-directory - cannot process log batches as a result.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
       return
     }
 
-    userDbDirectory = JSON.parse(b)
+    userDbDirectoryDoc = JSON.parse(b)
 
     // initiate process batches loop
     processPendingBatches(function(numProcessed) {
@@ -102,7 +102,7 @@ function processPendingBatches(callback) {
 
         if (e) {
           // write error to log, move batch to error dir
-          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tError: "%s"\n', new Date().toString(), batch, e))
+          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tError: "%s"\n\n', new Date().toString(), batch, e))
 
           var newPath = util.format('%s/%s', errorLogBatchesDir, batch)
           fs.rename(batchPath, newPath, function(e) {
@@ -187,20 +187,20 @@ function processBatch(batch, pbCallback) {
       }
     }
 
-    var assignRecordActions = function(dbName, recs, callback) {
+    var assignRecordActions = function(dbURI, recs, callback) {
       var uuids = _.pluck(recs, 'uuid')
-      var matchingDocsURI = encodeURI(util.format('%s/%s/_all_docs?include_docs=true&keys=%s', couchServerURI, dbName, JSON.stringify(uuids)))
+      var matchingDocsURI = encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', dbURI, JSON.stringify(uuids)))
       var docsForInsertOrUpdate = []
 
       request(matchingDocsURI, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 200) {
           // TODO: Needs Handling!
-          sendError('Error retrieving database records.\n\tDatabase Name: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbName, JSON.stringify(recs), e || b, sc || 0)
+          sendError(util.format('Error retrieving database records.\n\tDatabase URI: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbURI, JSON.stringify(recs), e || b, sc || 0))
           return
         }
 
-        var rows = JSON.pare(b).rows
+        var rows = JSON.parse(b).rows
 
         for (var i=0, record, row;  (record = recs[i]) && (row = rows[i]);  i++) {
           if (row.error) {
@@ -228,7 +228,7 @@ function processBatch(batch, pbCallback) {
     }
 
     var ensureUrDbExists = function(urId, callback) {
-      if (userDbDirectory[urId]) {
+      if (getUrDbURI(urId)) {
         callback()
       } else {
         var urDbURI = util.format('%s/ur-logging-%s', couchServerURI, urId.toLowerCase())
@@ -236,15 +236,19 @@ function processBatch(batch, pbCallback) {
         request({ uri:urDbURI, method: 'PUT' }, function(e,r,b) {
           var sc = r && r.statusCode
           // race-condition possibility - db could have been created between ensureUrDbExists() being called and this callback => allow 412
-          if (!~[201,412].indexOf(sc)) {
-            sendError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
-          } else {
-            if (sc == 201) {
-              userDbDirectory[urId] = urDbURI
+          if (sc == 412) {
+            // make sure ur in directory
+            if (!getUrDbURI(urId)) {
+              userDbDirectoryDoc.dbs[urId] = urDbURI
               writeUpdatedUserDbDirectory()
-              // TODO: add design docs?
             }
             callback()
+          } else if (sc == 201) {
+            userDbDirectoryDoc.dbs[urId] = urDbURI
+            writeUpdatedUserDbDirectory()
+            updateDesignDocs(urDbURI, [genDesignDoc, userDesignDoc, paMetaDesignDoc], callback)
+          } else {
+            sendError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
           }
         })
       }
@@ -258,13 +262,13 @@ function processBatch(batch, pbCallback) {
 
       request({
         method:'POST'
-        , uri: userDbDirectory[urId] + '/_bulk_docs'
+        , uri: getUrDbURI(urId) + '/_bulk_docs'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs:docs })
       }, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 201) {
-          sendError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, userDbDirectory[urId], e || b, sc || 0))
+          sendError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, getUrDbURI(urId), e || b, sc || 0))
         } else {
           callback()
         }
@@ -307,7 +311,7 @@ function processBatch(batch, pbCallback) {
       if (!mainLoggingDbRecords.length) {
         saveDocs()
       } else {
-        assignRecordActions(mainLoggingDbName, mainLoggingDbRecords, saveDocs)
+        assignRecordActions(mainLoggingDbURI, mainLoggingDbRecords, saveDocs)
       }
     }
 
@@ -325,7 +329,7 @@ function processBatch(batch, pbCallback) {
       if (typeof ur == 'string') {
         var urDbRecords = recordsByUrDb[ur]
         if (!urDbRecords) urDbRecords = recordsByUrDb[ur] = []
-        urDbRecords[ur].push(r)
+        urDbRecords.push(r)
       } else {
         mainLoggingDbRecords.push(r)
       }
@@ -338,7 +342,7 @@ function processBatch(batch, pbCallback) {
       userIds.forEach(function(urId) {
         // callback from any of the following functions implies success
         ensureUrDbExists(urId, function() {
-          assignRecordActions(urId, recordsByUrDb[urId], function(docsForInsertOrUpdate) {
+          assignRecordActions(getUrDbURI(urId), recordsByUrDb[urId], function(docsForInsertOrUpdate) {
             writeUserDocs(urId, docsForInsertOrUpdate, function() {
               if (!--usersRemaining) recordBatch()
             })
@@ -367,8 +371,8 @@ function writeUpdatedUserDbDirectory() {
 
   request({
     method:'PUT'
-    , uri: userDbDirectoryURI
-    , body: JSON.stringify(userDbDirectory)
+    , uri: userDbDirectoryDocURI
+    , body: JSON.stringify(userDbDirectoryDoc)
   }, function(e,r,b) {
     cache.isUpdating = false
 
@@ -377,14 +381,18 @@ function writeUpdatedUserDbDirectory() {
       // TODO: handle error! for the moment just trying again in hope of something better.
       fn()
     } else {
-      userDbDirectory._rev = JSON.parse(b).rev
+      userDbDirectoryDoc._rev = JSON.parse(b).rev
       if (cache.pendingUpdates) fn()
     }
   })
 }
 
+function getUrDbURI(urId) {
+  return userDbDirectoryDoc.dbs[urId]
+}
+
 // design doc
-function updateDesignDocs(docsToUpdate, callback) {
+function updateDesignDocs(dbURI, docsToUpdate, callback) {
   if (Object.prototype.toString.call(docsToUpdate) !== '[object Array]') {
     callback = docsToUpdate
     docsToUpdate = [genDesignDoc, userDesignDoc]
@@ -395,7 +403,7 @@ function updateDesignDocs(docsToUpdate, callback) {
   ~docsToUpdate.indexOf(userDesignDoc) && toUpdate++
   ~docsToUpdate.indexOf(paMetaDesignDoc) && toUpdate++
   if (!toUpdate) {
-    callback(400, 'no docs to update')
+    callback('no docs to update', 400)
     return
   }
 
@@ -403,23 +411,20 @@ function updateDesignDocs(docsToUpdate, callback) {
   var sentError = false
 
   var updateDesignDoc = function(docName, body, callback) {
-    var uri = mainLoggingDbURI + '_design/' + docName
-    console.log('LoggingService\t\t\tupdating design doc:\t%s', uri)
+    var uri = util.format('%s/_design/%s', dbURI, docName)
 
     request.get(uri, function(e,r,b) {
       var error
 
       if (!r) {
         //TODO handle
-        error = 'error connecting to database'
-        console.log('LoggingService#updateDesignDocs() - ' +  error)
+        var error = 'error connecting to database ' + uri
         callback && callback(error, 500)
         return
       }
-
-      if (404 != r.statusCode && 200 != r.statusCode) {
-        var error = util.format('error retrieving design doc: "%s". Database Error: "%s"  Status Code:%d', docName, e, r.statusCode)
-        console.log('LoggingService#updateDesignDocs() - ' + error)
+      
+      if (!~[200,404].indexOf(r.statusCode)) {
+        var error = util.format('error retrieving design doc: "%s". Database Error: "%s"  Status Code:%d', uri, e, r.statusCode)
         callback && callback(error, r.statusCode || 500)
         return
       }
@@ -431,7 +436,6 @@ function updateDesignDocs(docsToUpdate, callback) {
         , uri: uri
         , body: JSON.stringify(body)
       }, function(e,r,b) {
-        console.log('LoggingService\t\t\tupdated design doc: "%s"\t\tstatusCode:%d error="%s"', docName, r.statusCode, e)
         callback && callback(e, r.statusCode)
       })
     })
