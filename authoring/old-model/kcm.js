@@ -2067,6 +2067,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       db.run("CREATE TABLE ProcessedBatchesPendingApplicaton (batch_id TEXT, user_id TEXT)")
       db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, completed INTEGER)")
       db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
+      db.run("CREATE TABLE FeatureKeys (batch_id TEXT, user_id, TEXT, key TEXT, encounters TEXT)")
       db.close(function() { gotoNext.apply(null, args) })
     })
   }
@@ -2079,6 +2080,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     db.serialize(function() {
       db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, first_completed REAL, last_played REAL, last_completed REAL, last_result INTEGER)")
       db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
+      db.run("CREATE TABLE FeatureKeys (key TEXT, encounters TEXT)")
       db.close(function() { gotoNext.apply(null, args) })
     })
   }
