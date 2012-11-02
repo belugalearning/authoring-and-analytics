@@ -2078,7 +2078,8 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       , db = new sqlite3.Database(userStateTemplateDBPath)
 
     db.serialize(function() {
-      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, first_completed REAL, last_played REAL, last_completed REAL, last_result INTEGER)")
+      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, first_completed REAL, last_played REAL, last_completed REAL, last_result INTEGER, total_score_accumulated INTEGER, high_score INTEGER, \
+             artifact_1_last_achieved, artifact_1_curve, artifact_2_last_achieved, artifact_2_curve, artifact_3_last_achieved, artifact_3_curve, artifact_4_last_achieved, artifact_4_curve, artifact_5_last_achieved, artifact_5_curve)")
       db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
       db.run("CREATE TABLE FeatureKeys (key TEXT, encounters TEXT)")
       db.close(function() { gotoNext.apply(null, args) })
