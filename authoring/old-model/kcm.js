@@ -2026,8 +2026,8 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
 function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, callback) {
   // download includes:
   //  1) all-users.db
-  //  2) user-state-template.db
-  //  3) canned-content/ (i.e. KCM)
+  //  2) canned-content/ (i.e. KCM)
+  //  3) user-state-template.db
   
   var writeLog = true
     , path = '/tmp/' + generateUUID()
@@ -2037,6 +2037,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     , allUsersDBPath = path + '/all-users.db'
     , userStateTemplateDBPath = path + '/user-state-template.db'
     , exportLogWriteStream
+    , content
 
   fs.mkdirSync(path)
   fs.mkdirSync(contentPath)
@@ -2067,25 +2068,14 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, completed INTEGER, score INTEGER)")
       db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
       db.run("CREATE TABLE FeatureKeys (batch_id TEXT, user_id, TEXT, key TEXT, encounters TEXT)")
-      db.close(function() { gotoNext.apply(null, args) })
-    })
-  }
-  
-  // 2) user-state-template.db
-  var createUserStateTemplate = function() {
-    var args = arguments
-      , db = new sqlite3.Database(userStateTemplateDBPath)
 
-    db.serialize(function() {
-      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, first_completed REAL, last_played REAL, last_completed REAL, last_result INTEGER, total_score_accumulated INTEGER, high_score INTEGER, \
-             artifact_1_last_achieved, artifact_1_curve, artifact_2_last_achieved, artifact_2_curve, artifact_3_last_achieved, artifact_3_curve, artifact_4_last_achieved, artifact_4_curve, artifact_5_last_achieved, artifact_5_curve)")
-      db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
-      db.run("CREATE TABLE FeatureKeys (key TEXT, encounters TEXT)")
-      db.close(function() { gotoNext.apply(null, args) })
+      db.close(function() {
+        gotoNext.apply(null, args)
+      })
     })
   }
   
-  // 3) KCM
+  // 2) KCM
   var createContent = function() {
     var args = arguments
       , user = kcm.docStores.users[userId]
@@ -2100,7 +2090,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       , includedPipelineWorkflowStatuses
       , exportLogWriteStream
 
-    var getAppContentJSON = function(jsonCallback) {
+    var getAppContentJSON = function() {
       var masteryPairs = kcm.cloneDocByTypeName('relation', 'Mastery').members
 
       // which nodes & pipelines to include
@@ -2355,7 +2345,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     if (writeLog) exportLogWriteStream = fs.createWriteStream(contentPath + '/export-log.txt') 
     if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
 
-    var content = getAppContentJSON()
+    content = getAppContentJSON()
     if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
 
     getPDefs(content.problems, function() { // only reachable on getPDefs success
@@ -2368,8 +2358,32 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       })
     })
   }
+  
+  // 3) user-state-template.db
+  var createUserStateTemplate = function() {
+    var args = arguments
+      , db = new sqlite3.Database(userStateTemplateDBPath)
 
-  createAllUsers(createUserStateTemplate, createContent)
+    db.serialize(function() {
+      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, last_played REAL, last_result INTEGER, first_completed REAL, last_completed REAL, total_score_accumulated INTEGER, high_score INTEGER, \
+             artifact_1_last_achieved, artifact_1_curve, artifact_2_last_achieved, artifact_2_curve, artifact_3_last_achieved, artifact_3_curve, artifact_4_last_achieved, artifact_4_curve, artifact_5_last_achieved, artifact_5_curve)")
+
+      var cnIns = db.prepare("INSERT INTO Nodes(id, time_played, total_score_accumulated, high_score) VALUES (?,?,?,?)")
+      content.conceptNodes.forEach(function(n) {
+        cnIns.run.apply(cnIns, [n.id, 0, 0, 0])
+      })
+      cnIns.finalize()
+
+      db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
+      db.run("CREATE TABLE FeatureKeys (key TEXT, encounters TEXT)")
+
+      db.close(function() {
+        gotoNext.apply(null, args)
+      })
+    })
+  }
+
+  createAllUsers(createContent, createUserStateTemplate)
 }
 
 // TODO: The following functions should be shared across model modules
