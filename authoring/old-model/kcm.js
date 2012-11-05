@@ -2369,7 +2369,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
              artifact_1_last_achieved REAL, artifact_1_curve TEXT, artifact_2_last_achieved REAL, artifact_2_curve TEXT, artifact_3_last_achieved REAL, artifact_3_curve TEXT, \
              artifact_4_last_achieved REAL, artifact_4_curve TEXT, artifact_5_last_achieved REAL, artifact_5_curve TEXT)")
 
-      var cnIns = db.prepare("INSERT INTO Nodes(id, time_played, total_score_accumulated, high_score) VALUES (?,?,?,?)")
+      var cnIns = db.prepare("INSERT INTO Nodes(id, time_played, total_accumulated_score, high_score) VALUES (?,?,?,?)")
       content.conceptNodes.forEach(function(n) {
         cnIns.run.apply(cnIns, [n.id, 0, 0, 0])
       })
