@@ -2065,7 +2065,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     db.serialize(function() {
       db.run("CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, last_server_process_batch_date REAL)")
       db.run("CREATE TABLE BatchesPendingProcessingOrApplication (batch_id TEXT, user_id TEXT, server_processed INTEGER, PRIMARY KEY(batch_id, user_id))")
-      db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, completed INTEGER, score INTEGER)")
+      db.run("CREATE TABLE NodePlays (batch_id TEXT, user_id TEXT, node_id TEXT, mastery_node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, score INTEGER)")
       db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
       db.run("CREATE TABLE FeatureKeys (batch_id TEXT, user_id, TEXT, key TEXT, encounters TEXT)")
 
