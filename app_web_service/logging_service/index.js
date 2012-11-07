@@ -124,6 +124,7 @@ function processBatch(batch, pbCallback) {
     , match = batch.match(batchFileNameRE)
     , batchDate = parseInt(match[1], 16)
     , batchUUID = match[2]
+    , batchProcessDate = Math.round(new Date().getTime() / 1000)
 
   fs.readFile(path, 'utf8', function(e, str) {
     if (e) {
@@ -147,6 +148,7 @@ function processBatch(batch, pbCallback) {
           doc = JSON.parse(jsonString)
           doc.batchDate = batchDate
           doc.batchUUID = batchUUID
+          doc.batchProcessDate = batchProcessDate
 
           if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) == '[object Array]') {
             for (var i=0, event;  event=doc.events[i]; i++) {
@@ -281,7 +283,7 @@ function processBatch(batch, pbCallback) {
         _id: batchUUID
         , type: 'LogBatch'
         , batchDate: batchDate
-        , batchProcessDate: Math.round(new Date().getTime() / 1000)
+        , batchProcessDate: batchProcessDate
         , device: deviceId
         , records: records
         , _attachments: {
