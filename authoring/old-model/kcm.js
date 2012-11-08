@@ -493,7 +493,7 @@ function updateDesignDoc(callback) {
         map: (function(doc) { if (doc.type) emit(doc.type, null) }).toString()
         , reduce: (function(keys, values, rereduce) {
           if (!rereduce) return values.length
-            return sum(values)
+          return sum(values)
         }).toString()
       }
       , 'by-user-type': {
