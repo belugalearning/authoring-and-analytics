@@ -619,9 +619,9 @@ function updateDesignDoc(callback) {
 
     if (200 == sc) kcmViews._rev = JSON.parse(b)._rev
 
-      writeViewsFunc(kcmViews, function(e,r,b) {
-        callback(e, r.statusCode)
-      })
+    writeViewsFunc(kcmViews, function(e,r,b) {
+      callback(e, r.statusCode)
+    })
   })
 }
 
