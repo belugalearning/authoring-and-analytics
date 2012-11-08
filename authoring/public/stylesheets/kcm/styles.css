@@ -83,6 +83,7 @@ form#upload-plists { visibility:hidden; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] div.gripper { width:6px; height:30px; margin:4px 0 4px 2px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.remove-problem { width:22px; vertical-align:top; padding:13px 1px 0 2px; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.txt > div.last-modified { float:right; margin:4px 2px 0 0; font-size:9px; color:#aaa; }
+[data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.txt > div.last-modified > span.tool-name { float:right; margin-top:-2px; font-size:10px; color:#55c; }
 [data-panel="concept-node-data"] table[data-type="pipeline-problems"] td.txt > div.problem-desc { padding:3px 0; }
 [data-panel="concept-node-data"].none-selected div#insert-pipeline-btn { visibility:hidden; }
 [data-panel="concept-node-data"].none-selected div#insert-tag-btn { visibility:hidden; }

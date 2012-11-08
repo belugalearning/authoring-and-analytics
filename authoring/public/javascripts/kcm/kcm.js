@@ -2036,7 +2036,7 @@
                 <div class="del-btn"/>\
             </td>\
             <td class="txt">\
-                <div class="last-modified">Mod: {{html lastModified}}</div>\
+                <div class="last-modified">Mod: {{html lastModified}}<br/><span class="tool-name">{{html tool}}</span></div>\
                 <a href="/kcm/problem/{{html id}}" target="_blank">{{html id}}</a>\
                 <div class="problem-desc">{{html desc}}</div>\
             </td>\
