@@ -503,9 +503,9 @@ module.exports = function(config, legacyKCMController, kcm) {
         });
     }
     , pipelineProblemDetails: function(req, res) {
-        kcmController.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
-            res.send(e || problemDetails, statusCode);
-        });
+      kcmController.pipelineProblemDetails(req.body.id, req.body.rev, function(e,statusCode,problemDetails) {
+        res.send(e || problemDetails, statusCode)
+      })
     }
     , uploadProblems: function(req, res) {
       var files = req.files.pdefs
