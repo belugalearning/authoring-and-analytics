@@ -1934,44 +1934,42 @@ function pipelineProblemDetails(id, rev, callback) {
     return
   }
 
-  getDoc(id, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('Error could not retrieve document with id="%s". Database reported error:"%s"',id,e), r.statusCode)
+  var pl = kcm.getDoc(id, 'pipeline')
+
+  if (!pl) {
+    callback(util.format('Pipeline with id="%s" not found', id), 404)
+    return
+  }
+
+  if (pl._rev != rev) {
+    callback(util.format('pipeline revisions do not correspond. supplied:"%s", database:"%s". The pipeline problems could not be retrieved.', rev, pl._rev), 500)
+    return
+  }
+
+  if (Object.prototype.toString.call(pl.problems) != '[object Array]') {
+    callback('pipeline badly formed - does not have problems array', 500)
+    return
+  }
+
+  var problems = []
+  var toolsStore = kcm.docStores.tools
+
+  pl.problems.forEach(function(pId) {
+    var p = kcm.getDoc(pId, 'problem')
+    if (!p) {
+      callback(util.format('pipeline problem with id="%s" could not be found', pId), 500)
       return
     }
-
-    var pl = JSON.parse(b)
-
-    if (pl._rev != rev) {
-      callback(util.format('pipeline revisions do not correspond. supplied:"%s", database:"%s". The pipeline problems could not be retrieved.', rev, pl._rev), 500)
-      return
-    }
-
-    if ('pipeline' != pl.type) {
-      callback(util.format('Document with id="%s" does not have type "pipeline"', id), 500)
-      return
-    }
-
-    request({
-      uri: encodeURI(util.format('%s_all_docs?keys=%s&include_docs=true', databaseURI, JSON.stringify(pl.problems)))
-      , headers: { 'content-type':'application/json', accepts:'application/json' }
-    }, function(e,r,b) {
-      if (200 != r.statusCode) {
-        callback(util.format('Error retrieving pipeline problems. Database reported error:"%s"', e), r.statusCode)
-        return
-      }
-
-      var problems = _.map(JSON.parse(b).rows, function(p) {
-        return {
-          id: p.id
-          , desc: typeof p.doc.internalDescription == 'string' && p.doc.internalDescription.length ? p.doc.internalDescription : p.doc.problemDescription
-          , lastModified: typeof p.doc.dateModified == 'string' ? p.doc.dateModified.replace(/.{8}$/, '').replace(/[a-z]/gi, ' ') : ''
-        }
-      })
-
-      callback(null, 200, problems)
+    
+    problems.push({
+      id: p._id
+      , desc: p.problemDescription
+      , lastModified: typeof p.dateModified == 'string' ? p.dateModified.replace(/.{8}$/,'').replace(/[a-z]/gi, ' ') : ''
+      , tool: p.toolId && toolsStore[p.toolId] && toolsStore[p.toolId].name || ''
     })
   })
+
+  callback(null,200,problems)
 }
 
 function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, newIndex, callback) {
