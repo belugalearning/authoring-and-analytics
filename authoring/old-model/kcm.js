@@ -2027,6 +2027,8 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
   //  2) canned-content/ (i.e. KCM)
   //  3) user-state-template.db
   
+  var tempProblemIdDescJSON = []
+
   var writeLog = true
     , path = '/tmp/' + generateUUID()
     , contentPath = path + '/canned-content'
@@ -2043,6 +2045,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
 
   var origCallback = callback
   callback = function() {
+    fs.writeFileSync(contentPath + '/problems-ids-descriptions.json', JSON.stringify(tempProblemIdDescJSON,null,2), 'utf8')
     if (exportLogWriteStream) exportLogWriteStream.end()
     origCallback.apply(null, [].slice.call(arguments))
   }
@@ -2211,6 +2214,9 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
           }
 
           var onSuccess = function(pdef) {
+            // TODO: Remove (probably)
+            tempProblemIdDescJSON.push([p.id, pdef.PROBLEM_DESCRIPTION])
+
             p.pdef = JSON.stringify(pdef)
             if (++numPDefs == numProblems) next()
           }
