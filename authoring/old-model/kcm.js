@@ -813,7 +813,7 @@ function getProblemInfoFromPList(plistString, callback) {
     , internalDesc = stringValueForKey('INTERNAL_DESCRIPTION')
     , missingStrings = []
 
-  if (!desc) missingStrings.push(descElmName)
+  if (!desc && tooName != 'ExprBuilder') missingStrings.push(descElmName)
   if (!isMetaQ && !isNumberPicker && !toolName) missingStrings.push('TOOL_KEY')
 
   if (missingStrings.length) {
