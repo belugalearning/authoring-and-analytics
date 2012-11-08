@@ -586,6 +586,7 @@ function updateDesignDocs(dbURI, docsToUpdate, callback) {
           }    
         }).toString()
       }
+    }
   }
 
   ddBodies[paMetaDesignDoc] = {
