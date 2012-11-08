@@ -1930,7 +1930,7 @@ function pipelineProblemDetails(id, rev, callback) {
   if (typeof id != 'string' || !id.length) errors.push('BAD ARG: String value required for "id"')
   if (typeof rev != 'string' || !id.length) errors.push('BAD ARG: String value required for "rev"')
   if (errors.length) {
-    callback('Error. Could not update pipeline sequence.\n' + errors.join('\n'), 500)
+    callback('Error retrieving pipeline problem details.\n' + errors.join('\n'), 500)
     return
   }
 
