@@ -14,7 +14,7 @@ var noAuthRequired = [/^\/kcm\/app-import-content\/.*/, /^\/kcm\/app-edit-pdef(\
 server.guid = function() {
   return crypto.randomBytes(16)
     .toString('hex')
-    .replace(/^(.{8})(.{4})(.{4})(.{4})/i, '$1-$2-$3-')
+    .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})/i, '$1-$2-$3-$4-$5')
     .toUpperCase()
 }
 
