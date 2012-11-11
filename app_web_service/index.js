@@ -29,6 +29,7 @@ module.exports = function(config) {
   server.post('/app-users/sync-users', usersService.syncUsers)
   server.post('/app-users/check-nick-available', usersService.checkNickAvailable)
   server.post('/app-users/get-user-matching-nick-password', usersService.getUserMatchingNickAndPassword)
+  server.get('/app-users/:userId/state', usersService.getState)
 
   // listen
   var port = parseInt(config.appWebService.port, 10) || 3000

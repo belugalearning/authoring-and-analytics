@@ -1,7 +1,25 @@
-var model
+var util = require('util')
+  , request = require('request')
+  , sqlite3 = require('sqlite3').verbose()
+  , crypto = require('crypto')
+  , exec = require('child_process').exec
+  , fs = require('fs')
+  , Stream = require('stream')
+  , zlib = require('zlib')
 
-module.exports = function(m) {
-  model = m
+var model
+  , config
+
+function guid() {
+  return crypto.randomBytes(16)
+    .toString('hex')
+    .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})/i, '$1-$2-$3-$4-$5')
+    .toUpperCase()
+}
+
+module.exports = function(model_, config_) {
+  model = model_
+  config = config_
   return exports
 }
 
@@ -33,7 +51,7 @@ exports.getUserMatchingNickAndPassword = function(req, res) {
 
   model.userMatchingNickAndPassword(nick, password, function(e,r,b) {
     if (200 != r.statusCode) {
-      console.log(nick, password, e, r.statusCode)
+      //console.log(nick, password, e, r.statusCode)
       res.send(e, r.statusCode || 500)
       return
     }
@@ -49,5 +67,232 @@ exports.getUserMatchingNickAndPassword = function(req, res) {
       , ur = { id:urData._id, nick:urData.nick, password:urData.password, nodesCompleted:urData.nodesCompleted }
 
     res.send(ur, 200)
+  })
+}
+
+exports.getState = function(req,res) {
+  // params / query components
+  var urId = req.params.userId
+    , device = req.query['device']
+    , since = req.query['last_batch_process_date'] // the last time the device synched this user, this was the latest processed batch
+
+  console.log('\ngetState() -- urId="%s"  device="%s"   since=%s', urId, device, since)
+
+  // successful response components
+  var lastBatchDate
+    , processedDeviceBatchIds
+    , b64ZippedStateDb
+
+  var sendSuccessResponse = function() {
+    console.log('getState() send success\n\tlastBatchDate=%d\n\tprocessedDeviceBatchIds=%s\n\n', lastBatchDate, processedDeviceBatchIds.join(','))
+    res.send({
+      lastProcessedBatchDate: lastBatchDate
+      , processedDeviceBatchIds: processedDeviceBatchIds
+      , gzippedStateDatabase: b64ZippedStateDb
+    })
+  }
+
+  var sentError = false
+  var sendError = function(e, sc) {
+    if (!sentError) {
+      sentError = true
+      res.send(e || 'error retrieving user state', sc || 500)
+      return
+    }
+  }
+
+  var checkResponseError = function(r, expectedSortCode, errorMessage) {
+    if (!r || r.statusCode != expectedSortCode) {
+      sendError(errorMessage, r && r.statusCode)
+      return true
+    }
+  }
+
+  var checkNullError = function(v, errorMessage) {
+    if (!v) {
+      sendError(errorMessage)
+      return true
+    }
+  }
+
+  if (!isNaN(since)) {
+    since = Number(since)
+  } else {
+    res.send('error retrieving user state', 400)
+    return
+  }
+
+  // TODO: check that user and device are paired - if not send 403
+  
+  // look up user's db in directory
+  request(util.format('%s/%s/user-db-directory', config.couchServerURI, config.appWebService.loggingService.databaseName), function(e,r,b) {
+    if (checkResponseError(r, 200)) return
+
+    var urDbURI = JSON.parse(b).dbs[urId]
+    if (checkNullError(urDbURI)) return
+
+    var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
+
+    // get latest batch procesed. Any batches processed from now will be ignored for remainder of this iteration of getState()
+    request(util.format('%s/log-batches-by-process-date?group_level=1&descending=true&limit=1', pathToViews), function(e,r,b) {
+      if (checkResponseError(r, 200)) return
+
+      var rows = JSON.parse(b).rows
+      if (checkNullError(rows.length)) return
+
+      // included in response
+      lastBatchDate = rows[0].key
+
+      // get ids of batches processed by from device between 'since' and lastBatchDate
+      var sKey = encodeURIComponent(JSON.stringify([device, lastBatchDate]))
+        , eKey = encodeURIComponent(JSON.stringify([device, since + 0.001]))
+        , query = util.format('%s/log-batches-by-device-process-date?group_level=2&descending=true&startkey=%s&endkey=%s', pathToViews, sKey, eKey)
+
+      request(query, function(e,r,b) {
+        if (checkResponseError(r, 200)) return
+
+        // included in response
+        processedDeviceBatchIds = JSON.parse(b).rows.map(function(r) { return r.value })
+
+        // get epsisodes processed before or on lastBatchDate
+        // generate state from episodes
+        request(util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate), function(e,r,b) {
+          if (checkResponseError(r,200)) return
+
+          var episodes = JSON.parse(b).rows.map(function(r) { return r.doc })
+            , nodes = {}
+
+          episodes.forEach(function(ep) {
+            var n = nodes[ep.nodeId]
+
+            if (!n) {
+              n = nodes[ep.nodeId] = {
+                id: ep.nodeId
+                , time_played: 0
+                , last_played: 0
+                , last_score: 0
+                , total_accumulated_score: 0
+                , high_score: 0
+                , first_completed: 0
+                , last_completed: 0
+                , artifact_1_last_achieved: 0
+                , artifact_2_last_achieved: 0
+                , artifact_3_last_achieved: 0
+                , artifact_4_last_achieved: 0
+                , artifact_5_last_achieved: 0
+              }
+            }
+            
+            if (Object.prototype.toString.call(ep.events) != '[object Array]') return // TODO: error, corrupted doc - this is bad, we should know about it!
+
+            var lastEvent = ep.events[ep.events.length - 1]
+              , lastEventDate = lastEvent && lastEvent.date
+
+            if (!lastEvent) return // TODO: record doc corruption
+            if (isNaN(lastEventDate)) return // TODO: record doc corruption
+
+            // TODO: stop assuming rest of doc is well-formatted, and instead check every field before continuing
+
+            n.time_played += ep.timeInPlay
+            n.last_played = lastEventDate
+            n.last_score = ep.score
+
+            if (ep.score) {
+              n.total_accumulated_score += ep.score
+              n.high_score = Math.max(n.high_score, ep.score)
+
+              if (!n.first_completed) n.first_completed = lastEventDate
+              n.last_completed = lastEventDate
+
+              if (ep.score > config.appScoring.artifact1) {
+                n.artifact_1_last_achieved = lastEventDate
+
+                if (ep.score > config.appScoring.artifact2) {
+                  n.artifact_2_last_achieved = lastEventDate
+
+                  if (ep.score > config.appScoring.artifact3) {
+                    n.artifact_3_last_achieved = lastEventDate
+
+                    if (ep.score > config.appScoring.artifact4) {
+                      n.artifact_4_last_achieved = lastEventDate
+
+                      if (ep.score > config.appScoring.artifact5) {
+                        n.artifact_5_last_achieved = lastEventDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          })
+
+          // is there a way to zip ':memory:' database instead of writing to disk?
+          var dbPath = util.format('/tmp/ur-state-%s.db', guid())
+
+          var zipDb = function() {
+            // zip up db
+            var inp = fs.createReadStream(dbPath) // read db
+              , gzip = zlib.createGzip() // zip it
+              , ws = new Stream() // write zip into buffer (out). on end base64 encode the zip and send response
+              , out = new Buffer(1024)
+              , numBytes = 0
+
+            ws.writable = true
+            ws.write = function(buf) {
+              if (buf.length + numBytes > out.length) {
+                var newOut = new Buffer(2 * out.length)
+                out.copy(newOut)
+                out = newOut
+              }
+              buf.copy(out, numBytes)
+              numBytes += buf.length
+            }
+            ws.end = function(buf) {
+              if (buf) ws.write(buf)
+              console.log('getState() db base64 bytes=%d', numBytes)
+              b64ZippedStateDb = out.toString('base64', 0, numBytes)
+              sendSuccessResponse()
+              fs.writeFileSync('/tmp/test.zip', out)
+            }
+
+            inp.pipe(gzip).pipe(ws)
+          }
+
+          var db = new sqlite3.Database(dbPath)
+          var cols =
+            [ 'id TEXT PRIMARY KEY ASC'
+            , 'time_played REAL'
+            , 'last_played REAL'
+            , 'last_score INTEGER'
+            , 'total_accumulated_score INTEGER'
+            , 'high_score INTEGER'
+            , 'first_completed REAL'
+            , 'last_completed REAL'
+            , 'artifact_1_last_achieved REAL'
+            , 'artifact_1_curve TEXT'
+            , 'artifact_2_last_achieved REAL'
+            , 'artifact_2_curve TEXT'
+            , 'artifact_3_last_achieved REAL'
+            , 'artifact_3_curve TEXT'
+            , 'artifact_4_last_achieved REAL'
+            , 'artifact_4_curve TEXT'
+            , 'artifact_5_last_achieved REAL'
+            , 'artifact_5_curve TEXT']
+          var colNames = cols.map(function(col) { return col.match(/^\S+/)[0] })
+
+          db.serialize(function() {
+            db.run(util.format('CREATE TABLE Nodes (%s)', cols.join(',')))
+
+            var ins = db.prepare(util.format('INSERT INTO Nodes (%s) VALUES (?%s)', colNames.join(','), Array(colNames.length).join(',?')))
+
+            Object.keys(nodes).forEach(function(nId) {
+              ins.run.apply(ins, colNames.map(function(col) { return nodes[nId][col] }))
+            })
+
+            ins.run(zipDb)
+          })
+        })
+      })
+    })
   })
 }
