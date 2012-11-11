@@ -12,9 +12,9 @@
     , mouse = { x:null, y:null, isOverMap:null, xmap:null, ymap:null, overNodes:[], overLink:null }
     , mapPos = { x:windowPadding, y:windowPadding, width:null, height:null }
 
-      $.expr[':'].texteq = function(a, i, m) {
-        return $(a).text() === m[3]
-      }
+  $.expr[':'].texteq = function(a, i, m) {
+    return $(a).text() === m[3]
+  }
 
   $.fn.arrowRedraw = function() {
     $.each(this, function() {
@@ -116,6 +116,7 @@
           break
         case 'problem':
           if (data.deleted) {
+            // update node color
             delete kcm.problems[data.id]
           } else {
             kcm.problems[data.id] = data.doc
@@ -1390,40 +1391,39 @@
     }
 
     function removeProblemFromPipeline(e) {
-        showConfirmCancelModal('You are about to remove a problem from a pipeline. Are you sure?', function(confirmation) {
-            if (!confirmation) return;
+      showConfirmCancelModal('You are about to remove a problem from a pipeline. Are you sure?', function(confirmation) {
+        if (!confirmation) return
 
-            var $trProblem = $(e.currentTarget).closest('tr.problem')
-              , problemId = $trProblem.attr('data-id')
-              , pl = kcm.pipelines[$(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')]
-            ;
+        var $trProblem = $(e.currentTarget).closest('tr.problem')
+          , problemId = $trProblem.attr('data-id')
+          , pl = kcm.pipelines[$(e.currentTarget).closest('tr.pipeline-problems').attr('data-id')]
 
-            $.ajax({
-                url: '/kcm/pipeline/' + pl._id + '/' + pl._rev + '/problem/' +  problemId + '/remove'
-                , type:'POST'
-                , success:function(plRev) {
-                    var probIx = pl.problems.indexOf(problemId);
-                    pl.workflowStatus = 0;
-                    pl.problems.splice(probIx, 1);
-                    pl._rev = plRev;
-                    $trProblem.remove();
+        $.ajax({
+          url: '/kcm/pipeline/' + pl._id + '/' + pl._rev + '/problem/' +  problemId + '/remove'
+          , type:'POST'
+          , success:function(plRev) {
+            var probIx = pl.problems.indexOf(problemId)
+            pl.workflowStatus = 0
+            pl.problems.splice(probIx, 1)
+            pl._rev = plRev
+            $trProblem.remove()
 
-                    // if pipeline still visible (i.e. concept its node still selected), reset its workflow status
-                    $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0);
+            // if pipeline still visible (i.e. concept its node still selected), reset its workflow status
+            $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0)
 
-                    if (!pl.problems.length) {
-                        var nodes = $.map(kcm.nodes, function(n) { return n })
-                          , cn = $.grep(nodes, function(n) { return ~n.pipelines.indexOf(pl._id); })[0]
-                          , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length; })
-                        ;
-                        if (!plWithProbs.length) {
-                            d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour);
-                        }
-                    }
-                }
-                , error:ajaxErrorHandler('error removing problem from pipeline')
-            });
-        });
+            if (!pl.problems.length) {
+              var nodes = $.map(kcm.nodes, function(n) { return n })
+                , cn = $.grep(nodes, function(n) { return ~n.pipelines.indexOf(pl._id) })[0]
+                , plWithProbs = $.grep(cn.pipelines, function(plId) { return kcm.pipelines[plId].problems.length })
+              
+              if (!plWithProbs.length) {
+                d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
+              }
+            }
+          }
+          , error:ajaxErrorHandler('error removing problem from pipeline')
+        })
+      })
     }
 
     function updatePipelineWorkflowStatus() {

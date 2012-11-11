@@ -1762,41 +1762,40 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
     callback('BAD ARGS: strings required for ' + argErrors.join(' and ') +'. The problem was not removed from the pipeline', 500)
     return
   }
+  
+  var p = kcm.getDocClone(problemId, 'problem')
+  var pl = kcm.getDocClone(pipelineId, 'pipeline')
 
-  getDoc(pipelineId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback(util.format('could not retrieve pipeline. (Database Error:"%s"). The pipeline was not deleted.',e), r.statusCode)
+  if (!p) {
+    callback(util.format('problem with id="%s" not found', problemId), 404)
+    return
+  }
+  if (!pl) {
+    callback(util.format('pipeline with id="%s" not found', pipelineId), 404)
+    return
+  }
+  if (pl._rev != pipelineRev) {
+    callback(util.format('Error: Pipeline id="%s" revisions do not correspond. Supplied:"%s", Database:"%s". Problem with id="%s" not removed from pipeline', pl._id, pipelineRev, pl._rev, p._id), 409)
+    return
+  }
+
+  var pIx = pl.problems.indexOf(p._id)
+  if (!~pIx) {
+    callback(util.format('Problem with id="%s" not found on pipeline with id="%s". The problem was not deleted from the pipeline.', problemId, pipelineId), 500)
+    return
+  }
+  
+  pl.problems.splice(pIx, 1)
+  pl.workflowStatus = 0
+
+  updateDoc(pl, function(e,r,b) {
+    var sc = r && r.statusCode
+    if (201 != sc) {
+      callback(util.format('Error removing problem with id="%s" from pipeline with id="%s". Database reported error:"%s"', problemId, pipelineId, e), sc)
       return
     }
-    var pl = JSON.parse(b)
-
-    if (pl._rev != pipelineRev) {
-      callback(util.format('Error: Pipeline revisions do not correspond. Supplied:"%s", Database:"%s". The pipeline was not deleted', pipelineRev, pl._rev), 500)
-      return
-    }
-
-    if ('pipeline' != pl.type) {
-      callback(util.format('Error: Document with id="%s" is not a pipeline. The document was not deleted.',plId), 500)
-      return
-    }
-
-    var problemIx = pl.problems.indexOf(problemId)
-
-    if (!~problemIx) {
-      callback(util.format('Problem with id="%s" not found on pipeline with id="%s". The problem was not deleted from the pipeline.', problemId, pipelineId), 500)
-      return
-    }
-
-    pl.problems.splice(problemIx, 1)
-    pl.workflowStatus = 0
-
-    updateDoc(pl, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('Error removing problem with id="%s" from pipeline with id="%s". Database reported error:"%s"', problemId, pipelineId, e), r.statusCode)
-        return
-      }
-      callback(null,201,JSON.parse(b).rev)
-    })
+    callback(null,201,JSON.parse(b).rev)
+    request.del(util.format('%s%s?rev=%s', databaseURI, p._id, p._rev))
   })
 }
 
