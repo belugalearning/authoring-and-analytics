@@ -1,5 +1,5 @@
 //(function($) {
-  var nodeEnoughProblems = 5
+  var nodeEnoughProblems = 15
     , windowPadding = 4, genPadding = 6
     , svg, gZoom, gWrapper, gLinks, gNodes
     , relIdContainerDict = {}
@@ -523,7 +523,7 @@
 
         if (numProblems == 0) {
             return 'no-problems ' + classes;
-        } else if (numProblems >= 15) {
+        } else if (numProblems >= nodeEnoughProblems) {
             return 'enough-problems ' + classes;
         }
         return classes;
