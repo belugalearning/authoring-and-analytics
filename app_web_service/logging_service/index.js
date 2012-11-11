@@ -554,6 +554,11 @@ function updateDesignDocs(dbURI, docsToUpdate, callback) {
           return values[0]
         }).toString()
       }    
+      , 'episodes-by-batch-process-date': {
+        map: (function(doc) {
+          if (doc.type == 'Episode') emit(doc.batchProcessDate)
+        }).toString()
+      }
       , 'problemattempt-events-by-user-date': {
         map: (function(doc) {
           var type = doc.type
