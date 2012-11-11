@@ -289,7 +289,7 @@ module.exports = function(config, legacyKCMController, kcm) {
       })
     }
     , getMap: function(req, res) {
-      var map = { user:kcm.docStores.users[req.session.user._id], pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq, pipelineWorkflowStatuses:req.app.config.authoring.pipelineWorkflowStatuses }
+      var map = { user:kcm.docStores.users[req.session.user._id], pipelines:kcm.docStores.pipelines, nodes:kcm.docStores.nodes, binaryRelations:{}, chainedBinaryRelations:{}, update_seq:kcm.update_seq, pipelineWorkflowStatuses:req.app.config.authoring.pipelineWorkflowStatuses, problems:kcm.docStores.problems }
 
       _.each(kcm.docStores.relations, function(r, id) {
         if (r.relationType == 'binary') {

@@ -114,6 +114,13 @@
             }
           }
           break
+        case 'problem':
+          if (data.deleted) {
+            delete kcm.problems[data.id]
+          } else {
+            kcm.problems[data.id] = data.doc
+          }
+          break
         case 'relation':
           if (data.doc.relationType == 'binary') {
             if (data.deleted) delete kcm.binaryRelations[data.id]
