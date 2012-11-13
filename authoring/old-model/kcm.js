@@ -762,6 +762,7 @@ function updatePDef(problemId, plistPath, callback) {
     problem.internalDescription = info.internalDescription;
     problem.toolId = info.toolId;
     problem.dateModified = (new Date()).toJSON();
+    problem.pdef = plist.parseStringSync(plistString)
 
     if (!problem._attachments) problem._attachments = {};
     problem._attachments['pdef.plist'] = {
