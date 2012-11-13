@@ -1388,31 +1388,7 @@
     function uploadProblemsToPipeline(e) {
       // TODO: This is either retarded for not setting cn and pl here, or it's retarded cos there's no comment explaining why. Or I shouldn't TODO my code after drinking
       $('form#upload-pdefs').ajaxSubmit({
-        success: function(o) { 
-          var $trPLProbs = $('tr.pipeline-problems.expanded[data-id="'+o.pipelineId+'"]')
-            , pl = kcm.pipelines[o.pipelineId]
-            , cn = kcm.nodes[pl.conceptNode]
-
-          pl._rev = o.pipelineRev
-          pl.problems = $.map(o.problemDetails, function(p) { return p.id })
-          pl.workflowStatus = 0
-
-          if ($trPLProbs.length) {
-            $trPLProbs
-              .find('tr.problem')
-                .remove()
-                .end()
-              .find('tr.add-problems')
-                .before($.tmpl('plProblemTR', o.problemDetails))
-          }
-
-          // if pipeline still visible (i.e. its node is still selected) update its status select
-          $('tr.pipeline[data-id="'+pl._id+'"] > td > select.workflow-status').val(0)
-
-          d3.select($('g#'+cn._id)[0]).attr('class', setNodeColour)
-        }
-        , error: ajaxErrorHandler('Error uploading problems to pipeline.')
-
+        error: ajaxErrorHandler('Error uploading problems to pipeline.')
       })
       $('form#upload-pdefs').clearForm()
     }

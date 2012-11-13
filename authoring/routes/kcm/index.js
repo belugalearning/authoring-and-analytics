@@ -547,16 +547,19 @@ module.exports = function(config, legacyKCMController, kcm) {
           } else {
             // all pdefs decompiled fine. use them to create problems
             ;(function rec(pdef) {
-              kcmController.insertProblem(pdef, plId, plRev, cnId, cnRev, function(e, statusCode, newProblem) {
-                if (201 != statusCode) {
-                  res.send('Error creating problem:\n' + e, statusCode || 500)
+              kcmController.insertProblem(pdef, plId, plRev, cnId, cnRev, function(e,r,b) {
+                var sc = r && r.statusCode
+                if (201 != sc) {
+                  res.send('Error creating problem:\n' + e, sc || 500)
                   return
                 }
 
-                if (problems.push(newProblem) < numFiles) {
+                if (problems.push(JSON.parse(b)) < numFiles) {
                   rec(decompiledPDefs[problems.length])
                 } else {
-                  kcmController.appendProblemsToPipeline(plId, _.map(problems, function(p){return p.id}), res.send)
+                  kcmController.appendProblemsToPipeline(plId, _.map(problems, function(p) { return p.id }), function(e,sc) {
+                    res.send(e, sc || 500)
+                  })
                 }
               })
             })(decompiledPDefs[0])

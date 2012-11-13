@@ -674,7 +674,7 @@ function queryView(view) {
 }
 
 // Problems
-function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
+function insertProblem(plistPath, plId, plRev, cnId, cnRev, callback) {
   var pl = kcm.getDoc(plId, 'pipeline')
     , cn = kcm.getDoc(cnId, 'concept node')
 
@@ -683,11 +683,11 @@ function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
     return
   }
   if (pl._rev !== plRev || cn._rev !== cnRev) {
-    callback((pl ? 'Concept Node': 'Pipeline') + ' revision conflict', 412)
+    callback((pl ? 'Concept Node': 'Pipeline') + ' revision conflict', 409)
     return
   }
   
-  fs.readFile(plist, 'utf8', function(e, plistString) {
+  fs.readFile(plistPath, 'utf8', function(e, plistString) {
     if (e) {
       if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
       return
@@ -708,6 +708,7 @@ function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
       , headers: { 'Content-Type': 'application/json' }
       , body: JSON.stringify({
         type: 'problem'
+        , pdef: plist.parseStringSync(plistString)
         , pipeline: plId
         , conceptNode: cnId
         , problemDescription: info.problemDescription
@@ -725,9 +726,7 @@ function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
         }
       })
     }
-    , function(e,r,b) {
-      callback(e, r && r.statusCode || 500)
-    })
+    , callback)
   })
 }
 
@@ -1625,7 +1624,7 @@ function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
     return
   }
 
-  if (ix === -1) {
+  if (!~ix) {
     callback(util.format('Error: Pipeline with id="%s" not found on concept node with id="%s". The pipeline was not deleted.', plId, cnId), 412)
     return
   }
@@ -1883,23 +1882,19 @@ function updatePipelineName(id, rev, name, callback) {
 }
 
 function appendProblemsToPipeline(plId, problemIds, callback) {
-  getDoc(plId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback('could not retrieve pipeline. Problems not added to pipeline.', r.statusCode)
-      return
-    }
+  var pl = kcm.getDocClone(plId, 'pipeline')
 
-    var pl = JSON.parse(b)
-    pl.problems = pl.problems.concat(problemIds)
-    pl.workflowStatus = 0
+  if (!pl) {
+    callback(util.format('pipeline id="%s" not found', plId), 404)
+    return
+  }
 
-    updateDoc(pl, function(e,r,b) {
-      if (201 != r.statusCode) {
-        callback(util.format('could not add problems to pipeline. DB error: "%s"', e), r.statusCode)
-        return
-      }
-      callback(null, 201, JSON.parse(b))
-    })
+  pl.problems = pl.problems.concat(problemIds)
+  pl.workflowStatus = 0
+
+  updateDoc(pl, function(e,r,b) {
+    var sc = r && r.statusCode
+    callback(sc == 201 ? null : util.format('error appending problems to pipeline. e="%s"  sc=%d', e, sc), sc || 500)
   })
 }
 
@@ -2439,6 +2434,7 @@ function deleteDoc(id, rev, callback) {
     , uri: databaseURI + id + '?rev=' + rev
   }, callback)
 }
+
 
 // Unused
 function validatedResponseCallback(validStatusCodes, callback) {
