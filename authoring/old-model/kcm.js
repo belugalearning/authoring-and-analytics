@@ -1630,6 +1630,12 @@ function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
     return
   }
 
+  var docs = [pl, cn].concat(pl.problems.map(function(pId) {
+    var p = kcm.getDocClone(pId, 'problem')
+    nextVersion(p, user, 'deletePipeline')
+    p._deleted = true
+  })
+
   nextVersion(cn, user, 'deletePipeline', plId)
   nextVersion(pl, user, 'deletePipeline')
   cn.pipelines.splice(ix, 1)
