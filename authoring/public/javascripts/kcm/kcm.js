@@ -118,14 +118,14 @@
                 expandCollapsePipeline.call($trs.find('td.expand-collapse > div')[0])
               }
             } else {
+              var selectedNodeId
               if ($(inFocus).attr('data-type') == 'concept-node') {
                 selectedNodeId = $(inFocus).attr('id')
               }
-              if (selectedNodeId == kcm.doc.conceptNode) {
+              if (selectedNodeId == data.doc.conceptNode) {
                 // new pipeline on selected node
                 $('tr[data-section="pipelines"] > tbody').append($plTR)
               }
-              
             }
           }
           // set node colour

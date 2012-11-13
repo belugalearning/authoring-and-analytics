@@ -1485,6 +1485,14 @@ function uploadPipelineFolder(user, o, callback) {
     }
 
     nextVersion(pl, user, 'uploadPipelineFolder')
+
+    pl.problems.forEach(function(pId) {
+      var p = kcm.getDocClone(pId, 'problem')
+      if (p) {
+        p._deleted = true
+        docsToSave.push(p)
+      }
+    })
   } else {
     pl = firstVersion(user, 'uploadPipelineFolder')
     pl._id = generateUUID()
@@ -1495,8 +1503,6 @@ function uploadPipelineFolder(user, o, callback) {
     nextVersion(cn, user, 'uploadPipelineFolder', pl._id)
     cn.pipelines.push(pl._id)
   }
-
-  docsToSave.push(pl)
 
   pl.name = o.plName
   pl.workflowStatus = 0
@@ -1531,6 +1537,8 @@ function uploadPipelineFolder(user, o, callback) {
       }
     })
   }
+
+  docsToSave.push(pl)
 
   request({
     method:'POST'
