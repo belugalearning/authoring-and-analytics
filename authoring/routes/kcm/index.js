@@ -618,7 +618,7 @@ module.exports = function(config, legacyKCMController, kcm) {
             return
           }
 
-          kcmController.updatePDef(req.params.problemId, plist, function(e) {
+          kcmController.updatePDef(req.session.user._id, req.params.problemId, plist, function(e) {
             if (e) res.send(e, 500)
             else res.redirect('/kcm/problem/' + req.params.problemId)
           })

@@ -738,7 +738,7 @@ function getPDef(problemId, callback) {
   }, callback)
 }
 
-function updatePDef(problemId, plistPath, callback) {
+function updatePDef(user, problemId, plistPath, callback) {
   fs.readFile(plistPath, 'utf8', function(e, plistString) {
     if (e) {
       if (typeof callback == 'function') callback('could not read pdef. error: ' + e)
@@ -763,6 +763,8 @@ function updatePDef(problemId, plistPath, callback) {
     problem.toolId = info.toolId;
     problem.dateModified = (new Date()).toJSON();
     problem.pdef = plist.parseStringSync(plistString)
+
+    nextVersion(problem, user, 'updatePDef')
 
     if (!problem._attachments) problem._attachments = {};
     problem._attachments['pdef.plist'] = {
