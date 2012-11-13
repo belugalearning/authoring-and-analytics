@@ -1346,15 +1346,11 @@
 
           while(pId=pl.problems[i++]) {
             p = kcm.problems[pId]
-            if (!p) {
-              alert('missing problem ' + pId)
-              return
-            }
-            var tool = p.toolId && kcm.tools[p.toolId]
+            var tool = p && p.toolId && kcm.tools[p.toolId]
             problemDetails.push({
               id: pId
-              , desc: p.problemDescription
-              , lastModified: typeof p.dateModified == 'string' ? p.dateModified.replace(/.{8}$/,'').replace(/[a-z]/gi, ' ') : ''
+              , desc: p ? p.problemDescription : '[MISSING PROBLEM]'
+              , lastModified: (p && typeof p.dateModified == 'string') ? p.dateModified.replace(/.{8}$/,'').replace(/[a-z]/gi, ' ') : ''
               , tool: tool ? tool.name : ''
             })
           }
