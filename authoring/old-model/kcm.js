@@ -726,11 +726,7 @@ function insertProblem(plist, plId, plRev, cnId, cnRev, callback) {
       })
     }
     , function(e,r,b) {
-      if (r.statusCode != 201) {
-        if (typeof callback == 'function') callback(util.format('Error uploading problem to database\n -- Database callback: (error:"%s", statusCode:%d, body:"%s")', e, r.statusCode, b), r.statusCode)
-        return
-      }
-      callback(null, 201, JSON.parse(b))
+      callback(e, r && r.statusCode || 500)
     })
   })
 }

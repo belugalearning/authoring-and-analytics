@@ -102,21 +102,38 @@
         case 'pipeline':
           if (data.deleted) {
             delete kcm.pipelines[data.id]
-            updateMapNodes()
+            $('tr[data-id="'+data.id+'"]').remove()
           } else {
-            if (typeof data.doc.workflowStatus === 'undefined') data.doc.workflowStatus = 0 
+            // if new pipeline and concept node selected...
+            // else..
             kcm.pipelines[data.id] = data.doc
-            if (inFocus && $(inFocus).attr('data-type') == 'concept-node') {
-              var n = d3.select(inFocus).data()[0]
-              if (~n.pipelines.indexOf(data.id)) {
-                updateMapNodes()
+            var $trs = $.tmpl('cnPipelineTR', data.doc, { workflowStatuses:kcm.pipelineWorkflowStatuses })
+
+            var $plTRs = $('table[data-section="pipelines"] tr.pipeline[data-id="'+data.id+'"]')
+            if ($plTRs.length) {
+              // change to existing pipeline on selected node
+              var isExpanded = $plTRs.hasClass('expanded')
+              $('tr[data-id="'+data.id+'"]').replaceWith($trs)
+              if (isExpanded) {
+                expandCollapsePipeline.call($trs.find('td.expand-collapse > div')[0])
               }
+            } else {
+              if ($(inFocus).attr('data-type') == 'concept-node') {
+                selectedNodeId = $(inFocus).attr('id')
+              }
+              if (selectedNodeId == kcm.doc.conceptNode) {
+                // new pipeline on selected node
+                $('tr[data-section="pipelines"] > tbody').append($plTR)
+              }
+              
             }
           }
+          // set node colour
+          d3.select($('g#'+data.doc.conceptNode)[0]).attr('class', setNodeColour)
           break
         case 'problem':
           if (data.deleted) {
-            // update node color
+            // TODO: update node color
             delete kcm.problems[data.id]
           } else {
             kcm.problems[data.id] = data.doc
@@ -1379,10 +1396,10 @@
           if ($trPLProbs.length) {
             $trPLProbs
               .find('tr.problem')
-              .remove()
-              .end()
+                .remove()
+                .end()
               .find('tr.add-problems')
-              .before($.tmpl('plProblemTR', o.problemDetails))
+                .before($.tmpl('plProblemTR', o.problemDetails))
           }
 
           // if pipeline still visible (i.e. its node is still selected) update its status select
