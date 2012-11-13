@@ -124,7 +124,7 @@
               }
               if (selectedNodeId == data.doc.conceptNode) {
                 // new pipeline on selected node
-                $('tr[data-section="pipelines"] > tbody').append($plTR)
+                $('tr[data-section="pipelines"] > tbody').append($plTRs)
               }
             }
           }
