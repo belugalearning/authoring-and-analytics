@@ -135,8 +135,16 @@
           if (data.deleted) {
             // TODO: update node color
             delete kcm.problems[data.id]
+            $('tr.problem[data-id="'+data.id+'"]').remove()
           } else {
             kcm.problems[data.id] = data.doc
+            var tool = data.doc && data.doc.toolId && kcm.tools[data.doc.toolId]
+            $('tr.problem[data-id="'+data.id+'"]').replaceWith($.tmpl('plProblemTR', {
+              id: data.id
+              , desc: data.doc.problemDescription
+              , lastModified: typeof data.doc.dateModified == 'string' ? data.doc.dateModified.replace(/.{8}$/,'').replace(/[a-z]/gi, ' ') : ''
+              , tool: tool ? tool.name : ''
+            }))
           }
           break
         case 'relation':
