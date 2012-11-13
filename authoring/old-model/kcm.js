@@ -1634,7 +1634,7 @@ function deletePipeline(user, plId, plRev, cnId, cnRev, callback) {
     var p = kcm.getDocClone(pId, 'problem')
     nextVersion(p, user, 'deletePipeline')
     p._deleted = true
-  })
+  }))
 
   nextVersion(cn, user, 'deletePipeline', plId)
   nextVersion(pl, user, 'deletePipeline')
