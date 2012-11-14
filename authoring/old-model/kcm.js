@@ -853,7 +853,9 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
     return
   }
 
-  // TODO: instead of converting pdef json to plist & setting pdef.plist attachment on problem, just set pdef property on doc
+  doc.pdef = pdef
+
+  // TODO: (have now done the following immediately above. Will delete the conversion to XML after ensuring that all probs have pdef json) instead of converting pdef json to plist & setting pdef.plist attachment on problem, just set pdef property on doc
   nextVersion(problem, user._id, 'appEditPDef')
 
   var plistString = plist.build(pdef).toString()
