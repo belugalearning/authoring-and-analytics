@@ -252,7 +252,7 @@ exports.getState = function(req,res) {
               console.log('getState() db base64 bytes=%d', numBytes)
               b64ZippedStateDb = out.toString('base64', 0, numBytes)
               sendSuccessResponse()
-              fs.writeFileSync('/tmp/test.zip', out)
+              fs.unlink(dbPath) // file no longer required
             }
 
             inp.pipe(gzip).pipe(ws)
