@@ -768,6 +768,9 @@
     function ajaxErrorHandler(firstline, callback) {
         return function(e) {
             if (401 == e.status) {
+                console.log('error that would normally log user out....')
+                console.log(firstline, e)
+                return
                 self.location = '/login?redir=' + self.location.pathname + self.location.search
             } else {
                 alert(firstline + '\n' + e.responseText + '\n' + [].slice.call(arguments, 1).join('\n'));
