@@ -104,27 +104,23 @@
             delete kcm.pipelines[data.id]
             $('tr[data-id="'+data.id+'"]').remove()
           } else {
-            // if new pipeline and concept node selected...
-            // else..
             kcm.pipelines[data.id] = data.doc
-            var $trs = $.tmpl('cnPipelineTR', data.doc, { workflowStatuses:kcm.pipelineWorkflowStatuses })
+            var selectedNodeId = $(inFocus).attr('data-type') == 'concept-node' && $(inFocus).attr('id')
 
-            var $plTRs = $('table[data-section="pipelines"] tr.pipeline[data-id="'+data.id+'"]')
-            if ($plTRs.length) {
-              // change to existing pipeline on selected node
-              var isExpanded = $plTRs.hasClass('expanded')
-              $('tr[data-id="'+data.id+'"]').replaceWith($trs)
-              if (isExpanded) {
-                expandCollapsePipeline.call($trs.find('td.expand-collapse > div')[0])
-              }
-            } else {
-              var selectedNodeId
-              if ($(inFocus).attr('data-type') == 'concept-node') {
-                selectedNodeId = $(inFocus).attr('id')
-              }
-              if (selectedNodeId == data.doc.conceptNode) {
-                // new pipeline on selected node
-                $('tr[data-section="pipelines"] > tbody').append($plTRs)
+            // does change relate to pipeline on selected node?
+            if (selectedNodeId == data.doc.conceptNode) {
+              // pipeline's node is selected, so update pipeline panel
+              var $oldPlTRs = $('table[data-section="pipelines"] tr[data-id="'+data.id+'"]')
+                , $newPlTRs = $.tmpl('cnPipelineTR', data.doc, { workflowStatuses:kcm.pipelineWorkflowStatuses })
+
+              if ($oldPlTRs.length) {
+                // change to existing pipeline
+                var isExpanded = $oldPlTRs.hasClass('expanded')
+                $oldPlTRs.replaceWith($newPlTRs)
+                if (isExpanded) expandCollapsePipeline.call($newPlTRs.find('td.expand-collapse > div')[0]) // i.e. expand 
+              } else {
+                // new pipeline
+                $('table[data-section="pipelines"] > tbody').append($newPlTRs)
               }
             }
           }
