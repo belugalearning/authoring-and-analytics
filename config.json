@@ -25,4 +25,11 @@
   , "webPortal": {
     "port": 3002
   }
+  , "appScoring": {
+      "artifact1": 0
+    , "artifact2": 250000
+    , "artifact3": 500000
+    , "artifact4": 750000
+    , "artifact5": 999999
+  }
 }
