@@ -76,15 +76,12 @@ exports.getState = function(req,res) {
     , device = req.query['device']
     , since = req.query['last_batch_process_date'] // the last time the device synched this user, this was the latest processed batch
 
-  console.log('\ngetState() -- urId="%s"  device="%s"   since=%s', urId, device, since)
-
   // successful response components
   var lastBatchDate
     , processedDeviceBatchIds
     , b64ZippedStateDb
 
   var sendSuccessResponse = function() {
-    console.log('getState() send success\n\tlastBatchDate=%d\n\tprocessedDeviceBatchIds=%s\n\n', lastBatchDate, processedDeviceBatchIds.join(','))
     res.send({
       lastProcessedBatchDate: lastBatchDate
       , processedDeviceBatchIds: processedDeviceBatchIds
@@ -96,6 +93,7 @@ exports.getState = function(req,res) {
   var sendError = function(e, sc) {
     if (!sentError) {
       sentError = true
+      console.log('ERROR getState() e="%s", sc=%d', e, sc)
       res.send(e || 'error retrieving user state', sc || 500)
       return
     }
@@ -249,7 +247,6 @@ exports.getState = function(req,res) {
             }
             ws.end = function(buf) {
               if (buf) ws.write(buf)
-              console.log('getState() db base64 bytes=%d', numBytes)
               b64ZippedStateDb = out.toString('base64', 0, numBytes)
               sendSuccessResponse()
               fs.unlink(dbPath) // file no longer required
