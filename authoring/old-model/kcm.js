@@ -1532,6 +1532,7 @@ function uploadPipelineFolder(user, o, callback) {
       , toolId: info.toolId
       , dateCreated: now
       , dateModified: now
+      , pdef: plist.parseStringSync(decodedPDef)
       , _attachments: {
         'pdef.plist': {
           'Content-Type': 'application/xml'
