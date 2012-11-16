@@ -90,25 +90,27 @@ exports.getState = function(req,res) {
   }
 
   var sentError = false
-  var sendError = function(e, sc) {
+  var sendError = function(e) {
     if (!sentError) {
       sentError = true
-      console.log('ERROR getState() e="%s", sc=%d', e, sc)
-      res.send(e || 'error retrieving user state', sc || 500)
+      console.log('ERROR in getState(): ' + e)
+      res.send(e || 'error retrieving user state', 500)
       return
     }
   }
 
-  var checkResponseError = function(r, expectedSortCode, errorMessage) {
+  var checkResponseError = function(e, r, b, expectedSortCode, uri) {
+    var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
-      sendError(errorMessage, r && r.statusCode)
+      var errorMessage = util.format('Response error.\n\tError: %s\n\tSort Code: %d\n\tExpected Sort Code: %d\n\tBody: %s\n\tURI: %s', e, sc || 0, expectedSortCode, b, uri)
+      sendError(errorMessage)
       return true
     }
   }
 
-  var checkNullError = function(v, errorMessage) {
+  var checkNullError = function(v, keyDesc) {
     if (!v) {
-      sendError(errorMessage)
+      sendError(util.format('Null Error:\t\tKey Description="%s"', keyDesc))
       return true
     }
   }
@@ -123,20 +125,22 @@ exports.getState = function(req,res) {
   // TODO: check that user and device are paired - if not send 403
   
   // look up user's db in directory
-  request(util.format('%s/%s/user-db-directory', config.couchServerURI, config.appWebService.loggingService.databaseName), function(e,r,b) {
-    if (checkResponseError(r, 200)) return
+  var uri = util.format('%s/%s/user-db-directory', config.couchServerURI, config.appWebService.loggingService.databaseName)
+  request(uri, function(e,r,b) {
+    if (checkResponseError(e, r, b, 200, uri)) return
 
     var urDbURI = JSON.parse(b).dbs[urId]
-    if (checkNullError(urDbURI)) return
+    if (checkNullError(urDbURI, 'user logging db uri')) return
 
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
 
     // get latest batch procesed. Any batches processed from now will be ignored for remainder of this iteration of getState()
-    request(util.format('%s/log-batches-by-process-date?group_level=1&descending=true&limit=1', pathToViews), function(e,r,b) {
-      if (checkResponseError(r, 200)) return
+    var uri = util.format('%s/log-batches-by-process-date?group_level=1&descending=true&limit=1', pathToViews)
+    request(uri, function(e,r,b) {
+      if (checkResponseError(e, r, b, 200, uri)) return
 
       var rows = JSON.parse(b).rows
-      if (checkNullError(rows.length)) return
+      if (checkNullError(rows.length, '0 user log batches')) return
 
       // included in response
       lastBatchDate = rows[0].key
@@ -147,15 +151,16 @@ exports.getState = function(req,res) {
         , query = util.format('%s/log-batches-by-device-process-date?group_level=2&descending=true&startkey=%s&endkey=%s', pathToViews, sKey, eKey)
 
       request(query, function(e,r,b) {
-        if (checkResponseError(r, 200)) return
+        if (checkResponseError(e, r, b, 200, query)) return
 
         // included in response
         processedDeviceBatchIds = JSON.parse(b).rows.map(function(r) { return r.value })
 
         // get epsisodes processed before or on lastBatchDate
         // generate state from episodes
-        request(util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate), function(e,r,b) {
-          if (checkResponseError(r,200)) return
+        var uri = util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate)
+        request(uri, function(e,r,b,uri) {
+          if (checkResponseError(e,r,b,200,uri)) return
 
           var episodes = JSON.parse(b).rows.map(function(r) { return r.doc })
             , nodes = {}
