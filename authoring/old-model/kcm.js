@@ -853,11 +853,9 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
     return
   }
 
-  doc.pdef = pdef
-
-  // TODO: (have now done the following immediately above. Will delete the conversion to XML after ensuring that all probs have pdef json) instead of converting pdef json to plist & setting pdef.plist attachment on problem, just set pdef property on doc
   nextVersion(problem, user._id, 'appEditPDef')
 
+  // TODO: delete the conversion to XML after ensuring that all probs have pdef json
   var plistString = plist.build(pdef).toString()
   // N.B. for some reason this module converts all string keys to data keys and base 64 encodes the string
   var pdefXML = libxmljs.parseXmlString(plistString)
@@ -873,6 +871,7 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
     callback(info.error.match(/^[^\n]*/)[0], 400)
     return
   }
+  problem.pdef = pdef
   problem.problemDescription = info.problemDescription
   problem.internalDescription = info.internalDescription
   problem.dataModified = new Date()
