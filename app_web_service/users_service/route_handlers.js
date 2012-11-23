@@ -102,7 +102,7 @@ exports.getState = function(req,res) {
   var checkResponseError = function(e, r, b, expectedSortCode, uri) {
     var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
-      var errorMessage = util.format('Response error.\n\tError: %s\n\tSort Code: %d\n\tExpected Sort Code: %d\n\tBody: %s\n\tURI: %s', e, sc || 0, expectedSortCode, b, uri)
+      var errorMessage = util.format('Couch Response error.\n\t\tError: %s\n\t\tSort Code: %d\n\tExpected Sort Code: %d\n\t\tBody: %s\n\t\tURI: %s', e, sc || 0, expectedSortCode, b.replace(/\s*$/,''), uri)
       sendError(errorMessage)
       return true
     }
