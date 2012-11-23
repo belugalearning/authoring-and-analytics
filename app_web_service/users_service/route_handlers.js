@@ -102,7 +102,6 @@ exports.getState = function(req,res) {
   var checkResponseError = function(e, r, b, expectedSortCode, uri) {
     var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
-console.log('RESPONSE ERROR ARGUMENTS SPLIT ----\n\t\t%s', [].slice.call(arguments).join('\n\t\t'))
       var errorMessage = util.format('Couch Response error.\n\t\tError: %s\n\t\tSort Code: %d\n\tExpected Sort Code: %d\n\t\tBody: %s\n\t\tURI: %s', e, sc || 0, expectedSortCode, b.replace(/\s*$/,''), uri)
       sendError(errorMessage)
       return true
@@ -131,15 +130,12 @@ console.log('RESPONSE ERROR ARGUMENTS SPLIT ----\n\t\t%s', [].slice.call(argumen
     if (checkResponseError(e, r, b, 200, uri)) return
 
     var urDbURI = JSON.parse(b).dbs[urId]
-console.log('\n**temp urDbURI=',urDbURI)
     if (checkNullError(urDbURI, 'user logging db uri')) return
 
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
-console.log('**temp pathToViews=',pathToViews)
 
     // get latest batch procesed. Any batches processed from now will be ignored for remainder of this iteration of getState()
     var uri = util.format('%s/log-batches-by-process-date?group_level=1&descending=true&limit=1', pathToViews)
-console.log('**temp most recent processed batch uri=',uri)
     request(uri, function(e,r,b) {
       if (checkResponseError(e, r, b, 200, uri)) return
 
@@ -154,7 +150,6 @@ console.log('**temp most recent processed batch uri=',uri)
         , eKey = encodeURIComponent(JSON.stringify([device, since + 0.001]))
         , query = util.format('%s/log-batches-by-device-process-date?group_level=2&descending=true&startkey=%s&endkey=%s', pathToViews, sKey, eKey)
 
-console.log('**temp ids batches processed in range query=',query)
       request(query, function(e,r,b) {
         if (checkResponseError(e, r, b, 200, query)) return
 
@@ -164,8 +159,7 @@ console.log('**temp ids batches processed in range query=',query)
         // get epsisodes processed before or on lastBatchDate
         // generate state from episodes
         var uri = util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate)
-console.log('**temp episodes-by-batch-process-date uri=',uri)
-        request(uri, function(e,r,b,uri) {
+        request(uri, function(e,r,b) {
           if (checkResponseError(e,r,b,200,uri)) return
 
           var episodes = JSON.parse(b).rows.map(function(r) { return r.doc })
