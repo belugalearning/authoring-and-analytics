@@ -102,6 +102,7 @@ exports.getState = function(req,res) {
   var checkResponseError = function(e, r, b, expectedSortCode, uri) {
     var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
+console.log('RESPONSE ERROR ARGUMENTS SPLIT ----\n\t\t%s', [].slice.call(arguments).join('\n\t\t'))
       var errorMessage = util.format('Couch Response error.\n\t\tError: %s\n\t\tSort Code: %d\n\tExpected Sort Code: %d\n\t\tBody: %s\n\t\tURI: %s', e, sc || 0, expectedSortCode, b.replace(/\s*$/,''), uri)
       sendError(errorMessage)
       return true
@@ -163,7 +164,7 @@ console.log('**temp ids batches processed in range query=',query)
         // get epsisodes processed before or on lastBatchDate
         // generate state from episodes
         var uri = util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate)
-console.log('**temp epsides-by-batch-process-date uri=',uri)
+console.log('**temp episodes-by-batch-process-date uri=',uri)
         request(uri, function(e,r,b,uri) {
           if (checkResponseError(e,r,b,200,uri)) return
 
