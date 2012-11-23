@@ -93,7 +93,7 @@ exports.getState = function(req,res) {
   var sendError = function(e) {
     if (!sentError) {
       sentError = true
-      console.log('ERROR in getState()\n\tat %s\n\t{ userId:"%s", device:"%s", last_process_batch_date:"%s" }\n\t%s', (new Date).toString(), urId, device, since, e)
+      console.log('\nERROR in getState()\n\tat %s\n\t{ userId:"%s", device:"%s", last_process_batch_date:"%s" }\n\t%s\n', (new Date).toString(), urId, device, since, e)
       res.send(e || 'error retrieving user state', 500)
       return
     }
@@ -131,11 +131,14 @@ exports.getState = function(req,res) {
 
     var urDbURI = JSON.parse(b).dbs[urId]
     if (checkNullError(urDbURI, 'user logging db uri')) return
+console.log('**temp urDbURI=',urDbURI)
 
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
+console.log('**temp pathToViews=',pathToViews)
 
     // get latest batch procesed. Any batches processed from now will be ignored for remainder of this iteration of getState()
     var uri = util.format('%s/log-batches-by-process-date?group_level=1&descending=true&limit=1', pathToViews)
+console.log('**temp most recent processed batch uri=',uri)
     request(uri, function(e,r,b) {
       if (checkResponseError(e, r, b, 200, uri)) return
 
@@ -150,6 +153,7 @@ exports.getState = function(req,res) {
         , eKey = encodeURIComponent(JSON.stringify([device, since + 0.001]))
         , query = util.format('%s/log-batches-by-device-process-date?group_level=2&descending=true&startkey=%s&endkey=%s', pathToViews, sKey, eKey)
 
+console.log('**temp ids batches processed in range uri=',uri)
       request(query, function(e,r,b) {
         if (checkResponseError(e, r, b, 200, query)) return
 
@@ -159,6 +163,7 @@ exports.getState = function(req,res) {
         // get epsisodes processed before or on lastBatchDate
         // generate state from episodes
         var uri = util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate)
+console.log('**temp ids batches processed in range uri=',uri)
         request(uri, function(e,r,b,uri) {
           if (checkResponseError(e,r,b,200,uri)) return
 
