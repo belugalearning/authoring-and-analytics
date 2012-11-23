@@ -130,8 +130,8 @@ exports.getState = function(req,res) {
     if (checkResponseError(e, r, b, 200, uri)) return
 
     var urDbURI = JSON.parse(b).dbs[urId]
+console.log('\n**temp urDbURI=',urDbURI)
     if (checkNullError(urDbURI, 'user logging db uri')) return
-console.log('**temp urDbURI=',urDbURI)
 
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
 console.log('**temp pathToViews=',pathToViews)
@@ -153,7 +153,7 @@ console.log('**temp most recent processed batch uri=',uri)
         , eKey = encodeURIComponent(JSON.stringify([device, since + 0.001]))
         , query = util.format('%s/log-batches-by-device-process-date?group_level=2&descending=true&startkey=%s&endkey=%s', pathToViews, sKey, eKey)
 
-console.log('**temp ids batches processed in range uri=',uri)
+console.log('**temp ids batches processed in range query=',query)
       request(query, function(e,r,b) {
         if (checkResponseError(e, r, b, 200, query)) return
 
@@ -163,7 +163,7 @@ console.log('**temp ids batches processed in range uri=',uri)
         // get epsisodes processed before or on lastBatchDate
         // generate state from episodes
         var uri = util.format('%s/episodes-by-batch-process-date?include_docs=true&end_key=%d', pathToViews, lastBatchDate)
-console.log('**temp ids batches processed in range uri=',uri)
+console.log('**temp epsides-by-batch-process-date uri=',uri)
         request(uri, function(e,r,b,uri) {
           if (checkResponseError(e,r,b,200,uri)) return
 
