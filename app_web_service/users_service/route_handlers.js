@@ -93,7 +93,7 @@ exports.getState = function(req,res) {
   var sendError = function(e) {
     if (!sentError) {
       sentError = true
-      console.log('ERROR in getState(): ' + e)
+      console.log('ERROR in getState()\n\tat %s\n\t{ userId:"%s", device:"%s", last_process_batch_date:"%s" }\n\t%s', (new Date).toString(), urId, device, since, e)
       res.send(e || 'error retrieving user state', 500)
       return
     }
@@ -110,7 +110,7 @@ exports.getState = function(req,res) {
 
   var checkNullError = function(v, keyDesc) {
     if (!v) {
-      sendError(util.format('Null Error:\t\tKey Description="%s"', keyDesc))
+      sendError(util.format('Null Error - \t\tKey Description="%s"', keyDesc))
       return true
     }
   }
@@ -118,7 +118,7 @@ exports.getState = function(req,res) {
   if (!isNaN(since)) {
     since = Number(since)
   } else {
-    res.send('error retrieving user state', 400)
+    sendError('last_batch_process_date is not a number. value = %s', since)
     return
   }
 
