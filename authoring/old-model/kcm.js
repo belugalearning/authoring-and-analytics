@@ -2324,7 +2324,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       cnIns.finalize()
 
       db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
-      db.run("CREATE TABLE FeatureKeys (key TEXT, encounters TEXT)")
+      db.run("CREATE TABLE FeatureKeys (key TEXT PRIMARY KEY ASC, encounters TEXT)")
 
       db.close(function() {
         gotoNext.apply(null, args)
