@@ -130,7 +130,11 @@ exports.getState = function(req,res) {
     if (checkResponseError(e, r, b, 200, uri)) return
 
     var urDbURI = JSON.parse(b).dbs[urId]
-    if (checkNullError(urDbURI, 'user logging db uri')) return
+    if (!urDbURI) {
+      // (assuming no errors) nothing logged against the user yet, so user's logging db yet to be created
+      res.send(404)
+      return
+    }
 
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
 
