@@ -295,7 +295,7 @@ exports.getState = function(req,res) {
               ins.run.apply(ins, colNames.map(function(col) { return nodes[nId][col] }))
             })
 
-            ins.run(zipDb)
+            db.close(zipDb)
           })
         })
       })
