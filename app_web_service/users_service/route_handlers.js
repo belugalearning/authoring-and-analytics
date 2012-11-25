@@ -211,19 +211,19 @@ exports.getState = function(req,res) {
               if (!n.first_completed) n.first_completed = lastEventDate
               n.last_completed = lastEventDate
 
-              if (ep.score > config.appScoring.artifact1) {
+              if (ep.score >= config.appScoring.artifact1) {
                 n.artifact_1_last_achieved = lastEventDate
 
-                if (ep.score > config.appScoring.artifact2) {
+                if (ep.score >= config.appScoring.artifact2) {
                   n.artifact_2_last_achieved = lastEventDate
 
-                  if (ep.score > config.appScoring.artifact3) {
+                  if (ep.score >= config.appScoring.artifact3) {
                     n.artifact_3_last_achieved = lastEventDate
 
-                    if (ep.score > config.appScoring.artifact4) {
+                    if (ep.score >= config.appScoring.artifact4) {
                       n.artifact_4_last_achieved = lastEventDate
 
-                      if (ep.score > config.appScoring.artifact5) {
+                      if (ep.score >= config.appScoring.artifact5) {
                         n.artifact_5_last_achieved = lastEventDate
                       }
                     }
