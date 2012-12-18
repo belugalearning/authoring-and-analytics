@@ -2053,7 +2053,7 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
         conceptNodes = JSON.parse(JSON.stringify(
           conceptNodes.filter(function(cn) {
             if (_.intersection(exportSettings.nodeExclusionTags, cn.tags).length) return false
-            return !exportSettings.conceptNodeRequiredTags.length || _.intersection(exportSettings.conceptNodeRequiredTags, cn.tags).length
+            return !_.difference(exportSettings.conceptNodeRequiredTags, cn.tags).length
           })
         ))
 
