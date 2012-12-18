@@ -717,13 +717,6 @@ function insertProblem(plistPath, plId, plRev, cnId, cnRev, callback) {
         , toolId: info.toolId
         , dateCreated: now
         , dateModified: now
-        , assessmentCriteria: []
-        , _attachments: {
-          'pdef.plist': {
-            'Content-Type': 'application/xml'
-            , data: new Buffer(plistString).toString('base64')
-          }
-        }
       })
     }
     , callback)
