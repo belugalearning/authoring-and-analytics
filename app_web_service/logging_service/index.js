@@ -591,6 +591,17 @@ function updateDesignDocs(dbURI, docsToUpdate, callback) {
           }    
         }).toString()
       }
+      , 'feature-key-encounters-by-batch-process-date': {
+        map: (function(doc) {
+          if (doc.type == 'UserSession' && Object.prototype.toString.call(doc.events) == '[object Array]') {
+            doc.events.forEach(function(event) {
+              if (event.eventType == 'USER_ENCOUNTER_FEATURE_KEY' && event.additionalData) {
+                emit([doc.batchProcessDate, event.additionalData.key, event.additionalData.date])
+              }
+            })
+          }
+        }).toString()
+      }
     }
   }
 
