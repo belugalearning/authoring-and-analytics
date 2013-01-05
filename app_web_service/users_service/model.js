@@ -6,14 +6,12 @@ var couchServerURI
   , dbName
   , designDoc
   , databaseURI
-  , viewsPath
 
 module.exports = function(config) {
-  couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1/')
+  couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1')
   dbName = config.appWebService.usersService.databaseName
   designDoc = config.appWebService.usersService.databaseDesignDoc
-  databaseURI = couchServerURI + dbName + '/'
-  viewsPath = databaseURI + '_design/' + designDoc + '/_view/'
+  databaseURI = util.format('%s/%s', couchServerURI, dbName)
   console.log(util.format('AppWebService -> usersService\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI))
 
   request({
@@ -47,7 +45,7 @@ module.exports = function(config) {
 function syncUsers(clientDeviceUsers, callback) {
   var urIds = _.pluck(clientDeviceUsers, 'id')
 
-  request(encodeURI(databaseURI + '_all_docs?include_docs=true&keys=' + JSON.stringify(urIds)), function(e,r,b) {
+  request(encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', databaseURI, JSON.stringify(urIds))), function(e,r,b) {
     if (!r || 200 != r.statusCode) {
       callback(e, r && r.statusCode || 500)
       return
@@ -104,7 +102,7 @@ function syncUsers(clientDeviceUsers, callback) {
 
     if (bulkUpdateDocs.length) {
       request({
-        uri: databaseURI + '_bulk_docs'
+        uri: util.format('%s/_bulk_docs', databaseURI)
         , method: 'POST'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs: bulkUpdateDocs })
@@ -124,7 +122,7 @@ function userMatchingNickAndPassword(nick, password, callback) {
 }
 
 function updateDesignDoc(callback) {
-  console.log('AppWebService -> usersService\tupdating design doc:\t%s_design/%s', databaseURI, designDoc)
+  console.log('AppWebService -> usersService\tupdating design doc:\t%s/_design/%s', databaseURI, designDoc)
 
   var dd = {
     _id: '_design/' + designDoc
@@ -147,7 +145,7 @@ function updateDesignDoc(callback) {
     if (r.statusCode == 200) dd._rev = JSON.parse(b)._rev
 
       request({
-        uri: databaseURI + dd._id
+        uri: util.format('%s/%s', databaseURI, dd._id)
         , method: 'PUT'
         , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
         , body: JSON.stringify(dd)
@@ -159,13 +157,13 @@ function updateDesignDoc(callback) {
 
 function getDoc(id, callback) {
   request({
-    uri: databaseURI + id
+    uri: util.format('%s/%s', databaseURI, id)
     , headers: { 'content-type':'application/json', accepts:'application/json' }
   }, callback)
 }
 
 function queryView(view) {
-  var uri = viewsPath + view
+  var uri = util.format('%s/_design/%s/_view/%s', databaseURI, designDoc, view)
   var callbackIx = arguments.length - 1
   var callback = arguments[callbackIx]
 
