@@ -95,8 +95,12 @@ exports.getState = function(req,res) {
   var checkResponseError = function(e, r, b, expectedSortCode, uri) {
     var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
-      var errorMessage = util.format('Couch Response error.\n\t\tError: %s\n\t\tStatus Code: %d\n\tExpected Status Code: %d\n\t\tBody: %s\n\t\tURI: %s', e, sc || 0, expectedSortCode, b.replace(/\s*$/,''), uri)
-      sendError(errorMessage)
+      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tExpected Status Code: %d\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
+        , decodeURIComponent(uri)
+        , expectedSortCode
+        , sc || 'NO RESPONSE'
+        , e || 'NULL'
+        , (b || '').replace(/\s*$/,'')))
       return true
     }
   }
