@@ -17,7 +17,6 @@ module.exports = function(model_, config_) {
 }
 
 exports.syncUsers = function(req, res) {
-  // send success straight away. Will get data sent again pretty regularly
   var users = JSON.parse(req.body.users)
 
   model.syncUsers(users, function(e, statusCode, updates) {
@@ -38,6 +37,7 @@ exports.checkNickAvailable = function(req, res) {
   })
 }
 
+// restricted to users with valid nicks - i.e. nickClash == 1
 exports.getUserMatchingNickAndPassword = function(req, res) {
   var nick = req.body.nick
     , password = req.body.password
@@ -56,10 +56,14 @@ exports.getUserMatchingNickAndPassword = function(req, res) {
       return
     }
 
-    var urData = rows[0].doc
-      , ur = { id:urData._id, nick:urData.nick, password:urData.password, nodesCompleted:urData.nodesCompleted }
+    for (var i=0; i<rows.length; i++) {
+      if (rows[i].doc.nickClash == 1) {
+        res.send({ id:rows[i].doc._id, nick:rows[i].doc.nick, password:rows[i].doc.password, nickClash:1 }, 200)
+        return
+      }
+    }
 
-    res.send(ur, 200)
+    res.send(404)
   })
 }
 
