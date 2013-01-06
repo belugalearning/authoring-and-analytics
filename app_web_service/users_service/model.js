@@ -148,7 +148,7 @@ function syncUsers(clientDeviceUsers, callback) {
           , headers: { 'content-type':'application/json', accepts:'application/json' }
           , body: JSON.stringify({ docs: serverUpdates })
         }, function(e,r,b) {
-          checkResponseError(e, r, b, 200, uri)
+          checkResponseError(e, r, b, 201, uri)
         })
       }
     }
