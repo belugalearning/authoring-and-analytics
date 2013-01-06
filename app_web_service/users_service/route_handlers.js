@@ -16,9 +16,9 @@ module.exports = function(model_, config_) {
   return exports
 }
 
-exports.syncUsers = function(req, res) {
+exports.syncUsers = function syncUsers(req, res) {
   if (!req.body || Object.prototype.toString.call(req.body.users) != '[object Array]') {
-    console.log('syncUsers Bad Args: req.body.users array expected.', req.body)
+    console.log('%s\tsyncUsers Bad Args: req.body.users array expected.\treq.body: %j', niceConciseDate(), req.body)
     res.send(500)
     return
   }
@@ -28,7 +28,7 @@ exports.syncUsers = function(req, res) {
   })
 }
 
-exports.checkNickAvailable = function(req, res) {
+exports.checkNickAvailable = function checkNickAvailable(req, res) {
   var nick = req.body.nick
 
   model.userMatchingNick(nick, function(e,r,b) {
@@ -41,8 +41,96 @@ exports.checkNickAvailable = function(req, res) {
   })
 }
 
+exports.changeNick = function changeNick(req, res) {
+  var sentResponse = false
+    , databaseURI = util.format('%s/%s', config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1'), config.appWebService.usersService.databaseName)
+    , id = req.body.id
+    , password = req.body.password
+    , newNick = req.body.newNick
+
+  var sendError = function sendError(e, sc, suppressConsoleLog) {
+    if (!sentResponse) {
+      sentResponse = true
+      if (!suppressConsoleLog) {
+        console.log('\n%s\tERROR in changeNick()\n\tid:%s password:%s newNick:%s\n\terror: %s\n', niceConciseDate(), id, password, newNick, e)
+      }
+      res.send(e || 'error changing user nick', sc || 500)
+      return
+    }
+  }
+
+  var checkResponseError = function(e, r, b, validStatusCodes, uri) {
+    var sc = r && r.statusCode
+
+    if (typeof validStatusCodes == 'number') validStatusCodes = [validStatusCodes]
+
+    if (!r || !~validStatusCodes.indexOf(sc)) {
+      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tValid Status Codes: %s\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
+        , decodeURIComponent(uri)
+        , JSON.stringify(validStatusCodes)
+        , sc || 'NO RESPONSE'
+        , e || 'NULL'
+        , (b || '').replace(/\s*$/,'')))
+      return true
+    }
+  }
+
+  if (Object.prototype.toString.call(id) != '[object String]') {
+    sendError('string required for id', 422, true)
+    return
+  }
+  if (Object.prototype.toString.call(password) != '[object String]') {
+    sendError('string required for password', 422, true)
+    return
+  }
+  if (Object.prototype.toString.call(newNick) != '[object String]' || !newNick.length) {
+    sendError('string required for newNick', 422, true)
+    return
+  }
+
+  var userURI = util.format('%s/%s', databaseURI, id)
+  request(userURI, function(e,r,b) {
+    if (checkResponseError(e, r, b, [200,404], userURI)) return
+
+    if (r.statusCode == 404) {
+      res.send('user not found', 404)
+      return
+    }
+
+    var ur = JSON.parse(b)
+
+    if (ur.password != password) {
+      if (!sentResponse) res.send(401)
+      return
+    }
+
+    var nickClashURI = util.format('%s/_design/%s/_view/users-by-nick?key="%s"', databaseURI, config.appWebService.usersService.databaseDesignDoc, newNick)
+
+    request(nickClashURI, function(e,r,b) {
+      if (checkResponseError(e, r, b, 200, nickClashURI)) return
+
+      if (JSON.parse(b).rows.length) {
+        if (!sentResponse) res.send(409)
+        return
+      }
+
+      ur.nick = newNick
+
+      request({
+        method:'PUT'
+        , uri: userURI
+        , headers: { 'Content-Type':'application/json' }
+        , body: JSON.stringify(ur)
+      }, function(e,r,b) {
+        if (checkResponseError(e, r, b, 201, userURI)) return
+        if (!sentResponse) res.send(201)
+      })
+    })
+  })
+}
+
 // restricted to users with valid nicks - i.e. nickClash == 1
-exports.getUserMatchingNickAndPassword = function(req, res) {
+exports.getUserMatchingNickAndPassword = function getUserMatchingNickAndPassword(req, res) {
   var nick = req.body.nick
     , password = req.body.password
 
@@ -71,7 +159,7 @@ exports.getUserMatchingNickAndPassword = function(req, res) {
   })
 }
 
-exports.getState = function(req,res) {
+exports.getState = function getState(req,res) {
   // params / query components
   var urId = req.params.userId
     , device = req.query['device']
@@ -100,12 +188,15 @@ exports.getState = function(req,res) {
     }
   }
 
-  var checkResponseError = function(e, r, b, expectedSortCode, uri) {
+  var checkResponseError = function(e, r, b, validStatusCodes, uri) {
     var sc = r && r.statusCode
-    if (!r || r.statusCode != expectedSortCode) {
-      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tExpected Status Code: %d\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
+
+    if (typeof validStatusCodes == 'number') validStatusCodes = [validStatusCodes]
+
+    if (!r || !~validStatusCodes.indexOf(sc)) {
+      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tValid Status Codes: %s\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
         , decodeURIComponent(uri)
-        , expectedSortCode
+        , JSON.stringify(validStatusCodes)
         , sc || 'NO RESPONSE'
         , e || 'NULL'
         , (b || '').replace(/\s*$/,'')))
@@ -384,4 +475,11 @@ function guid() {
     .toString('hex')
     .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})/i, '$1-$2-$3-$4-$5')
     .toUpperCase()
+}
+
+function niceConciseDate() {
+  return new Date()
+  .toJSON()
+  .replace(/T/, '-')
+  .replace(/\.[0-9]{3}Z$/, '')
 }
