@@ -66,12 +66,12 @@ function syncUsers(clientDeviceUsers, callback) {
     }
   }
 
-  var checkResponseError = function checkResponseError(e, r, b, expectedSortCode, uri) {
+  var checkResponseError = function checkResponseError(e, r, b, expectedStatusCode, uri) {
     var sc = r && r.statusCode
-    if (!r || r.statusCode != expectedSortCode) {
+    if (!r || r.statusCode != expectedStatusCode) {
       sendError(util.format('Couch Response error.\n\tDecoded Request URI: %s\n\tExpected Status Code: %d\n\tResponse Status Code: %s\n\tResponse Error: %s\n\tResponse Body: %s'
         , decodeURIComponent(uri)
-        , expectedSortCode
+        , expectedStatusCode
         , sc || 'NO RESPONSE'
         , e || 'NULL'
         , (b || '').replace(/\s*$/,'')), sc)
