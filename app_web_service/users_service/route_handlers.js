@@ -17,9 +17,13 @@ module.exports = function(model_, config_) {
 }
 
 exports.syncUsers = function(req, res) {
-  var users = JSON.parse(req.body.users)
+  if (!req.body || Object.prototype.toString.call(req.body.users) != '[object Array]') {
+    console.log('syncUsers Bad Args: req.body.users array expected.', req.body)
+    res.send(500)
+    return
+  }
 
-  model.syncUsers(users, function(e, statusCode, updates) {
+  model.syncUsers(req.body.users, function(e, statusCode, updates) {
     res.send(e || updates, statusCode || 500)
   })
 }
