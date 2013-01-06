@@ -59,7 +59,7 @@ function syncUsers(clientDeviceUsers, callback) {
   }
 
   var sendError = function sendError(e, sc) {
-    console.log('%s\tError in UsersService#syncUsers:\t%s', niceConciseDate(), e)
+    console.log('%s\tError in UsersService#syncUsers:\n\t%s', niceConciseDate(), e)
     if (!hasSentResponse) {
       callback(e, sc || 500)
       hasSentResponse = true
@@ -69,7 +69,7 @@ function syncUsers(clientDeviceUsers, callback) {
   var checkResponseError = function checkResponseError(e, r, b, expectedSortCode, uri) {
     var sc = r && r.statusCode
     if (!r || r.statusCode != expectedSortCode) {
-      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tExpected Status Code: %d\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
+      sendError(util.format('Couch Response error.\n\tDecoded Request URI: %s\n\tExpected Status Code: %d\n\tResponse Status Code: %s\n\tResponse Error: %s\n\tResponse Body: %s'
         , decodeURIComponent(uri)
         , expectedSortCode
         , sc || 'NO RESPONSE'
@@ -85,6 +85,7 @@ function syncUsers(clientDeviceUsers, callback) {
     // and being new users, they'll need adding to the server db too
 
     if (!newUserIds.length) {
+      newUsersProcessed = true
       callback()
       return
     }
@@ -93,18 +94,7 @@ function syncUsers(clientDeviceUsers, callback) {
       newUserIds
       , function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
 
-      var newUserDbDocs = _.map(serverUpdates, function(ur) {
-        return {
-          type: 'USER'
-          , _id: ur.id
-          , nick: ur.nick
-          , password: ur.password
-          , nickClash: ur.nickClash
-        }
-      })
-      serverUpdates = serverUpdates.concat(newUserDbDocs)
-
-    var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=', databaseURI, designDoc, encodeURI(_.pluck(newUsers, 'nick')))
+    var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=%s', databaseURI, designDoc, encodeURI(JSON.stringify(_.pluck(newUsers, 'nick'))))
     request(nickClashesURI, function(e,r,b) {
       if (checkResponseError(e, r, b, 200, nickClashesURI)) return
 
@@ -118,6 +108,16 @@ function syncUsers(clientDeviceUsers, callback) {
           ur.nickClash = 1
         }
       })
+
+      serverUpdates = serverUpdates.concat(_.map(newUsers, function(ur) {
+        return {
+          type: 'USER'
+          , _id: ur.id
+          , nick: ur.nick
+          , password: ur.password
+          , nickClash: ur.nickClash
+        }
+      }))
 
       newUsersProcessed = true
       callback()
@@ -164,11 +164,11 @@ function syncUsers(clientDeviceUsers, callback) {
       _.pluck(JSON.parse(b).rows, 'doc')
       , function(d) { return d != null })
 
-    processExistingUsers(serverVersionsExistingUrs, onProcessUserGroup)
+    processExistingUsers(serverVersionExistingUrs, onProcessUserGroup)
 
     // new users
-    var newUserIds = _.difference( urIds , _.pluck(existingUsers, '_id')) // users that need adding to the server
-    processNewUsers(newUsersIds, onProcessUserGroup)
+    var newUserIds = _.difference(urIds , _.pluck(serverVersionExistingUrs, '_id')) // users that need adding to the server
+    processNewUsers(newUserIds, onProcessUserGroup)
   })
 }
 
