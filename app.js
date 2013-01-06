@@ -2,6 +2,8 @@ var fs = require('fs')
   , _ = require('underscore')
   , WebPortal = require('./web_portal')
 
+console.log('\nBLWebApp Launched at', new Date())
+
 var config = JSON.parse(fs.readFileSync(__dirname + '/config.json'))
   , appWebService = require('./app_web_service')(config)
   , authoring = require('./authoring')(config)
