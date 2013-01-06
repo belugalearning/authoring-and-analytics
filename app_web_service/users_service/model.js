@@ -42,74 +42,133 @@ module.exports = function(config) {
   }
 }
 
+// since node completion and device/user assocations are now derived from logging dbs, and existing user nick changes are handled elsewhere, all that this function currently does is to set nickClash for new users
 function syncUsers(clientDeviceUsers, callback) {
   var urIds = _.pluck(clientDeviceUsers, 'id')
+    , newUsersProcessed = false
+    , existingUsersProcessed = false
+    , clientUpdates = []
+    , serverUpdates = []
+    , hasSentResponse = false
 
-  request(encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', databaseURI, JSON.stringify(urIds))), function(e,r,b) {
-    if (!r || 200 != r.statusCode) {
-      callback(e, r && r.statusCode || 500)
+  var niceConciseDate = function niceConciseDate() {
+    return new Date()
+    .toJSON()
+    .replace(/T/, '-')
+    .replace(/\.[0-9]{3}Z$/, '')
+  }
+
+  var sendError = function sendError(e, sc) {
+    console.log('%s\tError in UsersService#syncUsers:\t%s', niceConciseDate(), e)
+    if (!hasSentResponse) {
+      callback(e, sc || 500)
+      hasSentResponse = true
+    }
+  }
+
+  var checkResponseError = function checkResponseError(e, r, b, expectedSortCode, uri) {
+    var sc = r && r.statusCode
+    if (!r || r.statusCode != expectedSortCode) {
+      sendError(util.format('Couch Response error.\n\t\tDecoded Request URI: %s\n\t\tExpected Status Code: %d\n\t\tResponse Status Code: %s\n\t\tResponse Error: %s\n\t\tResponse Body: %s'
+        , decodeURIComponent(uri)
+        , expectedSortCode
+        , sc || 'NO RESPONSE'
+        , e || 'NULL'
+        , (b || '').replace(/\s*$/,'')), sc)
+      return true
+    }
+  }
+
+  var processNewUsers = function(newUserIds, callback) {
+    // do their nicks clash? set nickClash=1 if no, nickClash=2 if yes
+    // as such all new users will need updating on client
+    // and being new users, they'll need adding to the server db too
+
+    if (!newUserIds.length) {
+      callback()
       return
     }
 
-    var existingUsers = _.filter(_.pluck(JSON.parse(b).rows, 'doc'), function(d) { return d != null }) // users that already exist on the server
-      , newUserIds = _.difference(urIds, _.pluck(existingUsers, '_id')) // users that need adding to the server
-      , newUsers = _.map(newUserIds, function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
+    var newUsers = _.map(
+      newUserIds
+      , function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
 
-    // mapped array with client/server update status for each user that already exists on the server and the concatenated completed nodes of client/server
-    var existingUsersData = _.map(existingUsers, function(serverUr) {
-      var clientUr = _.find(clientDeviceUsers, function(u) { return u.id == serverUr._id })
-
-      if (!clientUr.nodesCompleted) clientUr.nodesCompleted = []
-      if (!serverUr.nodesCompleted) serverUr.nodesCompleted = []
-
-      // remove duplicates from nodesCompleted arrays
-      clientUr.nodesCompleted = _.uniq(clientUr.nodesCompleted)
-      serverUr.nodesCompleted = _.uniq(serverUr.nodesCompleted)
-
-      var nodesCompleted = _.uniq(serverUr.nodesCompleted.concat(clientUr.nodesCompleted))
-        , numNodesCompleted = nodesCompleted.length
-      
-      return {
-        clientUr: clientUr
-        , serverUr: serverUr
-        , updateOnClient: clientUr.nodesCompleted.length < numNodesCompleted
-        , updateOnServer: serverUr.nodesCompleted.length < numNodesCompleted
-        , nodesCompleted: nodesCompleted
-      }
-    })
-
-    _.each(existingUsersData, function(urData) {
-      urData.clientUr.nodesCompleted = urData.nodesCompleted
-      urData.serverUr.nodesCompleted = urData.nodesCompleted
-    })
-
-    var clientUpdates = _.pluck( _.filter(existingUsersData, function(urData) { return urData.updateOnClient }), 'clientUr' )
-    var serverUpdates = _.pluck( _.filter(existingUsersData, function(urData) { return urData.updateOnServer }), 'serverUr' )
-
-    // call the callback function with the client updates
-    callback(null, 200, clientUpdates)
-
-    // update couch db if required
-    var bulkUpdateDocs = _.map(newUsers, function(ur) {
-      return {
-        _id: ur.id
-        , nick: ur.nick
-        , password: ur.password
-        , nodesCompleted: ur.nodesCompleted
-        , type: 'USER'
-      }
-    }).concat(serverUpdates)
-
-    if (bulkUpdateDocs.length) {
-      request({
-        uri: util.format('%s/_bulk_docs', databaseURI)
-        , method: 'POST'
-        , headers: { 'content-type':'application/json', accepts:'application/json' }
-        , body: JSON.stringify({ docs: bulkUpdateDocs })
-      }, function(e,r,b) {
-        // TODO: handle errors
+      var newUserDbDocs = _.map(serverUpdates, function(ur) {
+        return {
+          type: 'USER'
+          , _id: ur.id
+          , nick: ur.nick
+          , password: ur.password
+          , nickClash: ur.nickClash
+        }
       })
+      serverUpdates = serverUpdates.concat(newUserDbDocs)
+
+    var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=', databaseURI, designDoc, encodeURI(_.pluck(newUsers, 'nick')))
+    request(nickClashesURI, function(e,r,b) {
+      if (checkResponseError(e, r, b, 200, nickClashesURI)) return
+
+      var takenNicks = JSON.parse(b).rows.map(function(r) {  return r.key })
+
+      newUsers.forEach(function(ur) {
+        if (~takenNicks.indexOf(ur.nick)) {
+          ur.nickClash = 2
+          clientUpdates.push(ur)
+        } else {
+          ur.nickClash = 1
+        }
+      })
+
+      newUsersProcessed = true
+      callback()
+    })
+  }
+
+  // this func currently doesn't do much. Not synching required for existing users - see comment at top of sycnUsers()
+  var processExistingUsers = function(serverVersions, callback) {
+    /*
+    var clientVersions = _.map(
+      serverVersions
+      , function(serverUr) { _.find(clientDeviceUrs, function(clientUr) { return clientUr.id == serverUr._id }) })
+    */
+    existingUsersProcessed = true
+    callback()
+  }
+
+  var onProcessUserGroup = function onProcessUserGroup() {
+    if (!hasSentResponse && newUsersProcessed && existingUsersProcessed) {
+      callback(null, 200, clientUpdates)
+      hasSentResponse = true
+
+      if (serverUpdates.length) {
+        var uri = util.format('%s/_bulk_docs', databaseURI)
+        request({
+          uri: uri
+          , method: 'POST'
+          , headers: { 'content-type':'application/json', accepts:'application/json' }
+          , body: JSON.stringify({ docs: serverUpdates })
+        }, function(e,r,b) {
+          checkResponseError(e, r, b, 200, uri)
+        })
+      }
     }
+  }
+
+  var getExistingUsersURI = util.format('%s/_all_docs?include_docs=true&keys=%s', databaseURI, encodeURI(JSON.stringify(urIds)))
+
+  request(getExistingUsersURI, function(e,r,b) {
+    if (checkResponseError(e, r, b, 200, getExistingUsersURI)) return
+
+    // existing users
+    var serverVersionExistingUrs =_.filter(
+      _.pluck(JSON.parse(b).rows, 'doc')
+      , function(d) { return d != null })
+
+    processExistingUsers(serverVersionsExistingUrs, onProcessUserGroup)
+
+    // new users
+    var newUserIds = _.difference( urIds , _.pluck(existingUsers, '_id')) // users that need adding to the server
+    processNewUsers(newUsersIds, onProcessUserGroup)
   })
 }
 
