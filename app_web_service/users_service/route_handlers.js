@@ -245,6 +245,11 @@ exports.getState = function getState(req,res) {
       // included in response
       lastBatchDate = rows[0].key
 
+      if (since >= lastBatchDate) {
+        if (!sentError) res.send(204)
+        return
+      }
+
       // get ids of batches processed by from device between 'since' and lastBatchDate
       var sKeyDeviceAndJustAfterSince = encodeURIComponent(JSON.stringify([device, since + 0.001]))
         , eKeyDeviceAndLastBatchDate = encodeURIComponent(JSON.stringify([device, lastBatchDate]))
