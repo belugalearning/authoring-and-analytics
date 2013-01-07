@@ -17,13 +17,17 @@ module.exports = function(model_, config_) {
 }
 
 exports.syncUsers = function syncUsers(req, res) {
-  if (!req.body || Object.prototype.toString.call(req.body.users) != '[object Array]') {
+  var users
+  if (req.body && req.body.users) {
+    users = JSON.parse(req.body.users)
+  }
+  if (Object.prototype.toString.call(users) != '[object Array]') {
     console.log('%s\tsyncUsers Bad Args: req.body.users array expected.\treq.body: %j', niceConciseDate(), req.body)
     res.send(500)
     return
   }
 
-  model.syncUsers(req.body.users, function(e, statusCode, updates) {
+  model.syncUsers(users, function(e, statusCode, updates) {
     res.send(e || updates, statusCode || 500)
   })
 }
