@@ -81,6 +81,7 @@ WebPortal.prototype.paEventsForUr = function(ur, res) {
     }
 
     var paEventsURI = format('%s/_design/user-related-views/_view/problemattempt-events-by-user-date?descending=true', urDbURI)
+    request.get(paEventsURI).pipe(res)
   })
 }
 
