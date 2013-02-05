@@ -6,6 +6,7 @@ var minTickTime = 5 // time in ms. setInterval() on Chrome has min delay of c.5m
   , showEventText = true
 
 function populateProblemAttempts(baseData) {
+  console.log('populateProblemAttempts()')
   var keyIxs = {
     ur: 0
     , pADate: 1
@@ -14,19 +15,26 @@ function populateProblemAttempts(baseData) {
     , docType: 4
   }
   
-  var currPA
+  var currPA = null
   var hasPollData = false
-  var $div
+  var $div = null
 
   baseData.forEach(function(e, i) {
-    if (!currPA || currPA.id != e.key[keyIxs.pAId]) {
-      if (currPA && !hasPollData) problemAttempts.pop()
-      if (hasPollData) $div.appendTo($('#parse-replays-log'))
-      hasPollData = false
+    console.log('hasPollData:', hasPollData)
+    if (!currPA || currPA.id != e.key[keyIxs.pAId]) { // next Problem Attempt
+      // finish dealing with prev PA
+      if (currPA) {
+        if (!hasPollData) {
+          problemAttempts.pop() // no replay data for last problem attempt so remove it
+        } else {
+          $div.appendTo($('#parse-replays-log'))
+          hasPollData = false
+        }
+      }
 
+      // init next Problem Attempt
       currPA = { id:e.key[keyIxs.pAId], date:e.key[keyIxs.pADate], events:[] }
       problemAttempts.push(currPA)
-
       
       $div = $('<div/>')
       $('<div style="margin:10px 0;"/>')
@@ -48,8 +56,9 @@ function populateProblemAttempts(baseData) {
       .appendTo($div)
   })
 
+  // finish dealing with last of the Problem Attempts
   if (!hasPollData && problemAttempts.length) problemAttempts.pop()
-  else $div.appendTo($('#parse-replays-log'))
+  else if ($div) $div.appendTo($('#parse-replays-log'))
 }
 
 function loadPA(pAIx) {
@@ -518,7 +527,7 @@ $(function() {
             selectedUser = matchingUr
             $('input#user').val(selectedUser.name)
 
-            populateProblemAttempts(events)
+            populateProblemAttempts(JSON.parse(events).rows)
 
             $sel.children().remove()
             $sel.append('<option value="0">Select a problem attempt</option>')

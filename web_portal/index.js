@@ -48,20 +48,14 @@ function WebPortal(config) {
     })
   })
   server.get('/pa-events-for-user/:urId', function(req,res) {
-    self.paEventsForUr(req.params.urId, function(e,r,b) {
-      var sc = r && r.statusCode || 500
-        , body
-      if (sc === 200) body = JSON.parse(b).rows
-      else body = format('error retrieving problem attempt events for user="%s". Error="%s" SortCode=%d', ur, e, sc)
-      res.send(body, sc)
-    })
+    self.paEventsForUr(req.params.urId, res)
   })
   server.get('/problem-attempt/:paId/static-generated-pdef', function(req,res) {
     var url = format('%s/%s/%s/static-generated-pdef.plist', self.config.couchServerURI, self.config.appWebService.loggingService.databaseName, req.params.paId)
     request({ url:url, 'Content-Type':'application/xml' }, function(e,r,b) {
       var sc = r && r.statusCode
       if (sc == 200) {
-        req.query.download && req.query.download.toLowerCase() === 'true' && res.header('Content-Disposition', format('attachment; filename=static-generated-pdef-' + req.params.paId + '.plist'))
+        req.query.download && req.query.download.toLowerCase() === 'true' && res.header('Content-Disposition', format('attachment; filename=static-generated-pdef-%s.plist', req.params.paId))
         res.header('Content-Type', 'application/xml')
         res.send(b)
       } else {
@@ -71,14 +65,23 @@ function WebPortal(config) {
   })
 }
 
-WebPortal.prototype.paEventsForUr = function(ur, callback) {
-  var qs = {
-    startkey: [ ur, {} ]
-    , endkey: [ ur ]
-    , descending: true
-  }
-  var url = format( '%s/%s/_design/user-related-views/_view/problemattempt-events-by-user-date%s', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName, formatQueryString(qs) )
-  request.get(url, callback)
+WebPortal.prototype.paEventsForUr = function(ur, res) {
+  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName)
+  request(urDbDirURI, function(e,r,b) {
+    var sc = r && r.statusCode
+    if (sc != 200) {
+      res.send(sc)
+      return
+    }
+
+    var urDbURI = JSON.parse(b).dbs[ur]
+    if (!urDbURI) {
+      res.send('user\'s logging database not found in directory', 404)
+      return
+    }
+
+    var paEventsURI = format('%s/_design/user-related-views/_view/problemattempt-events-by-user-date?descending=true', urDbURI)
+  })
 }
 
 WebPortal.prototype.usersByNick = function(callback) {
@@ -93,3 +96,9 @@ function formatQueryString(o) {
     }).join('&')
 }
 
+function niceConciseDate() {
+    return new Date()
+        .toJSON()
+            .replace(/T/, '-')
+                .replace(/\.[0-9]{3}Z$/, '')
+}
