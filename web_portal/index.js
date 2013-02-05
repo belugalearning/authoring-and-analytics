@@ -35,15 +35,11 @@ function WebPortal(config) {
   console.log("WebPortal Express server listening on port %d in %s mode", server.address().port, server.settings.env)
 
   server.get('/', function(req,res) {
-    self.usersByNick(function(e,r,b) {
-      var users
-        , sc = r && r.statusCode || 500
-
+    self.usersByNick(function(e, sc, users) {
       if (sc === 200) {
-        users = _.map(JSON.parse(b).rows, function(r) { return { id:r.id, name:r.key } })
         res.render('replay', { title:'Problem Attempt Replay', users:users })
       } else {
-        res.send(format('error retrieving users. Error="%s" SortCode=%d', e, sc), sc)
+        res.send(format('error retrieving users. Error="%s" SortCode=%d', e, sc), sc || 500)
       }
     })
   })
@@ -86,8 +82,34 @@ WebPortal.prototype.paEventsForUr = function(ur, res) {
 }
 
 WebPortal.prototype.usersByNick = function(callback) {
-  var url = format('%s/%s/_design/%s/_view/users-by-nick', this.config.couchServerURI, this.config.appWebService.usersService.databaseName, this.config.appWebService.usersService.databaseDesignDoc)
-  request.get(url, callback)
+  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName)
+  var self = this
+
+  request(urDbDirURI, function(e,r,b) {
+    var sc = r && r.statusCode || 500
+    if (sc != 200) {
+      callback(e,sc)
+      return
+    }
+
+    var dir = JSON.parse(b).dbs
+
+    var usersByNickURI = format('%s/%s/_design/%s/_view/users-by-nick', self.config.couchServerURI, self.config.appWebService.usersService.databaseName, self.config.appWebService.usersService.databaseDesignDoc)
+    request.get(usersByNickURI, function(e,r,b) {
+      var sc = r && r.statusCode || 500
+      if (sc != 200) {
+        callback(e,sc)
+        return
+      }
+      
+      users = _.map(
+        JSON.parse(b).rows
+        , function(r) { return { id:r.id, name:r.key } }
+      ).filter(function(ur) { return typeof dir[ur.id] == 'string' })
+
+      callback(null,200,users)
+    })
+  })
 }
 
 function formatQueryString(o) {
