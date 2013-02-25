@@ -119,6 +119,7 @@ function processPendingBatches(callback) {
   })
 }
 
+// called from processPendingBatches()
 function processBatch(batch, pbCallback) {
   var path = util.format('%s/%s', pendingLogBatchesDir, batch)
     , match = batch.match(batchFileNameRE)
@@ -357,6 +358,7 @@ function processBatch(batch, pbCallback) {
   })
 }
 
+// called from processBatch()
 function writeUpdatedUserDbDirectory() {
   var fn = arguments.callee
     , cache = fn.cache
@@ -389,11 +391,12 @@ function writeUpdatedUserDbDirectory() {
   })
 }
 
+
 function getUrDbURI(urId) {
   return userDbDirectoryDoc.dbs[urId]
 }
 
-// design doc
+// design docs
 function updateDesignDocs(dbURI, docsToUpdate, callback) {
   if (Object.prototype.toString.call(docsToUpdate) !== '[object Array]') {
     callback = docsToUpdate
