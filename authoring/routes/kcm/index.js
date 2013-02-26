@@ -33,20 +33,6 @@ module.exports = function(config, legacyKCMController, kcm) {
             res.send(500);
         }
     }
-    , cannedDatabase: function(req, res) {
-      var uuid = kcmController.generateUUID()
-        , dbPath = config.couchDatabasesDirectory
-        , dbName = kcmController.databaseName
-        , zipFile = format('/tmp/canned-db-%s.zip', uuid)
-
-      exec(format('zip %s %s.couch .%s_design', zipFile, dbName, dbName), { cwd:dbPath }, function(e,stdout,stderr) {
-        if (e) {
-          res.send(e, 500)
-          return
-        }
-        res.download(zipFile, 'canned-db.zip')
-      })
-    }
     , getAppCannedDatabases: function(req, res) {
       kcmController.getAppCannedDatabases(plutilCommand, req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
         if (200 != statusCode) {

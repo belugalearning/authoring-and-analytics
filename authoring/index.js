@@ -85,7 +85,6 @@ function setupRoutes() {
 
   server.get('/kcm/download-tokcm-dirs', server.kcmRouteHandlers.downloadToKCMDirs)
   server.post('/kcm/update-user', server.kcmRouteHandlers.updateUser)
-  server.get('/kcm/canned-database', server.kcmRouteHandlers.cannedDatabase)
   server.post('/kcm/binary-relations/:binaryRelationId/remove-pair', server.kcmRouteHandlers.removePairFromBinaryRelation)
   server.post('/kcm/add-pair-to-binary-relation', server.kcmRouteHandlers.addPairToBinaryRelation)
   server.post('/kcm/chained-binary-relations/members', server.kcmRouteHandlers.getChainedBinaryRelationsMembers)
