@@ -1,9 +1,9 @@
-{                                                                                                                                                                                                                                                                               
+{
   "couchServerURI": "http://pull.zubi.me:5984"
   , "appWebService" : { 
     "port": 3000
     , "loggingService": {
-      "databaseName": "june2012-logging"
+      "genLoggingDbName": "june2012-logging"
     }   
     , "usersService": {
       "databaseName": "june2012-users"

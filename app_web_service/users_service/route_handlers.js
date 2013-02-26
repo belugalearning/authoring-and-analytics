@@ -225,7 +225,7 @@ exports.getState = function getState(req,res) {
   // TODO: check that user and device are paired - if not send 403
   
   // look up user's logging db in directory
-  var lookupUrDbURI = util.format('%s/%s/user-db-directory', config.couchServerURI, config.appWebService.loggingService.databaseName)
+  var lookupUrDbURI = util.format('%s/%s/user-db-directory', config.couchServerURI, config.appWebService.loggingService.genLoggingDbName)
   request(lookupUrDbURI, function(e,r,b) {
     if (checkResponseError(e, r, b, 200, lookupUrDbURI)) return
 

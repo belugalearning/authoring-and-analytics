@@ -47,7 +47,7 @@ function WebPortal(config) {
     self.paEventsForUr(req.params.urId, res)
   })
   server.get('/problem-attempt/:paId/static-generated-pdef', function(req,res) {
-    var url = format('%s/%s/%s/static-generated-pdef.plist', self.config.couchServerURI, self.config.appWebService.loggingService.databaseName, req.params.paId)
+    var url = format('%s/%s/%s/static-generated-pdef.plist', self.config.couchServerURI, self.config.appWebService.loggingService.genLoggingDbName, req.params.paId)
     request({ url:url, 'Content-Type':'application/xml' }, function(e,r,b) {
       var sc = r && r.statusCode
       if (sc == 200) {
@@ -62,7 +62,7 @@ function WebPortal(config) {
 }
 
 WebPortal.prototype.paEventsForUr = function(ur, res) {
-  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName)
+  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.genLoggingDbName)
   request(urDbDirURI, function(e,r,b) {
     var sc = r && r.statusCode
     if (sc != 200) {
@@ -82,7 +82,7 @@ WebPortal.prototype.paEventsForUr = function(ur, res) {
 }
 
 WebPortal.prototype.usersByNick = function(callback) {
-  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.databaseName)
+  var urDbDirURI = format( '%s/%s/user-db-directory', this.config.couchServerURI, this.config.appWebService.loggingService.genLoggingDbName)
   var self = this
 
   request(urDbDirURI, function(e,r,b) {

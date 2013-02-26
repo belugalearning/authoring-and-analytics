@@ -23,7 +23,7 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/\/$/, '')
-  mainLoggingDbName = config.appWebService.loggingService.databaseName
+  mainLoggingDbName = config.appWebService.loggingService.genLoggingDbName
   mainLoggingDbURI = util.format('%s/%s', couchServerURI, mainLoggingDbName)
 
   //updateDesignDocs(mainLoggingDbURI, [paMetaDesignDoc])
