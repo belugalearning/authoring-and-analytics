@@ -2,7 +2,7 @@ var request = require('request')
   , util = require('util')
   , events = require('events')
   , _ = require('underscore')
-  , CouchDBStream = require('./couchdb-stream')
+  , CouchDbStream = require('./lib/couchdb-changes')
 
 var format = util.format
 
@@ -50,7 +50,7 @@ function KCM(config) {
 
       self.update_seq = JSON.parse(b).update_seq
 
-      couchDBStream = new CouchDBStream(self.dbURI, self.update_seq)
+      couchDBStream = new CouchDbStream(self.dbURI, { since:self.update_seq })
       couchDBStream.on('change', function(change) {
         var store
 
