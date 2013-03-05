@@ -84,9 +84,7 @@ function KCM(config) {
 
         if (store) self.emit('change', change)
       })
-      .on('error', function(e) {
-        console.log('kcm changes feed error')
-      })
+      .on('error', function(e) { })
   }
 
   populate(function(e) {
