@@ -30,15 +30,18 @@ module.exports = function(config) {
 
   userDbDirectoryDocURI = util.format('%s/user-db-directory', genLoggingDbURI)
 
+  var retrying = false
   ;(function init() {
     request.get(userDbDirectoryDocURI, function(e,r,b) {
       if (!r || r.statusCode !== 200) {
-        console.error('log batch processor: error during init retrieving doc with id user-db-directory - wait and try again.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
+        if (!retrying) console.error('log batch processor: error during init retrieving doc with id user-db-directory - keep retrying...\n\t%s\n\t%d', e || b, r && r.statusCode || null)
+        retrying = true
         setTimeout(init, 3000)
         return
       }
       userDbDirectoryDoc = JSON.parse(b)
       runDaemon()
+      retrying = false
     })
   })()
 
