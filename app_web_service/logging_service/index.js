@@ -235,9 +235,14 @@ function processBatch(batch, pbCallback) {
         return
       }
 
-      var uuids = _.pluck(recs, 'uuid')
-      var req = { uri: encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', dbURI, JSON.stringify(uuids))) }
       var docsForInsertOrUpdate = []
+      var uuids = _.pluck(recs, 'uuid')
+      var req = {
+        uri: util.format('%s/_all_docs?include_docs=true', dbURI)
+        , method: 'POST'
+        , headers: { 'content-type': 'application/json' }
+        , body: JSON.stringify({ keys: JSON.stringify(uuids) })
+      }
 
       request(req, function(e,r,b) {
         var sc = r && r.statusCode
