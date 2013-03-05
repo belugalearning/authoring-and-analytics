@@ -47,9 +47,17 @@ module.exports = function(config) {
         processPendingBatches(f)
       } else {
         setTimeout((function() { processPendingBatches(f) }), 5000)
+  ;(function init() {
+    request.get(userDbDirectoryDocURI, function(e,r,b) {
+      if (!r || r.statusCode !== 200) {
+        console.error('log batch processor: error during init retrieving doc with id user-db-directory - wait and try again.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
+        setTimeout(init, 3000)
+        return
       }
+      userDbDirectoryDoc = JSON.parse(b)
+      runDaemon()
     })
-  })
+  })()
 
   return uploadBatchRequestHandler
 }
