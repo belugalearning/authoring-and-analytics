@@ -28,12 +28,15 @@ function KCM(config) {
   }
 
   var populate = function getAllDocs(callback) {
-    console.log('kcm populate...')
+    if (!self.retryingPopulate) console.log('kcm populate...')
     request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
       if (!r || r.statusCode != 200) {
-        callback('failed to retrieve KCM all docs')
+        if (!self.retryingPopulate) callback('KCM populate error - failed to retrieve KCM all docs -- cycle retries')
+        self.retryingPopulate = true
         return
       }
+
+      self.retryingPopulate = false
 
       JSON.parse(b).rows.forEach(function(row) {
         var o = self.storeForDoc(row.doc)
@@ -87,15 +90,14 @@ function KCM(config) {
   }
 
   populate(function(e) {
-    console.log('populate callback')
+    if (!self.retryingPopulate) console.log('populate callback')
     if (e) {
       var populateCallback = arguments.callee
-      console.log('populate error:', e)
+      if (!self.retryingPopulate) console.log('populate error:', e)
       setTimeout(function() { populate(populateCallback) }, 2000)
       return
     }
     getUpdateSeq(function(e, update_seq) {
-      console.log('get update_seq callback')
       if (e) {
         var getUdateSeqCallback = arguments.callee
         setTimeout(function() { getUpdateSeq(getUpdateSeqCallback) }, 2000)
