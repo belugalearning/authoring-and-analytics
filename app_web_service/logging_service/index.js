@@ -40,8 +40,9 @@ module.exports = function(config) {
         return
       }
       userDbDirectoryDoc = JSON.parse(b)
-      runDaemon()
       retrying = false
+      console.log('log batch processor: got user db directory')
+      runDaemon()
     })
   })()
 
