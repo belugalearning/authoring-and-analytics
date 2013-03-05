@@ -25,28 +25,28 @@ module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/\/$/, '')
   genLoggingDbName = config.appWebService.loggingService.genLoggingDbName
   genLoggingDbURI = util.format('%s/%s', couchServerURI, genLoggingDbName)
-
-  //updateDesignDocs(genLoggingDbURI, [paMetaDesignDoc])
-
   userDbDirectoryDocURI = util.format('%s/user-db-directory', genLoggingDbURI)
 
-  var retrying = false
-  ;(function init() {
-    request.get(userDbDirectoryDocURI, function(e,r,b) {
-      if (!r || r.statusCode !== 200) {
-        if (!retrying) console.error('log batch processor: error during init retrieving doc with id user-db-directory - keep retrying...\n\t%s\n\t%d', e || b, r && r.statusCode || null)
-        retrying = true
-        setTimeout(init, 3000)
-        return
-      }
-      userDbDirectoryDoc = JSON.parse(b)
-      retrying = false
-      console.log('log batch processor: got user db directory')
-      runDaemon()
-    })
-  })()
-
+  //updateDesignDocs(genLoggingDbURI, [paMetaDesignDoc])
+  init()
   return uploadBatchRequestHandler
+}
+
+var initFailing = false
+function init() {
+  if (!initFailing) console.log('log batch processor initialising...')
+  request.get(userDbDirectoryDocURI, function(e,r,b) {
+    if (!r || r.statusCode !== 200) {
+      if (!initFailing) console.error('log batch processor: error during init retrieving doc with id user-db-directory - keep retrying...\n\t%s\n\t%d', e || b, r && r.statusCode || null)
+      initFailing = true
+      setTimeout(init, 3000)
+      return
+    }
+    userDbDirectoryDoc = JSON.parse(b)
+    initFailing = false
+    console.log('log batch processor: got user db directory')
+    runDaemon()
+  })
 }
 
 // LOG BATCHES ARRIVE HERE: http request handler handler
@@ -82,14 +82,14 @@ function uploadBatchRequestHandler(req, res) {
 
 // LOG BATCHES PROCESSING MANAGED FROM HERE
 function runDaemon() {
-  processPendingBatches(function(numProcessed) {
-    var f = arguments.callee
-
+  processPendingBatches(function fn(numProcessed, eConnRefused) {
     //console.log('processed %d batches at %s', numProcessed, new Date().toString())
-    if (numProcessed > 0) {
-      processPendingBatches(f)
+    if (eConnRefused === true) {
+      init()
+    } else if (numProcessed > 0) {
+      processPendingBatches(fn)
     } else {
-      setTimeout((function() { processPendingBatches(f) }), 5000)
+      setTimeout((function() { processPendingBatches(fn) }), 5000)
     }
   })
 }
@@ -99,29 +99,35 @@ function processPendingBatches(callback) {
   fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
     var batches = _.filter(dirFiles, function(f) { return batchFileNameRE.test(f) })
       , numOutstanding = batches.length
+      , eConnRefused = false
 
     if (!numOutstanding) {
       callback(batches.length)
       return
     }
 
+    var onProcessed = function onProcessed() {
+      if (!--numOutstanding) callback(batches.length, eConnRefused)
+    }
+
     _.each(batches, function(batch) {
-      processBatch(batch, function(e) {
+      processBatch(batch, function(errorObj) {
         var batchPath = util.format('%s/%s', pendingLogBatchesDir, batch)
 
-        if (e) {
-          // write error to log, move batch to error dir
-          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tError: "%s"\n\n', new Date().toString(), batch, e))
-
-          var newPath = util.format('%s/%s', errorLogBatchesDir, batch)
-          fs.rename(batchPath, newPath, function(e) {
-            if (!--numOutstanding) callback(batches.length)
-          })
-        } else {
+        if (!errorObj) {
           // rm batch file (it's saved as attachment on database)
-          fs.unlink(batchPath, function(e) {
-            if (!--numOutstanding) callback(batches.length)
-          })
+          fs.unlink(batchPath, onProcessed)
+        } else {
+          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tErrorObj: "%s"\n\n', new Date().toString(), batch, JSON.stringify(errorObj,null,2)))
+
+          if (errorObj.response && errorObj.response.e && /ECONNREFUSED/.test(errorObj.response.e)) {
+            eConnRefused = true
+            onProcessed()
+          } else {
+            // move batch to error dir
+            var newPath = util.format('%s/%s', errorLogBatchesDir, batch)
+            fs.rename(batchPath, newPath, onProcessed)
+          }
         }
       })
     })
@@ -146,7 +152,7 @@ function processBatch(batch, pbCallback) {
   // read batch file...
   fs.readFile(path, 'utf8', function(e, str) {
     if (e) {
-      pbCallback('error reading batch file')
+      pbCallback({ message: 'error reading batch file', e: e, path: path })
       return
     }
 
@@ -212,32 +218,35 @@ function processBatch(batch, pbCallback) {
         recordsByDbDestination.general.push(r)
       }
     })
-    var userIds = Object.keys(recordsByDbDestination.slice(1)) // first key is for 'general' non-user docs
+    var userIds = Object.keys(recordsByDbDestination).slice(1) // first key is for 'general' non-user docs
 
     // onError() ensures pbCallback only called once
-    var onError = function(e) {
+    var onError = function(o) {
       if (!arguments.callee.sentError) {
         arguments.callee.sentError = true
-        pbCallback(e)
+        pbCallback(o)
       }
     }
 
     // assignRecordActions() sets action (insert/update/ignore) and error (if applicable) on on each record in recs param
     var assignRecordActions = function(dbURI, recs, callback) {
       if (!recs.length) {
-        callback
+        callback([])
         return
       }
 
       var uuids = _.pluck(recs, 'uuid')
-      var matchingDocsURI = encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', dbURI, JSON.stringify(uuids)))
+      var req = { uri: encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', dbURI, JSON.stringify(uuids))) }
       var docsForInsertOrUpdate = []
 
-      request(matchingDocsURI, function(e,r,b) {
+      request(req, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 200) {
-          // TODO: Needs Handling!
-          onError(util.format('Error retrieving database records.\n\tDatabase URI: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbURI, JSON.stringify(recs), e || b, sc || 0))
+          onError({
+            message: 'Error retrieving database records'
+            , request: req
+            , response: { e: e, sc: r && r.statusCode, b: b }
+          })
           return
         }
 
@@ -271,24 +280,27 @@ function processBatch(batch, pbCallback) {
       if (getUrDbURI(urId)) {
         callback()
       } else {
-        var urDbURI = util.format('%s/ur-logging-%s', couchServerURI, urId.toLowerCase())
-
-        request({ uri:urDbURI, method: 'PUT' }, function(e,r,b) {
+        var req = { uri:util.format('%s/ur-logging-%s', couchServerURI, urId.toLowerCase()), method:'PUT' }
+        request(req, function(e,r,b) {
           var sc = r && r.statusCode
           // race-condition possibility - db could have been created between ensureUrDbExists() being called and this callback => allow 412
           if (sc == 412) {
             // make sure ur in directory
             if (!getUrDbURI(urId)) {
-              userDbDirectoryDoc.dbs[urId] = urDbURI
+              userDbDirectoryDoc.dbs[urId] = req.uri
               writeUpdatedUserDbDirectory()
             }
             callback()
           } else if (sc == 201) {
-            userDbDirectoryDoc.dbs[urId] = urDbURI
+            userDbDirectoryDoc.dbs[urId] = req.uri
             writeUpdatedUserDbDirectory()
-            updateDesignDocs(urDbURI, [genDesignDoc, userDesignDoc, paMetaDesignDoc], callback)
+            updateDesignDocs(req.uri, [genDesignDoc, userDesignDoc, paMetaDesignDoc], callback)
           } else {
-            onError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
+            onError({
+              message: 'Error creating user database'
+              , request: req
+              , response: { e: e, sc: r && r.statusCode, b: b }
+            })
           }
         })
       }
@@ -296,14 +308,22 @@ function processBatch(batch, pbCallback) {
 
     // writeGenDbDocs() writes documents to the general logging db - a batch meta doc, and docs in recordsByDbDestination.general (i.e. device docs that don't relate to users)
     var writeGenDbDocs = function(docs, callback) {
-      request({
+      var req = {
         method:'POST'
         , uri: genLoggingDbURI + '/_bulk_docs'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs: docs })
-      }, function(e,r,b) {
+      }
+
+      request(req, function(e,r,b) {
         var sc = r && r.statusCode
-        if (sc != 201) onError(util.format('error recording log batch gen docs\n\tError: %s\n\tStatus Code: %d', e || b, sc || 0))
+        if (sc != 201) {
+          onError({
+            message: 'Error recording log batch gen docs'
+            , request: req
+            , response: { e: e, sc: r && r.statusCode, b: b }
+          })
+        }
         else callback()
       })
     }
@@ -315,15 +335,21 @@ function processBatch(batch, pbCallback) {
         return
       }
 
-      request({
+      var req = {
         method:'POST'
         , uri: getUrDbURI(urId) + '/_bulk_docs'
         , headers: { 'content-type':'application/json', accepts:'application/json' }
         , body: JSON.stringify({ docs:docs })
-      }, function(e,r,b) {
+      }
+
+      request(req, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 201) {
-          onError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, getUrDbURI(urId), e || b, sc || 0))
+          onError({
+            message: 'Error recording user log docs'
+            , request: req
+            , response: { e: e, sc: r && r.statusCode, b: b }
+          })
         } else {
           callback()
         }
@@ -345,21 +371,26 @@ function processBatch(batch, pbCallback) {
       }
     }
 
-    var numUserDbsOutstanding = userIds.length
+    var processGenDocs = function() {
+      assignRecordActions(genLoggingDbURI, recordsByDbDestination.general, function(docsForInsertOrUpdate) {
+        writeGenDbDocs([ batchMetaDoc ].concat(docsForInsertOrUpdate), pbCallback)
+      })
+    }
 
-    userIds.forEach(function(urId) {
-      ensureUrDbExists(urId, function() {
-        assignRecordActions(getUrDbURI(urId), recordsByDbDestination[urId], function(docsForInsertOrUpdate) {
-          writeUserDocs(urId, docsForInsertOrUpdate, function() {
-            if (!--numUserDbsOutstanding) {
-              assignRecordActions(genLoggingDbURI, recordsByDbDestination.general, function(docsForInsertOrUpdate) {
-                writeGenDbDocs([ batchMetaDoc ].concat(docsForInsertOrUpdate), pbCallback)
-              })
-            }
+    var numUserDbsOutstanding = userIds.length
+    if (!numUserDbsOutstanding) {
+      processGenDocs()
+    } else {
+      userIds.forEach(function(urId) {
+        ensureUrDbExists(urId, function() {
+          assignRecordActions(getUrDbURI(urId), recordsByDbDestination[urId], function(docsForInsertOrUpdate) {
+            writeUserDocs(urId, docsForInsertOrUpdate, function() {
+              if (!--numUserDbsOutstanding) processGenDocs()
+            })
           })
         })
       })
-    })
+    }
   })
 }
 
