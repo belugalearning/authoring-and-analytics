@@ -10,8 +10,8 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
   , interSep = String.fromCharCode(parseInt('91', 16)) // unicode "private use one" UTF-8: 0xC291 - represented as 0x91 in javascript string
   , intraSep = String.fromCharCode(parseInt('92', 16)) // unicode "private use two" UTF-8: 0xC292 - represented as 0x92 in javascript string 
   , couchServerURI
-  , mainLoggingDbName
-  , mainLoggingDbURI
+  , genLoggingDbName
+  , genLoggingDbURI
   , genDesignDoc = 'logging-design-doc'
   , userDesignDoc = 'user-related-views'
   , paMetaDesignDoc = 'pa-meta-design-doc'
@@ -23,30 +23,13 @@ var batchFileNameRE = /^batch-([0-9a-f]{8})-([0-9a-f]{32})$/i
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/\/$/, '')
-  mainLoggingDbName = config.appWebService.loggingService.genLoggingDbName
-  mainLoggingDbURI = util.format('%s/%s', couchServerURI, mainLoggingDbName)
+  genLoggingDbName = config.appWebService.loggingService.genLoggingDbName
+  genLoggingDbURI = util.format('%s/%s', couchServerURI, genLoggingDbName)
 
-  //updateDesignDocs(mainLoggingDbURI, [paMetaDesignDoc])
+  //updateDesignDocs(genLoggingDbURI, [paMetaDesignDoc])
 
-  userDbDirectoryDocURI = util.format('%s/user-db-directory', mainLoggingDbURI)
+  userDbDirectoryDocURI = util.format('%s/user-db-directory', genLoggingDbURI)
 
-  request.get(userDbDirectoryDocURI, function(e,r,b) {
-    if (!r || r.statusCode !== 200) {
-      console.error('error retrieving doc with id user-db-directory - cannot process log batches as a result.\n\t%s\n\t%d', e || b, r && r.statusCode || null)
-      return
-    }
-
-    userDbDirectoryDoc = JSON.parse(b)
-
-    // initiate process batches loop
-    processPendingBatches(function(numProcessed) {
-      var f = arguments.callee
-
-      //console.log('processed %d batches at %s', numProcessed, new Date().toString())
-      if (numProcessed > 0) {
-        processPendingBatches(f)
-      } else {
-        setTimeout((function() { processPendingBatches(f) }), 5000)
   ;(function init() {
     request.get(userDbDirectoryDocURI, function(e,r,b) {
       if (!r || r.statusCode !== 200) {
@@ -62,7 +45,7 @@ module.exports = function(config) {
   return uploadBatchRequestHandler
 }
 
-// http request handler handler
+// LOG BATCHES ARRIVE HERE: http request handler handler
 function uploadBatchRequestHandler(req, res) {
   var batchFilePath = req.files.batchData.path
   var md5 = crypto.createHash('md5')
@@ -93,7 +76,21 @@ function uploadBatchRequestHandler(req, res) {
   })
 }
 
-// daemon
+// LOG BATCHES PROCESSING MANAGED FROM HERE
+function runDaemon() {
+  processPendingBatches(function(numProcessed) {
+    var f = arguments.callee
+
+    //console.log('processed %d batches at %s', numProcessed, new Date().toString())
+    if (numProcessed > 0) {
+      processPendingBatches(f)
+    } else {
+      setTimeout((function() { processPendingBatches(f) }), 5000)
+    }
+  })
+}
+
+// called from runDaemon
 function processPendingBatches(callback) {
   fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
     var batches = _.filter(dirFiles, function(f) { return batchFileNameRE.test(f) })
@@ -130,17 +127,26 @@ function processPendingBatches(callback) {
 // called from processPendingBatches()
 function processBatch(batch, pbCallback) {
   var path = util.format('%s/%s', pendingLogBatchesDir, batch)
+
+  // batchDate and batchUUID are in filename
     , match = batch.match(batchFileNameRE)
     , batchDate = parseInt(match[1], 16)
     , batchUUID = match[2]
+
+  // batchProcessDate is now
     , batchProcessDate = Math.round(new Date().getTime() / 1000)
 
+  // deviceId required on batchMetaDoc - will (should!) already be on every doc in batch
+    , deviceId
+
+  // read batch file...
   fs.readFile(path, 'utf8', function(e, str) {
     if (e) {
       pbCallback('error reading batch file')
       return
     }
 
+    // split the batch file into records AND set deviceId var above
     var records = _.map( str.split(interSep) , function(r) {
       var parts = r.split(intraSep)
         , uuid = parts[0]
@@ -158,6 +164,8 @@ function processBatch(batch, pbCallback) {
           doc.batchDate = batchDate
           doc.batchUUID = batchUUID
           doc.batchProcessDate = batchProcessDate
+
+          if (typeof deviceId != 'string' && typeof doc.device == 'string') deviceId = doc.device
 
           if (doc.type == 'ProblemAttempt' && Object.prototype.toString.call(doc.events) == '[object Array]') {
             for (var i=0, event;  event=doc.events[i]; i++) {
@@ -182,23 +190,41 @@ function processBatch(batch, pbCallback) {
       return { error:err, uuid:uuid, doc:doc, record:r }
     })
 
+    // divide records into valid / invalid, pluck valid record doc ids
     var valid = _.filter(records, function(r) { return !r.error })
-      , invalid = _.difference(records, valid)
       , uuids = _.pluck(valid, 'uuid')
-      , numValid = uuids.length
-      , deviceId
-      , recordsByUrDb = {}
-      , mainLoggingDbRecords = []
-      , sentError = false
+      , invalid = _.difference(records, valid)
 
-    var sendError = function(e) {
-      if (!sentError) {
+    
+    // group records by database
+    var recordsByDbDestination = { general:[] }
+    valid.forEach(function(r) {
+      var ur = r.doc.user
+      if (typeof ur == 'string') {
+        var urDbRecords = recordsByDbDestination[ur]
+        if (!urDbRecords) urDbRecords = recordsByDbDestination[ur] = []
+        urDbRecords.push(r)
+      } else {
+        recordsByDbDestination.general.push(r)
+      }
+    })
+    var userIds = Object.keys(recordsByDbDestination.slice(1)) // first key is for 'general' non-user docs
+
+    // onError() ensures pbCallback only called once
+    var onError = function(e) {
+      if (!arguments.callee.sentError) {
+        arguments.callee.sentError = true
         pbCallback(e)
-        sentError = true
       }
     }
 
+    // assignRecordActions() sets action (insert/update/ignore) and error (if applicable) on on each record in recs param
     var assignRecordActions = function(dbURI, recs, callback) {
+      if (!recs.length) {
+        callback
+        return
+      }
+
       var uuids = _.pluck(recs, 'uuid')
       var matchingDocsURI = encodeURI(util.format('%s/_all_docs?include_docs=true&keys=%s', dbURI, JSON.stringify(uuids)))
       var docsForInsertOrUpdate = []
@@ -207,7 +233,7 @@ function processBatch(batch, pbCallback) {
         var sc = r && r.statusCode
         if (sc !== 200) {
           // TODO: Needs Handling!
-          sendError(util.format('Error retrieving database records.\n\tDatabase URI: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbURI, JSON.stringify(recs), e || b, sc || 0))
+          onError(util.format('Error retrieving database records.\n\tDatabase URI: %s\n\tRecords: %s\n\tError: "%s"\n\tSort Code: %d', dbURI, JSON.stringify(recs), e || b, sc || 0))
           return
         }
 
@@ -223,8 +249,6 @@ function processBatch(batch, pbCallback) {
               record.rowRetrievalError = row.error
             }
           } else {
-            deviceId = deviceId || record.doc.device
-
             if (batchDate > row.doc.batchDate) {
               record.action = 'UPDATE'
               record.doc._rev = row.doc._rev
@@ -238,6 +262,7 @@ function processBatch(batch, pbCallback) {
       })
     }
 
+    // ensureUrDbExists() called per user in batch - will create user's log database and add it to the directory if it does not yet exist
     var ensureUrDbExists = function(urId, callback) {
       if (getUrDbURI(urId)) {
         callback()
@@ -259,12 +284,27 @@ function processBatch(batch, pbCallback) {
             writeUpdatedUserDbDirectory()
             updateDesignDocs(urDbURI, [genDesignDoc, userDesignDoc, paMetaDesignDoc], callback)
           } else {
-            sendError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
+            onError(util.format('error creating user database\n\tURI: "%s"\n\tUser: "%s".\n\tError: %s\n\tSort Code: %d', urDbURI, urId, e || b, sc || 0))
           }
         })
       }
     }
 
+    // writeGenDbDocs() writes documents to the general logging db - a batch meta doc, and docs in recordsByDbDestination.general (i.e. device docs that don't relate to users)
+    var writeGenDbDocs = function(docs, callback) {
+      request({
+        method:'POST'
+        , uri: genLoggingDbURI + '/_bulk_docs'
+        , headers: { 'content-type':'application/json', accepts:'application/json' }
+        , body: JSON.stringify({ docs: docs })
+      }, function(e,r,b) {
+        var sc = r && r.statusCode
+        if (sc != 201) onError(util.format('error recording log batch gen docs\n\tError: %s\n\tStatus Code: %d', e || b, sc || 0))
+        else callback()
+      })
+    }
+
+    // writeUserDocs() called per user in the batch
     var writeUserDocs = function(urId, docs, callback) {
       if (!docs.length) {
         callback()
@@ -279,94 +319,47 @@ function processBatch(batch, pbCallback) {
       }, function(e,r,b) {
         var sc = r && r.statusCode
         if (sc !== 201) {
-          sendError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, getUrDbURI(urId), e || b, sc || 0))
+          onError(util.format('error recording user log docs\n\tUser: %s\n\tDatabase: %s\n\tError: %s\n\tSort Code: %d', urId, getUrDbURI(urId), e || b, sc || 0))
         } else {
           callback()
         }
       })
     }
 
-    var recordBatch = function() {
-      // summary/aggregate doc with information about whole batch
-      var batchDoc = {
-        _id: batchUUID
-        , type: 'LogBatch'
-        , batchDate: batchDate
-        , batchProcessDate: batchProcessDate
-        , device: deviceId
-        , records: records
-        , _attachments: {
-          "raw-log": {
-            "content_type": "text\/plain; charset=utf-8"
-            , data: new Buffer(str).toString('base64')
-          }
+    var batchMetaDoc = {
+      _id: batchUUID
+      , type: 'LogBatch'
+      , batchDate: batchDate
+      , batchProcessDate: batchProcessDate
+      , device: deviceId
+      , records: records
+      , _attachments: {
+        "raw-log": {
+          "content_type": "text\/plain; charset=utf-8"
+          , data: new Buffer(str).toString('base64')
         }
       }
-
-      var saveDocs = function() {
-        // bulk insert/update: send each document in the batch, together with the batchDoc above
-        request({
-          method:'POST'
-          , uri: mainLoggingDbURI + '/_bulk_docs'
-          , headers: { 'content-type':'application/json', accepts:'application/json' }
-          , body: JSON.stringify({
-              docs: [ batchDoc ].concat( _.pluck(mainLoggingDbRecords, 'doc') )
-          })
-        }, function(e,r,b) {
-          var sc = r && r.statusCode
-            , error = sc !== 201 && util.format('error recording log batch\n\tError: %s\n\tStatus Code: %d', e || b, sc || 0)
-          pbCallback(error)
-        })
-      }
-
-      if (!mainLoggingDbRecords.length) {
-        saveDocs()
-      } else {
-        assignRecordActions(mainLoggingDbURI, mainLoggingDbRecords, saveDocs)
-      }
     }
 
-    if (0 == numValid) {
-      recordBatch()
-      return
-    }
+    var numUserDbsOutstanding = userIds.length
 
-    // separate out valid records into dbs that they're going to be recorded on 
-    // and set deviceId
-    valid.forEach(function(r) {
-      deviceId = deviceId || r.doc.device
-
-      var ur = r.doc.user
-      if (typeof ur == 'string') {
-        var urDbRecords = recordsByUrDb[ur]
-        if (!urDbRecords) urDbRecords = recordsByUrDb[ur] = []
-        urDbRecords.push(r)
-      } else {
-        mainLoggingDbRecords.push(r)
-      }
-    })
-
-    var userIds = Object.keys(recordsByUrDb)
-      , usersRemaining = userIds.length
-
-    if (usersRemaining) {
-      userIds.forEach(function(urId) {
-        // callback from any of the following functions implies success
-        ensureUrDbExists(urId, function() {
-          assignRecordActions(getUrDbURI(urId), recordsByUrDb[urId], function(docsForInsertOrUpdate) {
-            writeUserDocs(urId, docsForInsertOrUpdate, function() {
-              if (!--usersRemaining) recordBatch()
-            })
+    userIds.forEach(function(urId) {
+      ensureUrDbExists(urId, function() {
+        assignRecordActions(getUrDbURI(urId), recordsByDbDestination[urId], function(docsForInsertOrUpdate) {
+          writeUserDocs(urId, docsForInsertOrUpdate, function() {
+            if (!--numUserDbsOutstanding) {
+              assignRecordActions(genLoggingDbURI, recordsByDbDestination.general, function(docsForInsertOrUpdate) {
+                writeGenDbDocs([ batchMetaDoc ].concat(docsForInsertOrUpdate), pbCallback)
+              })
+            }
           })
         })
       })
-    } else {
-      recordBatch()
-    }
+    })
   })
 }
 
-// called from processBatch()
+// called from processBatch() when new user encountered and log db created
 function writeUpdatedUserDbDirectory() {
   var fn = arguments.callee
     , cache = fn.cache
@@ -398,7 +391,6 @@ function writeUpdatedUserDbDirectory() {
     }
   })
 }
-
 
 function getUrDbURI(urId) {
   return userDbDirectoryDoc.dbs[urId]

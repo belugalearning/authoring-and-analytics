@@ -30,7 +30,7 @@ function KCM(config) {
   var populate = function getAllDocs(callback) {
     request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
       if (!r || r.statusCode != 200) {
-        callback('failed to retrieve KCM all docs', )
+        callback('failed to retrieve KCM all docs')
         return
       }
 
@@ -87,7 +87,7 @@ function KCM(config) {
   }
 
   populate(function(e) {
-    var populateCallback == arguments.callee
+    var populateCallback = arguments.callee
     if (e) {
       setTimeout(function() { populate(populateCallback, 2000) })
       return
