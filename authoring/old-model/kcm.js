@@ -28,7 +28,7 @@ module.exports = function(config, kcm_) {
     , headers: { 'content-type': 'application/json', 'accepts': 'application/json' } 
   }, function(e,r,b) {
     if (!r) {
-      console.log('Error - could not connect to Couch Server testing for existence of database:"%s"', databaseURI)
+      console.log('Error (harmless) - could not connect to Couch Server testing for existence of database:"%s"', databaseURI)
       return
     }
     if (201 != r.statusCode && 412 != r.statusCode) {
@@ -36,11 +36,11 @@ module.exports = function(config, kcm_) {
       return
     }
     if (false) {
-              updateDesignDoc(function(e, statusCode) {
-                if (201 != statusCode) {
-                  console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode)
-                }
-              })
+      updateDesignDoc(function(e, statusCode) {
+        if (201 != statusCode) {
+          console.log('error updating design doc on database:"%s". Error:"%s". StatusCode:%d', databaseURI, e, statusCode)
+        }
+      })
     }
   })
 
