@@ -27,12 +27,13 @@ function KCM(config) {
     , users: {}
   }
 
-  var populate = function getAllDocs(callback) {
+  var populate = function populate(callback) {
     if (!self.retryingPopulate) console.log('kcm populate...')
     request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
       if (!r || r.statusCode != 200) {
-        if (!self.retryingPopulate) callback('KCM populate error - failed to retrieve KCM all docs -- cycle retries')
+        if (!self.retryingPopulate) console.log('KCM populate error - failed to retrieve KCM all docs -- cycle retries\n\te: %s\n\tsc: %s\n\tb: %s', e, r && r.statusCode, b)
         self.retryingPopulate = true
+        setTimeout(function() { populate(callback) }, 2000)
         return
       }
 
@@ -48,17 +49,22 @@ function KCM(config) {
   }
 
   var getUpdateSeq = function getUpdateSeq(callback) {
-    console.log('kcm get update_seq ...')
+    if (!self.retryingGetUpdateSeq) console.log('kcm get update_seq ...')
     request.get(self.dbURI, function(e,r,b) {
       var sc = r && r.statusCode
-      if (sc != 200 && !e) {
-        e = 'error retrieving kcm update_seq'
+      if (sc != 200) {
+        if (!self.retryingGetUpdateSeq) console.log('KCM get update_seq error - getting update_seq -- cycle retries\n\te: %s\n\tsc: %s\n\tb: %s', e, sc, b)
+        self.retryingGetUpdateSeq = true
+        setTimeout(function() { getUpdateSeq(callback) }, 2000)
+        return
       }
-      callback(e, sc == 200 && JSON.parse(b).update_seq)
+
+      self.update_seq = JSON.parse(b).update_seq
+      callback()
     })
   }
 
-  var setupChangesFeed = function setupChangesFeed() {
+  var initChangesFeed = function initChangesFeed() {
     console.log('kcm setup changes feed ...')
     var changes = new CouchDbStream(self.dbURI, { since:self.update_seq })
       .on('change', function(change) {
@@ -87,23 +93,10 @@ function KCM(config) {
       .on('error', function(e) { })
   }
 
-  populate(function(e) {
-    if (!self.retryingPopulate) console.log('populate callback')
-    if (e) {
-      var populateCallback = arguments.callee
-      if (!self.retryingPopulate) console.log('populate error:', e)
-      setTimeout(function() { populate(populateCallback) }, 2000)
-      return
-    }
-    getUpdateSeq(function(e, update_seq) {
-      if (e) {
-        var getUdateSeqCallback = arguments.callee
-        setTimeout(function() { getUpdateSeq(getUpdateSeqCallback) }, 2000)
-        return
-      }
+  populate(function() {
+    getUpdateSeq(function() {
       // set up db _changes stream listen / emit
-      self.update_seq = update_seq
-      setupChangesFeed()
+      initChangesFeed()
       self.initialised = true
       self.emit('initialised')
     })
