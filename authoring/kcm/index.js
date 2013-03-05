@@ -27,31 +27,31 @@ function KCM(config) {
     , users: {}
   }
 
-  request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
-    if (!r || r.statusCode != 200) {
-      console.error('failed to retrieve KCM all docs')
-      // TODO: handle
-      return
-    }
-
-    JSON.parse(b).rows.forEach(function(row) {
-      var o = self.storeForDoc(row.doc)
-      if (o) o[row.id] = row.doc
-    })
-
-    // set up db _changes stream listen / emit
-    request.get(self.dbURI, function(e,r,b) {
-      var couchDBStream
-
+  var populate = function getAllDocs(callback) {
+    request.get(self.dbURI + '/_all_docs?include_docs=true', function(e,r,b) {
       if (!r || r.statusCode != 200) {
-        //TODO: handle
+        callback('failed to retrieve KCM all docs', )
         return
       }
 
-      self.update_seq = JSON.parse(b).update_seq
+      JSON.parse(b).rows.forEach(function(row) {
+        var o = self.storeForDoc(row.doc)
+        if (o) o[row.id] = row.doc
+      })
+    })
+  }
 
-      couchDBStream = new CouchDbStream(self.dbURI, { since:self.update_seq })
-      couchDBStream.on('change', function(change) {
+  var getUpdateSeq = function getUpdateSeq(callback) {
+    request.get(self.dbURI, function(e,r,b) {
+      var sc = r && r.statusCode == 200
+      if (sc != 200 && !e) e = 'error retrieving kcm update_seq'
+      callback(e, sc == 200 &&  JSON.parse(b).update_seq)
+    })
+  }
+
+  var setupChangesFeed = function setupChangesFeed() {
+    var changes = new CouchDbStream(self.dbURI, { since:self.update_seq })
+      .on('change', function(change) {
         var store
 
         self.update_seq = change.seq
@@ -74,7 +74,32 @@ function KCM(config) {
 
         if (store) self.emit('change', change)
       })
+      .on('error', function(e) {
+        console.log('kcm changes feed error')
+        changes.destroy()
+        setTimeout(setupChangesFeed, 2000)
+      })
+      .on('close', function() {
+        console.log('kcm changes feed close')
+        changes.destroy()
+        setTimeout(setupChangesFeed, 2000)
+      })
+  }
 
+  populate(function(e) {
+    var populateCallback == arguments.callee
+    if (e) {
+      setTimeout(function() { populate(populateCallback, 2000) })
+      return
+    }
+    getUpdateSeq(function(e) {
+      var getUdateSeqCallback = arguments.callee
+      if (e) {
+        setTimeout(function() { getUpdateSeq(getUpdateSeqCallback, 2000) })
+        return
+      }
+      // set up db _changes stream listen / emit
+      self.update_seq = JSON.parse(b).update_seq
       self.initialised = true
       self.emit('initialised')
     })
