@@ -241,7 +241,7 @@ function processBatch(batch, pbCallback) {
         uri: util.format('%s/_all_docs?include_docs=true', dbURI)
         , method: 'POST'
         , headers: { 'content-type': 'application/json' }
-        , body: JSON.stringify({ keys: JSON.stringify(uuids) })
+        , body: JSON.stringify({ keys: uuids })
       }
 
       request(req, function(e,r,b) {
