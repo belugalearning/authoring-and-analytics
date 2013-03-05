@@ -70,4 +70,4 @@ CouchDBChanges.prototype.write = function(chunk) {
   }
 }
 
-CouchDBChanges.prototype.end = function() { console.log('end') }
+CouchDBChanges.prototype.end = function() {}
