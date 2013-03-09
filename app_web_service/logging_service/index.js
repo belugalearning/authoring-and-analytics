@@ -228,6 +228,46 @@ function processBatch(batch, pbCallback) {
       }
     }
 
+    // ensureUrDbExists() called per user in batch - will replicate create user's log database by replicating user-logging-template and add it to the directory if it does not yet exist
+    function ensureUrDbExists(urId, callback) {
+      if (getUrDbURI(urId)) {
+        callback()
+      } else {
+        var rep = {
+          source: 'user-logging-template'
+          , target: 'ur-logging-' + urId.toLowerCase()
+          , create_target: true
+        }
+        var req = {
+          uri: couchServerURI + '/_replicate'
+          , method: 'POST'
+          , headers: { 'content-type': 'application/json' }
+          , body: JSON.stringify(rep)
+        }
+        request(req, function(e,r,b) {
+          // possible race condition
+          if (getUrDbURI(urId)) {
+            callback()
+            return
+          }
+
+          var sc = r && r.statusCode
+          if (sc == 200) {
+            // make sure ur in directory
+            userDbDirectoryDoc.dbs[urId] = couchServerURI + '/' + rep.target
+            writeUpdatedUserDbDirectory()
+            callback()
+          } else {
+            onError({
+              message: 'Error creating user database'
+              , request: req
+              , response: { e: e, sc: r && r.statusCode, b: b }
+            })
+          }
+        })
+      }
+    }
+
     // assignRecordActions() sets action (insert/update/ignore) and error (if applicable) on on each record in recs param
     var assignRecordActions = function(dbURI, recs, callback) {
       if (!recs.length) {
@@ -403,46 +443,6 @@ function writeUpdatedUserDbDirectory() {
 
 function getUrDbURI(urId) {
   return userDbDirectoryDoc.dbs[urId]
-}
-
-// ensureUrDbExists() called per user in batch - will replicate create user's log database by replicating user-logging-template and add it to the directory if it does not yet exist
-function ensureUrDbExists(urId, callback) {
-  if (getUrDbURI(urId)) {
-    callback()
-  } else {
-    var rep = {
-      source: 'user-logging-template'
-      , target: 'ur-logging-' + urId.toLowerCase()
-      , create_target: true
-    }
-    var req = {
-      uri: couchServerURI + '/_replicate'
-      , method: 'POST'
-      , headers: { 'content-type': 'application/json' }
-      , body: JSON.stringify(rep)
-    }
-    request(req, function(e,r,b) {
-      // possible race condition
-      if (getUrDbURI(urId)) {
-        callback()
-        return
-      }
-
-      var sc = r && r.statusCode
-      if (sc == 200) {
-        // make sure ur in directory
-        userDbDirectoryDoc.dbs[urId] = req.uri
-        writeUpdatedUserDbDirectory()
-        callback()
-      } else {
-        onError({
-          message: 'Error creating user database'
-          , request: req
-          , response: { e: e, sc: r && r.statusCode, b: b }
-        })
-      }
-    })
-  }
 }
 
 // design docs
