@@ -82,9 +82,9 @@ function uploadBatchRequestHandler(req, res) {
 
 // LOG BATCHES PROCESSING MANAGED FROM HERE
 function runDaemon() {
-  processPendingBatches(function fn(numProcessed, eConnRefused) {
+  processPendingBatches(function fn(numProcessed, eConnIssue) {
     //console.log('processed %d batches at %s', numProcessed, new Date().toString())
-    if (eConnRefused === true) {
+    if (eConnIssue === true) {
       init()
     } else if (numProcessed > 0) {
       processPendingBatches(fn)
@@ -99,7 +99,7 @@ function processPendingBatches(callback) {
   fs.readdir(pendingLogBatchesDir, function(e, dirFiles) {
     var batches = _.filter(dirFiles, function(f) { return batchFileNameRE.test(f) })
       , numOutstanding = batches.length
-      , eConnRefused = false
+      , eConnIssue = false
 
     if (!numOutstanding) {
       callback(batches.length)
@@ -107,7 +107,7 @@ function processPendingBatches(callback) {
     }
 
     var onProcessed = function onProcessed() {
-      if (!--numOutstanding) callback(batches.length, eConnRefused)
+      if (!--numOutstanding) callback(batches.length, eConnIssue)
     }
 
     _.each(batches, function(batch) {
@@ -118,10 +118,11 @@ function processPendingBatches(callback) {
           // rm batch file (it's saved as attachment on database)
           fs.unlink(batchPath, onProcessed)
         } else {
-          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tErrorObj: "%s"\n\n', new Date().toString(), batch, JSON.stringify(errorObj,null,2)))
+          eConnIssue = errorObj.response && errorObj.response.e && /(ECONNREFUSED|EPIPE|ECONNRESET)/.test(errorObj.response.e)
+          var action = eConnIssue ? 'Reinit & Retry' : 'move to error-batches'
+          errorsWriteStream.write(util.format('[%s]\tBatch File: %s\tAction: "%s"\tErrorObj: "%s"\n\n', new Date().toString(), batch, action, JSON.stringify(errorObj,null,2)))
 
-          if (errorObj.response && errorObj.response.e && /ECONNREFUSED/.test(errorObj.response.e)) {
-            eConnRefused = true
+          if (eConnIssue) {
             onProcessed()
           } else {
             // move batch to error dir
