@@ -85,7 +85,7 @@ function runDaemon() {
   processPendingBatches(function fn(numProcessed, eConnIssue) {
     //console.log('processed %d batches at %s', numProcessed, new Date().toString())
     if (eConnIssue === true) {
-      init()
+      setTimeout(init, 5000)
     } else if (numProcessed > 0) {
       processPendingBatches(fn)
     } else {
