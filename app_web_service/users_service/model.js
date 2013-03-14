@@ -14,6 +14,7 @@ module.exports = function(config) {
   databaseURI = util.format('%s/%s', couchServerURI, dbName)
   console.log(util.format('AppWebService -> usersService\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI))
 
+  /*
   request({
     method: 'PUT'
     , uri: databaseURI
@@ -34,6 +35,7 @@ module.exports = function(config) {
       }
     })
   })
+  //*/
 
   return {
     syncUsers: syncUsers
