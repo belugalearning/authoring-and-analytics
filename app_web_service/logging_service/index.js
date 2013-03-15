@@ -393,9 +393,7 @@ function processBatch(batch, pbCallback) {
     }
 
     var numUserDbsOutstanding = userIds.length
-    if (!numUserDbsOutstanding) {
-      processGenDocs()
-    } else {
+    if (numUserDbsOutstanding) {
       userIds.forEach(function(urId) {
         ensureUrDbExists(urId, function() {
           assignRecordActions(getUrDbURI(urId), recordsByDbDestination[urId], function(docsForInsertOrUpdate) {
@@ -405,6 +403,8 @@ function processBatch(batch, pbCallback) {
           })
         })
       })
+    } else {
+      processGenDocs()
     }
   })
 }
