@@ -229,85 +229,6 @@ function processBatch(batch, pbCallback) {
       }
     }
 
-    // ensureUrDbExists() called per user in batch - will replicate create user's log database by replicating user-logging-template and add it to the directory if it does not yet exist
-    function ensureUrDbExists(urId, callback) {
-      if (getUrDbURI(urId)) {
-        callback()
-      } else {
-        var rep = {
-          source: 'user-logging-template'
-          , target: 'ur-logging-' + urId.toLowerCase()
-          , create_target: true
-        }
-        var req = {
-          uri: couchServerURI + '/_replicate'
-          , method: 'POST'
-          , headers: { 'content-type': 'application/json' }
-          , body: JSON.stringify(rep)
-        }
-        request(req, function(e,r,b) {
-          // possible race condition
-          if (getUrDbURI(urId)) {
-            callback()
-            return
-          }
-
-          var sc = r && r.statusCode
-          if (sc == 200) {
-            // make sure ur in directory
-            userDbDirectoryDoc.dbs[urId] = couchServerURI + '/' + rep.target
-            writeUpdatedUserDbDirectory(callback)
-          } else {
-            onError({
-              message: 'Error creating user database'
-              , request: req
-              , response: { e: e, sc: r && r.statusCode, b: b }
-            })
-          }
-        })
-      }
-    }
-
-    // called from ensureUrDbExists() when new user encountered and user's log db created
-    function writeUpdatedUserDbDirectory(onSuccess) {
-      var cache = arguments.callee.cache
-
-      if (!cache) cache = arguments.callee.cache = { currentUpdateCallbacks:[], pendingUpdateCallbacks:[] }
-
-      if (cache.currentUpdateCallbacks.length) {
-        cache.pendingUpdateCallbacks.push(onSuccess)
-      } else {
-        cache.currentUpdateCallbacks = [ onSuccess ]
-        sendReq()
-      }
-
-      function sendReq() {
-        var o = {
-          uri: userDbDirectoryDocURI
-          , method:'PUT'
-          , body: JSON.stringify(userDbDirectoryDoc)
-        }
-
-        request(o, function(e,r,b) {
-          var sc = r && r.statusCode || 0
-
-          if (sc == 201) {
-            userDbDirectoryDoc._rev = JSON.parse(b).rev
-            cache.currentUpdateCallbacks.forEach(function(fn) { fn() })
-            cache.currentUpdateCallbacks = cache.pendingUpdateCallbacks
-            cache.pendingUpdateCallbacks = []
-            if (cache.currentUpdateCallbacks.length) sendReq()
-          } else {
-            onError({
-              message: 'Error writing user db directory'
-              , request: o
-              , response: { e: e, sc: sc, b: b }
-            })
-          }
-        })
-      }
-    }
-
     // assignRecordActions() sets action (insert/update/ignore) and error (if applicable) on on each record in recs param
     var assignRecordActions = function(dbURI, recs, callback) {
       if (!recs.length) {
@@ -440,7 +361,7 @@ function processBatch(batch, pbCallback) {
               if (!--numUserDbsOutstanding) processGenDocs()
             })
           })
-        })
+        }, onError)
       })
     } else {
       processGenDocs()
@@ -450,6 +371,106 @@ function processBatch(batch, pbCallback) {
 
 function getUrDbURI(urId) {
   return userDbDirectoryDoc.dbs[urId]
+}
+
+// ensureUrDbExists() called per user in batch - will replicate create user's log database by replicating user-logging-template and add it to the directory if it does not yet exist
+function ensureUrDbExists(urId, onSuccess, onError) {
+  var cache = arguments.callee.cache
+  if (!cache) cache = arguments.callee.cache = { currentWriteCallbacks:[], pendingWriteCallbacks:[], currentWriteUsers:[], pendingWriteUsers:[] }
+
+  if (getUrDbURI(urId)) {
+    onSuccess()
+    return
+  }
+
+  var rep = {
+    source: 'user-logging-template'
+    , target: 'ur-logging-' + urId.toLowerCase()
+    , create_target: true
+  }
+
+  var repReq = {
+    uri: couchServerURI + '/_replicate'
+    , method: 'POST'
+    , headers: { 'content-type': 'application/json' }
+    , body: JSON.stringify(rep)
+  }
+
+  request(repReq, function(e,r,b) {
+    // possible race condition
+    if (getUrDbURI(urId)) {
+      onSuccess()
+      return
+    }
+
+    var sc = r && r.statusCode
+    if (sc != 200) {
+      onError({
+        message: 'Error creating user database'
+        , request: req
+        , response: { e: e, sc: r && r.statusCode, b: b }
+      })
+      return
+    }
+
+    // make sure ur in directory
+    userDbDirectoryDoc.dbs[urId] = couchServerURI + '/' + rep.target
+
+    if (cache.currentWriteCallbacks.length) {
+      cache.pendingWriteCallbacks.push(onSuccess)
+      cache.pendingWriteUsers.push(urId)
+    } else {
+      cache.currentWriteCallbacks = [ onSuccess ]
+      cache.currentWriteUsers.push(urId)
+      writeDir()
+    }
+  })
+
+  function writeDir() {
+    var o = {
+      uri: userDbDirectoryDocURI
+      , method:'PUT'
+      , headers: { 'content-type': 'application/json' }
+      , body: JSON.stringify(userDbDirectoryDoc)
+    }
+
+    request(o, function(e,r,b) {
+      var sc = r && r.statusCode || 0
+
+      if (sc == 201) {
+        // success
+        userDbDirectoryDoc._rev = JSON.parse(b).rev
+        cache.currentWriteCallbacks.forEach(function(fn) { fn() })
+        cache.currentWriteCallbacks = cache.pendingWriteCallbacks
+        cache.currentWriteUsers = cache.pendingWriteUsers
+        cache.pendingWriteCallbacks = []
+        cache.pendingWriteUsers = []
+        if (cache.currentWriteCallbacks.length) sendReq()
+      } else if (sc == 409) {
+        // conflict error - pull in the directory again, add users missing from it
+        request.get(userDbDirectoryDocURI, function(e,r,b) {
+          var sc = r && r.statusCode
+          if (sc != 200) {
+            onError({ message: 'Error updating user db directory', uri: userDbDirectoryDocURI, response: { e: e, sc: sc, b: b } })
+            return
+          }
+          cache.currentWriteCallbacks = cache.currentWriteCallbacks.concat(cache.pendingWriteCallbacks)
+          cache.currentWriteUsers = cache.currentWriteUsers.concat(cache.pendingWriteUsers)
+          cache.pendingWriteCallbacks = []
+          cache.pendingWriteUsers = []
+
+          cache.currentWriteUsers.forEach(function(urId) {
+            userDbDirectoryDoc.dbs[urId] = couchServerURI + '/' + rep.target
+          })
+
+          writeDir()
+        })
+      } else {
+        // unhandled error
+        onError({ message: 'Error writing user db directory', request: o, response: { e: e, sc: sc, b: b } })
+      }
+    })
+  }
 }
 
 // design docs
