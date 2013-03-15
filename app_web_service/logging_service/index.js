@@ -256,13 +256,52 @@ function processBatch(batch, pbCallback) {
           if (sc == 200) {
             // make sure ur in directory
             userDbDirectoryDoc.dbs[urId] = couchServerURI + '/' + rep.target
-            writeUpdatedUserDbDirectory()
-            callback()
+            writeUpdatedUserDbDirectory(callback)
           } else {
             onError({
               message: 'Error creating user database'
               , request: req
               , response: { e: e, sc: r && r.statusCode, b: b }
+            })
+          }
+        })
+      }
+    }
+
+    // called from ensureUrDbExists() when new user encountered and user's log db created
+    function writeUpdatedUserDbDirectory(onSuccess) {
+      var cache = arguments.callee.cache
+
+      if (!cache) cache = arguments.callee.cache = { currentUpdateCallbacks:[], pendingUpdateCallbacks:[] }
+
+      if (cache.currentUpdateCallbacks.length) {
+        cache.pendingUpdateCallbacks.push(onSuccess)
+      } else {
+        cache.currentUpdateCallbacks = [ onSuccess ]
+        sendReq()
+      }
+
+      function sendReq() {
+        var o = {
+          uri: userDbDirectoryDocURI
+          , method:'PUT'
+          , body: JSON.stringify(userDbDirectoryDoc)
+        }
+
+        request(o, function(e,r,b) {
+          var sc = r && r.statusCode || 0
+
+          if (sc == 201) {
+            userDbDirectoryDoc._rev = JSON.parse(b).rev
+            cache.currentUpdateCallbacks.forEach(function(fn) { fn() })
+            cache.currentUpdateCallbacks = cache.pendingUpdateCallbacks
+            cache.pendingUpdateCallbacks = []
+            if (cache.currentUpdateCallbacks.length) sendReq()
+          } else {
+            onError({
+              message: 'Error writing user db directory'
+              , request: o
+              , response: { e: e, sc: sc, b: b }
             })
           }
         })
@@ -405,39 +444,6 @@ function processBatch(batch, pbCallback) {
       })
     } else {
       processGenDocs()
-    }
-  })
-}
-
-// called from processBatch() when new user encountered and log db created
-function writeUpdatedUserDbDirectory() {
-  var fn = arguments.callee
-    , cache = fn.cache
-
-  if (!cache) cache = fn.cache = { isUpdating:false, pendingUpdates:false }
-
-  if (cache.isUpdating) {
-    cache.pendingUpdates = true
-    return
-  }
-
-  cache.isUpdating = true
-  cache.pendingUpdates = false
-
-  request({
-    method:'PUT'
-    , uri: userDbDirectoryDocURI
-    , body: JSON.stringify(userDbDirectoryDoc)
-  }, function(e,r,b) {
-    cache.isUpdating = false
-
-    var sc = r && r.statusCode || 0
-    if (sc !== 201) {
-      // TODO: handle error! for the moment just trying again in hope of something better.
-      fn()
-    } else {
-      userDbDirectoryDoc._rev = JSON.parse(b).rev
-      if (cache.pendingUpdates) fn()
     }
   })
 }
