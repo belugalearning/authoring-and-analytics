@@ -1964,8 +1964,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
   //  1) all-users.db
   //  2) canned-content/ (i.e. KCM)
   //  3) user-state-template.db
-  
-  var tempProblemIdDescJSON = []
 
   var writeLog = true
     , path = '/tmp/' + generateUUID()
@@ -1983,7 +1981,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
 
   var origCallback = callback
   callback = function() {
-    fs.writeFileSync(contentPath + '/problems-ids-descriptions.json', JSON.stringify(tempProblemIdDescJSON,null,2), 'utf8')
     if (exportLogWriteStream) exportLogWriteStream.end()
     origCallback.apply(null, [].slice.call(arguments))
   }
@@ -2086,7 +2083,11 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
 
         pl.problems.forEach(function(prId) {
           var problem = kcm.docStores.problems[prId]
-          problems[prId] = { id:problem._id, rev:problem._rev }
+          problems[prId] = {
+            id: problem._id
+            , rev: problem._rev
+            , pdef: problem.pdef
+          }
         })
       })
 
@@ -2131,18 +2132,21 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
 
     // set problem pdefs as property
     var getPDefs = function(problems, next) {
-      var numProblems = problems.length
-        , numPDefs = 0
+      var problemsWithoutPDefKey = problems.filter(function(p) { return !p.pdef }) // these problems don't have pdef stored in json on pdef key - get attachment
+        , remaining = problemsWithoutPDefKey.length
         , sentError = false
 
-      if (!numProblems) {
+      if (!remaining) {
         next()
         return
       }
 
-      problems.forEach(function(p) {
+      problemsWithoutPDefKey.forEach(function(p) {
         request({ uri: databaseURI + p.id + '/pdef.plist' }, function(e,r,b) {
+          // already sent error - export abandoned
           if (sentError) return
+
+          // error getting attachment?
           var sc = r && r.statusCode || 500
           if (e || sc !== 200) {
             callback(util.format('error retrieving pdef for problem id="%s" from database, error="%s", statusCode=%d', p.id, e || b, sc), sc)
@@ -2150,15 +2154,8 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
             return
           }
 
-          var onSuccess = function(pdef) {
-            // TODO: Remove (probably)
-            tempProblemIdDescJSON.push([p.id, pdef.PROBLEM_DESCRIPTION])
-
-            p.pdef = JSON.stringify(pdef)
-            if (++numPDefs == numProblems) next()
-          }
-
-          if (/^bplist/.test(b)) {
+          if (/^bplist/.test(b)) { // compiled?
+            // compiled - so decompile....
             var pPath = util.format('%s/%s.plist', pdefsPath, p.id)
             fs.writeFile(pPath, b, 'utf8', function(e) {
               if (e) {
@@ -2174,23 +2171,25 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
                   return
                 }
 
-                var pdef = plist.parseFileSync(pPath)
-                if (!pdef) {
+                p.pdef = plist.parseFileSync(pPath)
+
+                if (!p.pdef) {
                   callback(util.format('error parsing decompiled plist id="%s". error="%s"', p.id, e))
                   sentError = true
-                  return
+                } else if (!--remaining) {
+                  next()
                 }
-                onSuccess(pdef)
               })
             })
           } else {
-            var pdef = plist.parseStringSync(b)
-            if (!pdef) {
+            // not compiled
+            p.pdef = plist.parseStringSync(b)
+            if (!p.pdef) {
               callback(util.format('error parsing plist id="%s". error="%s"', p.id, e))
               sentError = true
-              return
+            } else if (!--remaining) {
+              next()
             }
-            onSuccess(pdef)
           }
         })
       })
@@ -2231,8 +2230,9 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
         exportLogWriteStream.write('\n================================================\nINSERT INTO Problems\n')
         var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?,?, ?,?,?, ?)")
         content.problems.forEach(function(p) {
+          var pdefString = JSON.stringify(p.pdef)
           exportLogWriteStream.write('['+p.id+']')
-          probsIns.run(p.id, p.rev, p.pdef, p.pdef, '[]', 0, 0)
+          probsIns.run(p.id, p.rev, pdefString, pdefString, '[]', 0, 0)
         })
         probsIns.finalize()
 
