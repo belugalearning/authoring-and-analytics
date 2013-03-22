@@ -479,7 +479,7 @@ module.exports = function(config, legacyKCMController, kcm) {
         })
     }
     , removeProblemFromPipeline: function(req,res) {
-        kcmController.removeProblemFromPipeline(req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {
+        kcmController.removeProblemFromPipeline(req.session.user._id, req.params.pipelineId, req.params.pipelineRev, req.params.problemId, function(e,statusCode,rev) {
             res.send(e || rev, statusCode || 500);
         });
     }

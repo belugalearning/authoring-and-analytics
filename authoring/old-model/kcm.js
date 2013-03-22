@@ -1726,6 +1726,8 @@ function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback)
     callback(util.format('Problem with id="%s" not found on pipeline with id="%s". The problem was not deleted from the pipeline.', problemId, pipelineId), 500)
     return
   }
+
+  nextVersion(pl, user, 'removeProblemFromPipeline', { problem: problemId })
   
   pl.problems.splice(pIx, 1)
   pl.workflowStatus = 0
