@@ -1878,7 +1878,7 @@ function pipelineProblemDetails(id, rev, callback) {
   callback(null,200,problems)
 }
 
-function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, newIndex, callback) {
+function reorderPipelineProblems(user, pipelineId, pipelineRev, problemId, oldIndex, newIndex, callback) {
   if (!/^\d+$/.test(oldIndex)) {
     callback('bad argument suppied for oldIndex:"%s" - positive integer required', oldIndex)
     return
@@ -1911,6 +1911,8 @@ function reorderPipelineProblems(pipelineId, pipelineRev, problemId, oldIndex, n
       callback(util.format('Invalid new index:"%s" supplied for problem id="%s" on pipeline id="%s". The pipeline contains %s problems.', newIndex, problemId, pl._id, pl.problems.length),500)
       return
     }
+
+    nextVersion(pl, user, 'reorderPipelineProblems')
 
     pl.problems.splice(oldIndex,1)
     pl.problems.splice(newIndex,0,problemId)

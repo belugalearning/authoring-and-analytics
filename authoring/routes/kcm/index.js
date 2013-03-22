@@ -613,7 +613,7 @@ module.exports = function(config, legacyKCMController, kcm) {
     }
 
     , reorderPipelineProblems: function(req, res) {
-        kcmController.reorderPipelineProblems(req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
+        kcmController.reorderPipelineProblems(req.session.user._id, req.body.pipelineId, req.body.pipelineRev, req.body.problemId, req.body.oldIndex, req.body.newIndex, function(e,statusCode,plRev) {
             res.send(e || plRev, statusCode || 500);
         });
     }
