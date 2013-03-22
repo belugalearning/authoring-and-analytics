@@ -1814,13 +1814,15 @@ function updatePipelineName(id, rev, name, callback) {
   })
 }
 
-function appendProblemsToPipeline(plId, problemIds, callback) {
+function appendProblemsToPipeline(user, plId, problemIds, callback) {
   var pl = kcm.getDocClone(plId, 'pipeline')
 
   if (!pl) {
     callback(util.format('pipeline id="%s" not found', plId), 404)
     return
   }
+
+  nextVersion(pl, user, 'appendProblemsToPipeline')
 
   pl.problems = pl.problems.concat(problemIds)
   pl.workflowStatus = 0

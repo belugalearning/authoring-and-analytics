@@ -543,7 +543,7 @@ module.exports = function(config, legacyKCMController, kcm) {
                 if (problems.push(JSON.parse(b)) < numFiles) {
                   rec(decompiledPDefs[problems.length])
                 } else {
-                  kcmController.appendProblemsToPipeline(plId, _.map(problems, function(p) { return p.id }), function(e,sc) {
+                  kcmController.appendProblemsToPipeline(req.session.user._id, plId, _.map(problems, function(p) { return p.id }), function(e,sc) {
                     res.send(e, sc || 500)
                   })
                 }
