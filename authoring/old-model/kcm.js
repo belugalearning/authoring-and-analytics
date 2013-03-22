@@ -105,7 +105,6 @@ module.exports = function(config, kcm_) {
     , reorderConceptNodePipelines: reorderConceptNodePipelines
     , appendProblemsToPipeline: appendProblemsToPipeline
     , removeProblemFromPipeline: removeProblemFromPipeline
-    , updatePipelineSequence: updatePipelineSequence
     , updatePipelineWorkflowStatus: updatePipelineWorkflowStatus
     , updatePipelineName: updatePipelineName
     , pipelineProblemDetails: pipelineProblemDetails
@@ -1829,37 +1828,6 @@ function appendProblemsToPipeline(plId, problemIds, callback) {
   updateDoc(pl, function(e,r,b) {
     var sc = r && r.statusCode
     callback(sc == 201 ? null : util.format('error appending problems to pipeline. e="%s"  sc=%d', e, sc), sc || 500)
-  })
-}
-
-function updatePipelineSequence(pipelineId, problemSequence, callback) {
-  var errors = ''
-  if (typeof pipelineId != 'string' || !pipelineId.length) errors += 'BAD ARG: String value required for "pipelineId"'
-  if (problemSequence.slice == undefined) errors += 'BAD ARG: Array required for "problemSequence"'
-  if (errors.length) {
-    callback('Error. Could not update pipeline sequence.\n' + errors, 500)
-    return
-  }
-
-  getDoc(pipelineId, function(e,r,b) {
-    if (200 != r.statusCode) {
-      callback('Could not retrieve pipeline from database. The problem sequence was not updated.', r.statusCode)
-      return
-    }
-    var pl = JSON.parse(b)
-
-    if ('pipeline' != pl.type) {
-      callback(util.format('invalid pipeline - id="%s" does not correspond to pipeline document.', pipelineId), 500)
-      return
-    }
-
-    pl.problems = problemSequence
-    pl.workflowStatus = 0
-
-    updateDoc(pl, function(e,r,b) {
-      if (201 != r.statusCode) callback(util.format('The pipeline problem sequence failed to update. Database Error: "%s"', e), r.statusCode)
-      else callback(null,201)
-    })
   })
 }
 

@@ -102,8 +102,6 @@ function setupRoutes() {
   server.put('/kcm/pipeline/:id/:rev/update-workflow-status/:status', server.kcmRouteHandlers.updatePipelineWorkflowStatus)
   server.put('/kcm/pipeline/:id/:rev/update-name/:name', server.kcmRouteHandlers.updatePipelineName)
   server.get('/kcm/pipelines/:pipelineId?', server.kcmRouteHandlers.pipelinePage)  // TODO: *********** Is this still used? Does it still work?
-  server.get('/kcm/pipeline-sequence-tables/', server.kcmRouteHandlers.pipelineSequenceTables)
-  server.post('/kcm/pipeline-sequence/update', server.kcmRouteHandlers.updatePipelineSequence)
   server.post('/kcm/reorder-pipeline-problems', server.kcmRouteHandlers.reorderPipelineProblems)
   server.post('/kcm/update-concept-node-position', server.kcmRouteHandlers.updateConceptNodePosition)
   server.post('/kcm/add-problems-to-pipeline', server.kcmRouteHandlers.uploadProblems)
