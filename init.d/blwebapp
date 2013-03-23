@@ -1,15 +1,16 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          blweb
+# Provides:          authoring-and-analytics
 # Short-Description: Start daemon at boot time
 # Description:       Enable service provided by daemon.
 # Required-Start:    $all
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# pidfile: /var/run/blwebapp.pid
-# logfile: /var/log/blwebapp.log
+# pidfile: /var/run/blws/blwebapp.pid
+# logfile: /var/log/blws/blwebapp.log
+# outfile: /var/log/blws/blwebapp.out
 ### END INIT INFO
 
 # Source function library.
@@ -17,12 +18,12 @@
 
 path=$path:/user/local/bin
 
-USER=blweb
+USER=blws
 NAME=blwebapp
-APPDIR=/home/blweb/authoring-and-analytics
-pidfile=/var/run/$NAME.pid
-logfile=/var/log/$NAME.log
-forever_dir=/var/local/forever        # Forever root directory.
+APPDIR=/usr/local/lib/ws-monolith
+pidfile=/usr/local/var/run/blws/$NAME.pid
+logfile=/usr/local/var/log/blws/$NAME.log
+outfile=/usr/local/var/log/blws/$NAME.out
 
 node=/usr/local/bin/node
 forever=/usr/local/bin/forever
@@ -34,13 +35,17 @@ start() {
     if [ "$foreverid" == "" ]; then
         # Create the log and pid files, making sure that the target use has access to them
         touch $logfile
-        chown $USER $logfile
+        chown $USER: $logfile
+
+        touch $outfile
+        chown $USER: $outfile
 
         touch $pidfile
-        chown $USER $pidfile
+        chown $USER: $pidfile
 
         # Launch the application
-        command="$forever start --pidFile $pidfile -l $logfile -o $logfile -e $logfile -a -d $APPDIR"
+        command="$forever start --pidFile $pidfile -l $logfile -o $outfile -e $logfile -a -d $APPDIR"
+        echo $command
         su $USER -c "$command"
     else
         echo "Instance already running"
@@ -51,7 +56,7 @@ start() {
 restart() {
     echo -n "Restarting $NAME node instance : "
     if [ "$foreverid" != "" ]; then
-        command="$forever restart -p $forever_dir"
+        command="$forever restart $APPDIR"
         su $USER -c "$command"
         RETVAL=$?
     else
