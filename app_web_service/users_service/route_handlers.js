@@ -108,9 +108,7 @@ exports.changeNick = function changeNick(req, res) {
       return
     }
 
-    var nickClashURI = util.format('%s/_design/%s/_view/users-by-nick?key=%22%s%22', databaseURI, config.appWebService.usersService.databaseDesignDoc, newNick)
-
-    request(nickClashURI, function(e,r,b) {
+    model.userMatchingNick(newNick, function(e,r,b) {
       if (checkResponseError(e, r, b, 200, nickClashURI)) return
 
       if (JSON.parse(b).rows.length) {
