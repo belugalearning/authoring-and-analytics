@@ -44,7 +44,7 @@ module.exports = function(config) {
   }
 }
 
-// since node completion and device/user assocations are now derived from logging dbs, and existing user nick changes are handled elsewhere, all that this function currently does is to set nickClash for new users
+// this function sets nickClash and add users to db that were previously missing - no longer handles game state
 function syncUsers(clientDeviceUsers, callback) {
   var urIds = _.pluck(clientDeviceUsers, 'id')
     , newUsersProcessed = false
