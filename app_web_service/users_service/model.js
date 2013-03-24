@@ -96,7 +96,7 @@ function syncUsers(clientDeviceUsers, callback) {
       newUserIds
       , function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
 
-    var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=%s', databaseURI, designDoc, encodeURI(JSON.stringify(_.pluck(newUsers, 'nick'))))
+    var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=%s', databaseURI, designDoc, encodeURIComponent(JSON.stringify(_.pluck(newUsers, 'nick'))))
     request(nickClashesURI, function(e,r,b) {
       if (checkResponseError(e, r, b, 200, nickClashesURI)) return
 
