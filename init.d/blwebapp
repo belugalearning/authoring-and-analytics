@@ -23,7 +23,8 @@ NAME=blwebapp
 APPDIR=/usr/local/lib/ws-monolith
 pidfile=/usr/local/var/run/blws/$NAME.pid
 logfile=/usr/local/var/log/blws/$NAME.log
-outfile=/usr/local/var/log/blws/$NAME.out
+# when absolutely sure that everything got to dupefile is actually a duplicate use /dev/null instead
+dupefile=/usr/local/var/log/blws/$NAME.dupe
 
 node=/usr/local/bin/node
 forever=/usr/local/bin/forever
@@ -43,8 +44,8 @@ start() {
         touch $pidfile
         chown $USER: $pidfile
 
-        # Launch the application
-        command="$forever start --pidFile $pidfile -l $logfile -o $outfile -e $logfile -a -d $APPDIR"
+        # Launch the application -- when absolutely sure that everything got to dupefile is actually a duplicate, have option "-l /dev/null"
+        command="$forever start --pidFile $pidfile -l $dupefile -o $logfile -e $logfile -a -d $APPDIR"
         echo $command
         su $USER -c "$command"
     else
