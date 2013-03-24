@@ -445,7 +445,7 @@ function ensureUrDbExists(urId, onSuccess, onError) {
         cache.currentWriteUsers = cache.pendingWriteUsers
         cache.pendingWriteCallbacks = []
         cache.pendingWriteUsers = []
-        if (cache.currentWriteCallbacks.length) sendReq()
+        if (cache.currentWriteCallbacks.length) writeDir()
       } else if (sc == 409) {
         // conflict error - pull in the directory again, add users missing from it
         request.get(userDbDirectoryDocURI, function(e,r,b) {
