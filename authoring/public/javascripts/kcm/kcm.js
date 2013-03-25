@@ -1804,7 +1804,7 @@
 
         if (nodeTextPattern.length) {
           matches = matches.filter(function(m) {
-            return ~m._id.indexOf(nodeTextPattern) || ~m.nodeDescription.indexOf(nodeTextPattern)
+            return ~m._id.toLowerCase().indexOf(nodeTextPattern) || ~m.nodeDescription.toLowerCase().indexOf(nodeTextPattern)
           })
         }
 
