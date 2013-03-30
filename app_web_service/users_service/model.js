@@ -14,29 +14,6 @@ module.exports = function(config) {
   databaseURI = util.format('%s/%s', couchServerURI, dbName)
   console.log(util.format('AppWebService -> usersService\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI))
 
-  /*
-  request({
-    method: 'PUT'
-    , uri: databaseURI
-    , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
-  }, function(e,r,b) {
-    if (!r) {
-      console.log('Error - could not connect to Couch Server testing for existence of database:"%s"', databaseURI)
-      return
-    }
-    if (!r || 201 != r.statusCode && 412 != r.statusCode) {
-      console.log('Error other than "already exists" when attempting to create database:"%s". Error:"%s" StatusCode:%d', databaseURI, e, r && r.statusCode)
-      return
-    }
-
-    updateDesignDoc(function(e,statusCode) {
-      if (e || 201 != statusCode) {
-        console.log('error updating %s design doc. error="%s", statusCode=%d', databaseURI, e, r.statusCode)
-      }
-    })
-  })
-  //*/
-
   return {
     syncUsers: syncUsers
     , userMatchingNick: userMatchingNick
@@ -180,40 +157,6 @@ function userMatchingNick(nick, callback) {
 
 function userMatchingNickAndPassword(nick, password, callback) {
   queryView('users-by-nick-password', 'key', [nick,password], 'include_docs', true, callback)
-}
-
-function updateDesignDoc(callback) {
-  console.log('AppWebService -> usersService\tupdating design doc:\t%s/_design/%s', databaseURI, designDoc)
-
-  var dd = {
-    _id: '_design/' + designDoc
-    , views: {
-      'users-by-nick' : {
-        map: (function(doc) { if ('USER' == doc.type) emit(doc.nick, null) }).toString()
-      }
-      , 'users-by-nick-password' : {
-        map: (function(doc) { if ('USER' == doc.type) emit([doc.nick, doc.password], null) }).toString()
-      }
-    }
-  }
-
-  getDoc(dd._id, function(e,r,b) {
-    if (!r || !~[200,404].indexOf(r.statusCode)) {
-      callback('error retrieving design doc from database', sc)
-      return
-    }
-
-    if (r.statusCode == 200) dd._rev = JSON.parse(b)._rev
-
-      request({
-        uri: util.format('%s/%s', databaseURI, dd._id)
-        , method: 'PUT'
-        , headers: { 'content-type': 'application/json', 'accepts': 'application/json' }
-        , body: JSON.stringify(dd)
-      }, function(e,r,b) {
-        callback(e, r && r.statusCode || 500)
-      })
-  })
 }
 
 function getDoc(id, callback) {
