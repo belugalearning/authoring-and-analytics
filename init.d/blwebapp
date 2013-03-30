@@ -37,7 +37,7 @@ start() {
         touch $logfile
         chown $USER: $logfile
 
-        touch $dupefile
+        touch $outfile
         chown $USER: $outfile
 
         touch $pidfile
