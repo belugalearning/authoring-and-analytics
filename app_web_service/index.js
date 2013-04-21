@@ -44,6 +44,11 @@ module.exports = function(config) {
       , pupil
       , successText
 
+    var send = res.send
+    res.send = function(text, statusCode) {
+      send.call(res, text, { 'X-Response-Text': text }, statusCode)
+    }
+
     async.waterfall([
       getAppUser,
       getPupil,
@@ -55,7 +60,7 @@ module.exports = function(config) {
     function getAppUser(callback) {
       request(appUserURI, function(e,r,b) {
         var sc = r && r.statusCode
-        if (sc != 200) return res.send('error retrieving app user data', sc || 500)
+        if (sc != 200) return res.send('Error getting user', sc || 500)
         appUser = JSON.parse(b)
         callback()
       })
@@ -65,7 +70,7 @@ module.exports = function(config) {
       var uri = util.format('%s/_design/general-views/_view/pupils-by-token?key=%22%s%22&include_docs=true', sapDbURI, encodeURIComponent(token))
       request(uri, function(e,r,b) {
         var sc = r && r.statusCode
-        if (sc != 200) return res.send('error retreiving schools data', sc || 500)
+        if (sc != 200) return res.send('Error getting class', sc || 500)
 
         var row = JSON.parse(b).rows[0]
         if (!row) return res.send('Invalid token', 400)
@@ -80,7 +85,7 @@ module.exports = function(config) {
       var uri = util.format('%s/_design/general-views/_view/name?keys=%s', sapDbURI, encodeURIComponent(keys))
       request(uri, function(e,r,b) {
         var sc = r && r.statusCode
-        if (sc != 200) return res.send('error retrieving schools data', sc || 500)
+        if (sc != 200) return res.send('Error getting class details', sc || 500)
 
         var rows = JSON.parse(b).rows
         successText = util.format('Your account has been linked to "%s" in class "%s" at %s', pupil.firstName + ' ' + pupil.lastName, rows[1].value, rows[0].value)
@@ -103,7 +108,7 @@ module.exports = function(config) {
 
       request(req, function(e,r,b) {
         var sc = r && r.statusCode
-        if (sc != 201) return res.send('error updating schools data', sc || 500)
+        if (sc != 201) return res.send('Error linking account to class', sc || 500)
         callback()
       })
     }
