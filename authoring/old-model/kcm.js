@@ -758,10 +758,8 @@ function updatePDef(user, problemId, plistPath, callback) {
 
     nextVersion(problem, user, 'updatePDef')
 
-    if (!problem._attachments) problem._attachments = {};
-    problem._attachments['pdef.plist'] = {
-      data: new Buffer(plistString).toString('base64')
-      , 'Content-Type': 'application/xml'
+    if (problem._attachments && problem._attachments['pdef.plist']) {
+      problem._attachments['pdef.plist'] = undefined
     }
 
     request({
