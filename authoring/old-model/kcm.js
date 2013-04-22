@@ -86,7 +86,7 @@ module.exports = function(config, kcm_) {
     , queryView: queryView
     , updateUser: updateUser
     , insertProblem: insertProblem
-    , getPDef: getPDef
+    , getPDefAttachment: getPDefAttachment
     , updatePDef: updatePDef
     , appEditPDef: appEditPDef
     , insertConceptNode: insertConceptNode
@@ -722,7 +722,7 @@ function insertProblem(plistPath, plId, plRev, cnId, cnRev, callback) {
   })
 }
 
-function getPDef(problemId, callback) {
+function getPDefAttachment(problemId, callback) {
   return request({
     uri: databaseURI + problemId + '/pdef.plist'
     , method: 'GET'

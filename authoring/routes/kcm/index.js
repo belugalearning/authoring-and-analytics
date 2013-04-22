@@ -4,6 +4,7 @@ var fs = require('fs')
   , exec = require('child_process').exec
   , stream = require('stream')
   , zipstream = require('zipstream')
+  , plist = require('plist')
   , kcmController
 ;
 
@@ -427,8 +428,18 @@ module.exports = function(config, legacyKCMController, kcm) {
       }
 
       pl.problems.forEach(function(problemId, i) {
-        plistStreams[i] = new PListStream('pdef_'+i)
-        kcmController.getPDef(problemId).pipe(plistStreams[i])
+        var pdef = kcm.getDocClone(problemId, 'problem').pdef
+          , pls = plistStreams[i] = new PListStream('pdef_'+i)
+
+        if (pdef) {
+          pls.write(
+            plist.build(pdef).toString())
+          pls.end()
+        } else {
+          kcmController
+            .getPDefAttachment(problemId)
+            .pipe(pls[i])
+        }
       })
 
       var plistStream = plistStreams[pl.problems.length] = new PListStream('#meta-pipeline')
@@ -579,20 +590,23 @@ module.exports = function(config, legacyKCMController, kcm) {
       }
       , sendPList: function(req, res, sendAsAttachment) {
         var problemId = req.params.problemId
-        if (!problemId) {
-          res.send('requires problemId', 500)
-          return
-        }
+        if (!problemId) return res.send('requires problemId', 400)
 
-        kcmController.getPDef(problemId, function(e,r,b) {
-          if (r.statusCode == 200) {
+        var pdef = kcm.getDocClone(problemId, 'problem').pdef
+        if (pdef) {
+          if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
+          res.header('Content-Type', 'application/xml')
+          res.send(plist.build(pdef).toString())
+        } else {
+          kcmController.getPDef(problemId, function(e,r,b) {
+            var sc = r && r.statusCode
+            if (sc != 200) return res.send(sc || 500)
+
             if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
             res.header('Content-Type', 'application/xml')
             res.send(b)
-          } else {
-            res.send('could not retrieve problem plist. statusCode='+r.statusCode, 404)
-          }
-        })
+          })
+        }
       }
       , replacePListPage: function(req, res) {
         res.render('upload-plist', { title:'Upload the replacement problem definition PList', problemId:req.params.problemId });
