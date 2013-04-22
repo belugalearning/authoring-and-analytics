@@ -1695,7 +1695,7 @@ function reorderConceptNodePipelines(user, conceptNodeId, conceptNodeRev, pipeli
   updateDoc(cn, function(e,r,b) { callback(e, r && r.statusCode) })
 }
 
-function removeProblemFromPipeline(pipelineId, pipelineRev, problemId, callback) {
+function removeProblemFromPipeline(user, pipelineId, pipelineRev, problemId, callback) {
   var argErrors = []
   if ('string' != typeof pipelineId) argErrors.push('pipelineId')
   if ('string' != typeof pipelineRev) argErrors.push('pipelineRev')
