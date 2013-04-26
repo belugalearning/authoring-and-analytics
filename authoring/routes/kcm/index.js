@@ -431,15 +431,9 @@ module.exports = function(config, legacyKCMController, kcm) {
         var pdef = kcm.getDocClone(problemId, 'problem').pdef
           , pls = plistStreams[i] = new PListStream('pdef_'+i)
 
-        if (pdef) {
-          pls.write(
-            plist.build(pdef).toString())
-          pls.end()
-        } else {
-          kcmController
-            .getPDefAttachment(problemId)
-            .pipe(pls[i])
-        }
+        pls.write(
+          plist.build(pdef).toString())
+        pls.end()
       })
 
       var plistStream = plistStreams[pl.problems.length] = new PListStream('#meta-pipeline')

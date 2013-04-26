@@ -86,7 +86,6 @@ module.exports = function(config, kcm_) {
     , queryView: queryView
     , updateUser: updateUser
     , insertProblem: insertProblem
-    , getPDefAttachment: getPDefAttachment
     , updatePDef: updatePDef
     , appEditPDef: appEditPDef
     , insertConceptNode: insertConceptNode
@@ -722,14 +721,6 @@ function insertProblem(plistPath, plId, plRev, cnId, cnRev, callback) {
   })
 }
 
-function getPDefAttachment(problemId, callback) {
-  return request({
-    uri: databaseURI + problemId + '/pdef.plist'
-    , method: 'GET'
-    , headers: { 'content-type':'application/json', accepts:'application/xml' }
-  }, callback)
-}
-
 function updatePDef(user, problemId, plistPath, callback) {
   fs.readFile(plistPath, 'utf8', function(e, plistString) {
     if (e) {
@@ -757,10 +748,6 @@ function updatePDef(user, problemId, plistPath, callback) {
     problem.pdef = plist.parseStringSync(plistString)
 
     nextVersion(problem, user, 'updatePDef')
-
-    if (problem._attachments && problem._attachments['pdef.plist']) {
-      problem._attachments['pdef.plist'] = undefined
-    }
 
     request({
       method: 'PUT'
@@ -845,17 +832,6 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
 
   nextVersion(problem, user._id, 'appEditPDef')
 
-  // TODO: delete the conversion to XML after ensuring that all probs have pdef json
-  var plistString = plist.build(pdef).toString()
-  // N.B. for some reason this module converts all string keys to data keys and base 64 encodes the string
-  var pdefXML = libxmljs.parseXmlString(plistString)
-  pdefXML.find('//data').forEach(function(dn) {
-    var decoded = new Buffer(dn.text(), 'base64').toString()
-    dn.text(decoded)
-    dn.name('string')
-  })
-  plistString = pdefXML.toString()
-
   var info = getProblemInfoFromPList(plistString)
   if (info.error) {
     callback(info.error.match(/^[^\n]*/)[0], 400)
@@ -865,11 +841,6 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
   problem.problemDescription = info.problemDescription
   problem.internalDescription = info.internalDescription
   problem.dataModified = new Date()
-
-  problem._attachments['pdef.plist'] = {
-    data: new Buffer(plistString).toString('base64')
-    , 'Content-Type': 'application/xml'
-  }
 
   request({
     method: 'PUT'
@@ -1523,12 +1494,6 @@ function uploadPipelineFolder(user, o, callback) {
       , dateCreated: now
       , dateModified: now
       , pdef: plist.parseStringSync(decodedPDef)
-      , _attachments: {
-        'pdef.plist': {
-          'Content-Type': 'application/xml'
-          , data: o.pdefs[i]
-        }
-      }
     })
   }
 
@@ -2102,71 +2067,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
     }
 
-    // set problem pdefs as property
-    var getPDefs = function(problems, next) {
-      var problemsWithoutPDefKey = problems.filter(function(p) { return !p.pdef }) // these problems don't have pdef stored in json on pdef key - get attachment
-        , remaining = problemsWithoutPDefKey.length
-        , sentError = false
-
-      if (!remaining) {
-        next()
-        return
-      }
-
-      problemsWithoutPDefKey.forEach(function(p) {
-        request({ uri: databaseURI + p.id + '/pdef.plist' }, function(e,r,b) {
-          // already sent error - export abandoned
-          if (sentError) return
-
-          // error getting attachment?
-          var sc = r && r.statusCode || 500
-          if (e || sc !== 200) {
-            callback(util.format('error retrieving pdef for problem id="%s" from database, error="%s", statusCode=%d', p.id, e || b, sc), sc)
-            sentError = true
-            return
-          }
-
-          if (/^bplist/.test(b)) { // compiled?
-            // compiled - so decompile....
-            var pPath = util.format('%s/%s.plist', pdefsPath, p.id)
-            fs.writeFile(pPath, b, 'utf8', function(e) {
-              if (e) {
-                callback(util.format('error writing binary plist id="%s". error="%s"', p.id, e))
-                sentError = true
-                return
-              }
-
-              exec(plutilCommand + pPath, function(e) {
-                if (e) {
-                  callback(util.format('error decompiling plist id="%s". error="%s"', p.id, e))
-                  sentError = true
-                  return
-                }
-
-                p.pdef = plist.parseFileSync(pPath)
-
-                if (!p.pdef) {
-                  callback(util.format('error parsing decompiled plist id="%s". error="%s"', p.id, e))
-                  sentError = true
-                } else if (!--remaining) {
-                  next()
-                }
-              })
-            })
-          } else {
-            // not compiled
-            p.pdef = plist.parseStringSync(b)
-            if (!p.pdef) {
-              callback(util.format('error parsing plist id="%s". error="%s"', p.id, e))
-              sentError = true
-            } else if (!--remaining) {
-              next()
-            }
-          }
-        })
-      })
-    }
-
     function createSQLiteDB(content, cb) {
       var db = new sqlite3.Database(contentDBPath)
       db.serialize(function() {
@@ -2261,14 +2161,12 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
     content = getAppContentJSON()
     if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
 
-    getPDefs(content.problems, function() { // only reachable on getPDefs success
-      createSQLiteDB(content, function(e, statusCode) {
-        if (201 != statusCode) {
-          callback(e || 'error creating content database', statusCode || 500)
-        } else {
-          gotoNext.apply(null, args)
-        }
-      })
+    createSQLiteDB(content, function(e, statusCode) {
+      if (201 != statusCode) {
+        callback(e || 'error creating content database', statusCode || 500)
+      } else {
+        gotoNext.apply(null, args)
+      }
     })
   }
   
