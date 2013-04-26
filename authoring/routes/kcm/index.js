@@ -2,6 +2,7 @@ var fs = require('fs')
   , _ = require('underscore')
   , util = require('util')
   , exec = require('child_process').exec
+  , zlib = require('zlib')
   , stream = require('stream')
   , zipstream = require('zipstream')
   , plist = require('plist')
@@ -275,7 +276,7 @@ module.exports = function(config, legacyKCMController, kcm) {
         res.send(e || rev, statusCode || 500)
       })
     }
-    , getMap: function(req, res) {
+    , getKCM: function(req,res) {
       var map = {
         user:kcm.docStores.users[req.session.user._id]
         , pipelines:kcm.docStores.pipelines
@@ -298,7 +299,17 @@ module.exports = function(config, legacyKCMController, kcm) {
         }
       })
 
-      res.render('kcm/map', { title:'Knowledge Concept Map', map:map })
+      res.header('content-type', 'application/javascript')
+      res.header('content-encoding', 'gzip')
+      
+      var s = new stream.Stream()
+      s.readable = true
+      s.pipe(zlib.createGzip({ level: 9 })).pipe(res)
+      s.emit('data', 'var kcm = ' + JSON.stringify(map, null, 2))
+      s.emit('end')
+    }
+    , getMap: function(req, res) {
+      res.render('kcm/map', { title:'Knowledge Concept Map', plWfStatuses:req.app.config.authoring.pipelineWorkflowStatuses, userOnDevTeam:kcm.docStores.users[req.session.user._id].devteam })
     }
     , insertConceptNode: function(req, res) {
       kcmController.insertConceptNode(

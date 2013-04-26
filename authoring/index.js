@@ -54,7 +54,8 @@ function configServer() {
     server.use(express.favicon())
     server.use(express.bodyParser())
     server.use(express.cookieParser())
-    /*server.use(function(req,res,next) {
+    /*
+    server.use(function(req,res,next) {
       console.log(new Date(), req.url)
       next()
     })//*/
@@ -74,9 +75,10 @@ function configServer() {
 // routes
 function setupRoutes() {
   server.get('/', function(req,res) { res.redirect('/kcm') })
+  server.get('/kcm', server.kcmRouteHandlers.getMap)
 
   // TODO: improve paths below - more in the uri less in req.body
-  server.get('/kcm', server.kcmRouteHandlers.getMap)
+  server.get('/kcm/model.js', server.kcmRouteHandlers.getKCM)
   server.get('/kcm/pull-replicate', server.kcmRouteHandlers.pullReplicate) //TODO: Get request shouldn't have side-effects - create replication page with post request to initiate/cancel replications
   server.get('/kcm/get-app-canned-databases', server.kcmRouteHandlers.getAppCannedDatabases)
 
