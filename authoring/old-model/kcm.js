@@ -832,7 +832,9 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
 
   nextVersion(problem, user._id, 'appEditPDef')
 
-  var info = getProblemInfoFromPList(plistString)
+  var info = getProblemInfoFromPList(
+    plist.build(pdef).toString())
+
   if (info.error) {
     callback(info.error.match(/^[^\n]*/)[0], 400)
     return
