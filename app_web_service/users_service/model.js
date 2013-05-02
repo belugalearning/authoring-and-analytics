@@ -6,12 +6,14 @@ var couchServerURI
   , dbName
   , designDoc
   , databaseURI
+  , sapDbURI
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1')
   dbName = config.appWebService.usersService.databaseName
   designDoc = config.appWebService.usersService.databaseDesignDoc
   databaseURI = util.format('%s/%s', couchServerURI, dbName)
+  sapDbURI = util.format('%s/%s', couchServerURI, config.sap.databaseName)
   console.log(util.format('AppWebService -> usersService\tdesignDoc="%s"\tdatabaseURI="%s"', designDoc, databaseURI))
 
   return {
@@ -58,20 +60,15 @@ function syncUsers(clientDeviceUsers, callback) {
     }
   }
 
-  var processNewUsers = function(newUserIds, callback) {
+  var processNewUsers = function(newUsers, fn) {
     // do their nicks clash? set nickClash=1 if no, nickClash=2 if yes
     // as such all new users will need updating on client
     // and being new users, they'll need adding to the server db too
 
-    if (!newUserIds.length) {
+    if (!newUsers.length) {
       newUsersProcessed = true
-      callback()
-      return
+      return fn()
     }
-
-    var newUsers = _.map(
-      newUserIds
-      , function(id) { return _.find(clientDeviceUsers, function(ur) { return ur.id == id }) })
 
     var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=%s', databaseURI, designDoc, encodeURIComponent(JSON.stringify(_.pluck(newUsers, 'nick'))))
     request(nickClashesURI, function(e,r,b) {
@@ -95,6 +92,7 @@ function syncUsers(clientDeviceUsers, callback) {
           , nick: ur.nick
           , password: ur.password
           , nickClash: ur.nickClash
+          , assignmentFlags: {}
         }
       }))
 
@@ -103,15 +101,120 @@ function syncUsers(clientDeviceUsers, callback) {
     })
   }
 
-  // this func currently doesn't do much. Not synching required for existing users - see comment at top of sycnUsers()
-  var processExistingUsers = function(serverVersions, callback) {
-    /*
-    var clientVersions = _.map(
-      serverVersions
-      , function(serverUr) { _.find(clientDeviceUrs, function(clientUr) { return clientUr.id == serverUr._id }) })
-    */
+  var processExistingUsers = function(existingUrs, fn) {
+    // ur.{assignmentFlags}.{pupil}.{pin}.{pin_type / LAST_COMPLETED} = {date}
+
+    var updatedAppUsers = []
+    var updatedPupils = {} // pupilId: appUserId
+
+    existingUrs.forEach(function(ur, urIx) {
+      var serverAssignments = ur.server.assignmentFlags
+      var clientAssignments = ur.client.assignmentFlags
+      var completions = {}
+
+      if (clientAssignments) {
+        // first remove properties from client that no longer exist on server
+        Object.keys(clientAssignments).forEach(function(pupilId) {
+          if (!serverAssignments[pupilId]) return delete clientAssignments[pupilId]
+          Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
+            if (!serverAssignments[pupilId][pinId]) return delete clientAssignments[pupilId][pinId]
+            Object.keys(clientAssignments[pupilId][pinId]).forEach(function(flagType) {
+              if (flagType != 'LAST_COMPLETED' && !serverAssignments[pupilId][pinId][flagType]) delete clientAssignments[pupilId][pinId][flagType]
+            })
+          })
+        })
+
+        // get pin completions
+        Object.keys(clientAssignments).forEach(function(pupilId) {
+          Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
+            if (typeof clientAssignments[pupilId][pinId]['LAST_COMPLETED'] == 'number') {
+              completions[pinId] = clientAssignments[pupilId][pinId]['LAST_COMPLETED']
+            }
+          })
+        })
+      }
+
+      // apply completions
+      Object.keys(completions).forEach(function(pinId) {
+        var completedAt = completions[pinId]
+        Object.keys(serverAssignments).forEach(function(pupilId) {
+          var pinFlags = serverAssignments[pupilId][pinId]
+          if (!pinFlags) return
+          Object.keys(pinFlags).forEach(function(flagType) {
+            if (flagType != 'LAST_COMPLETED' && completedAt > pinFlags[flagType]) {
+              delete pinFlags[flagType]
+              if (!~updatedAppUsers.indexOf(ur.server)) updatedAppUsers.push(ur.server)
+              updatedPupils[pupilId] = ur.server.assignmentFlags[pupilId]
+            }
+          })
+          if (!Object.keys(pinFlags).length) delete serverAssignments[pupilId][pinId]
+          if (!Object.keys(serverAssignments[pupilId]).length) delete serverAssignments[pupilId]
+        })
+      })
+
+      ur.client.assignmentFlags = ur.server.assignmentFlags
+      clientUpdates.push(ur.client)
+    })
+
     existingUsersProcessed = true
-    callback()
+    fn()
+
+    var updatedPupilIds = Object.keys(updatedPupils)
+    if (updatedPupilIds.length) {
+      var reqOpts = {
+        uri: sapDbURI + '/_all_docs?include_docs=true',
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ keys: updatedPupilIds })
+      }
+
+      request(reqOpts, function(e,r,b) {
+        var sc = r && r.statusCode
+        if (sc != 200) return console.log('syncUsers: error retreiving pupils: uri=%s (sc=%s, e=%s, b=%s)', reqOpts.uri, sc, e, b.replace(/\s*$/, ''))
+        
+        var pupils = JSON.parse(b).rows
+          .map(function(r) { return r.doc })
+          .filter(function(d) { return !!d }) // TODO: log error if missing
+
+        pupils.forEach(function(pupil) {
+          var ur = existingUrs.filter(function(ur) { return ur.server._id == pupil.appUser })
+          if (ur) {
+            var appUr = ur[0].server
+            pupil.assignmentFlags = appUr.assignmentFlags[pupil._id] || {}
+          }
+        })
+
+        var updatePupilsReq = {
+          uri: sapDbURI + '/_bulk_docs',
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ docs: pupils })
+        }
+
+         request(updatePupilsReq, function(e,r,b) {
+           var sc = r && r.statusCode
+           if (sc != 201) {
+             return console.log('error updating pupils: %s', JSON.stringify(updatePupilsReq,null,2).replace(/\n/g, '\n\t'))
+           }
+         })
+      })
+    }
+
+    if (updatedAppUsers.length) {
+      var updateAppUsersReq = {
+        uri: databaseURI + '/_bulk_docs',
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ docs: updatedAppUsers })
+      }
+
+      request(updateAppUsersReq, function(e,r,b) {
+        var sc = r && r.statusCode
+        if (sc != 201) {
+          return console.log('syncUsers: error updating all users: (sc=%s, e=%s, b=%s)\n\t%s', sc, e, b, JSON.stringify(updateAppUsersReq,null,2).replace(/\n/g, '\n\t').replace(/\s*$/, '')) 
+        }
+      })
+    }
   }
 
   var onProcessUserGroup = function onProcessUserGroup() {
@@ -138,16 +241,21 @@ function syncUsers(clientDeviceUsers, callback) {
   request(getExistingUsersURI, function(e,r,b) {
     if (checkResponseError(e, r, b, 200, getExistingUsersURI)) return
 
-    // existing users
-    var serverVersionExistingUrs =_.filter(
-      _.pluck(JSON.parse(b).rows, 'doc')
-      , function(d) { return d != null })
+    var existingUsers = []
+    var newUsers = []
 
-    processExistingUsers(serverVersionExistingUrs, onProcessUserGroup)
+    JSON.parse(b).rows.forEach(function(row, i) {
+      var clientUr = clientDeviceUsers[i]
 
-    // new users
-    var newUserIds = _.difference(urIds , _.pluck(serverVersionExistingUrs, '_id')) // users that need adding to the server
-    processNewUsers(newUserIds, onProcessUserGroup)
+      if (row.doc) {
+        existingUsers.push({ server: row.doc, client: clientUr })
+      } else {
+        newUsers.push(clientUr)
+      }
+    })
+
+    processExistingUsers(existingUsers, onProcessUserGroup)
+    processNewUsers(newUsers, onProcessUserGroup)
   })
 }
 

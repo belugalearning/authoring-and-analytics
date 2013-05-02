@@ -21,8 +21,8 @@ exports.syncUsers = function syncUsers(req, res) {
   if (req.body && req.body.users) {
     users = JSON.parse(req.body.users)
   }
-  if (Object.prototype.toString.call(users) != '[object Array]') {
-    console.log('%s\tsyncUsers Bad Args: req.body.users array expected.\treq.body: %j', niceConciseDate(), req.body)
+  if (!Array.isArray(users)) {
+    console.log('%s\tsyncUsers Bad Args: req.body.users array expected.\treq.body: %j, users: %j', niceConciseDate(), req.body, users)
     res.send(500)
     return
   }
