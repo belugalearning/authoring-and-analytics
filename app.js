@@ -5,7 +5,12 @@ var fs = require('fs')
 console.log('\nBLWebApp Launched at', new Date())
 
 var config = JSON.parse(fs.readFileSync(__dirname + '/config.json'))
-  , appWebService = require('./app_web_service')(config)
+
+if (!!~process.argv.indexOf('--localise-couchdb-uris')) {
+  config.couchServerURI = config.couchServerURI.replace(/^.*:\/\//, '127.0.0.1://')
+}
+
+var appWebService = require('./app_web_service')(config)
   , authoring = require('./authoring')(config)
   , webPortal = new WebPortal(config)
 
