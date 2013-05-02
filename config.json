@@ -10,6 +10,9 @@
       , "databaseDesignDoc": "users-views"
     }   
   }
+  , "sap": {
+    "databaseName": "sap-dev-1"
+  }
   , "authoring" : { 
     "port": 3001
     , "kcmDatabaseName": "tmp-blm-kcm3"
