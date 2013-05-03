@@ -152,7 +152,7 @@ exports.getUserMatchingNickAndPassword = function getUserMatchingNickAndPassword
 
     for (var i=0; i<rows.length; i++) {
       if (rows[i].doc.nickClash == 1) {
-        res.send({ id:rows[i].doc._id, nick:rows[i].doc.nick, password:rows[i].doc.password, nickClash:1 }, 200)
+        res.send({ id:rows[i].doc._id, nick:rows[i].doc.nick, password:rows[i].doc.password, assignmentFlags:rows[i].doc.assignmentFlags, nickClash:1 }, 200)
         return
       }
     }
