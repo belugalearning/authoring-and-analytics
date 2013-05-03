@@ -108,23 +108,24 @@ function syncUsers(clientDeviceUsers, callback) {
     var updatedPupils = {} // pupilId: appUserId
 
     existingUrs.forEach(function(ur, urIx) {
-      var serverAssignments = ur.server.assignmentFlags
+      var serverAssignments = ur.server.assignmentFlags || {} // ur.server.assignmentFlags should always exist but just in case...
       var clientAssignments = ur.client.assignmentFlags
       var completions = {}
 
       if (clientAssignments) {
         // first remove properties from client that no longer exist on server
+        // (this step should be unnecessary but feeling too cautious to take it out!)
         Object.keys(clientAssignments).forEach(function(pupilId) {
           if (!serverAssignments[pupilId]) return delete clientAssignments[pupilId]
           Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
             if (!serverAssignments[pupilId][pinId]) return delete clientAssignments[pupilId][pinId]
             Object.keys(clientAssignments[pupilId][pinId]).forEach(function(flagType) {
-              if (flagType != 'LAST_COMPLETED' && !serverAssignments[pupilId][pinId][flagType]) delete clientAssignments[pupilId][pinId][flagType]
+              if (!serverAssignments[pupilId][pinId][flagType]) delete clientAssignments[pupilId][pinId][flagType]
             })
           })
         })
 
-        // get pin completions
+        // get client pin completions since last sync
         Object.keys(clientAssignments).forEach(function(pupilId) {
           Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
             if (typeof clientAssignments[pupilId][pinId]['LAST_COMPLETED'] == 'number') {
@@ -134,7 +135,7 @@ function syncUsers(clientDeviceUsers, callback) {
         })
       }
 
-      // apply completions
+      // update serverAssignments by removing pins completed later than date assigned to pupil
       Object.keys(completions).forEach(function(pinId) {
         var completedAt = completions[pinId]
         Object.keys(serverAssignments).forEach(function(pupilId) {
@@ -152,12 +153,14 @@ function syncUsers(clientDeviceUsers, callback) {
         })
       })
 
-      ur.client.assignmentFlags = ur.server.assignmentFlags
+
+      // update client assignments to match server
+      ur.client.assignmentFlags = serverAssignments
+
+      // and have assignment flags sent back down to client
       clientUpdates.push(ur.client)
     })
 
-    existingUsersProcessed = true
-    fn()
 
     var updatedPupilIds = Object.keys(updatedPupils)
     if (updatedPupilIds.length) {
@@ -200,21 +203,9 @@ function syncUsers(clientDeviceUsers, callback) {
       })
     }
 
-    if (updatedAppUsers.length) {
-      var updateAppUsersReq = {
-        uri: databaseURI + '/_bulk_docs',
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ docs: updatedAppUsers })
-      }
-
-      request(updateAppUsersReq, function(e,r,b) {
-        var sc = r && r.statusCode
-        if (sc != 201) {
-          return console.log('syncUsers: error updating all users: (sc=%s, e=%s, b=%s)\n\t%s', sc, e, b, JSON.stringify(updateAppUsersReq,null,2).replace(/\n/g, '\n\t').replace(/\s*$/, '')) 
-        }
-      })
-    }
+    serverUpdates = serverUpdates.concat(updatedAppUsers)
+    existingUsersProcessed = true
+    fn()
   }
 
   var onProcessUserGroup = function onProcessUserGroup() {
@@ -230,6 +221,7 @@ function syncUsers(clientDeviceUsers, callback) {
           , headers: { 'content-type':'application/json', accepts:'application/json' }
           , body: JSON.stringify({ docs: serverUpdates })
         }, function(e,r,b) {
+          console.log('\nonProcessUserGroup:', r.statusCode, JSON.stringify(JSON.parse(b, null, 2)))
           checkResponseError(e, r, b, 201, uri)
         })
       }
