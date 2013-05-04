@@ -137,27 +137,27 @@ exports.getUserMatchingNickAndPassword = function getUserMatchingNickAndPassword
     , password = req.body.password
 
   model.userMatchingNickAndPassword(nick, password, function(e,r,b) {
-    if (200 != r.statusCode) {
-      //console.log(nick, password, e, r.statusCode)
-      res.send(e, r.statusCode || 500)
-      return
-    }
+    if (r && r.statusCode != 200) return res.send(e, r.statusCode || 500)
 
     var rows = JSON.parse(b).rows
 
-    if (!rows.length) {
-      res.send(404)
-      return
-    }
+    if (!rows.length) return res.send(404)
 
-    for (var i=0; i<rows.length; i++) {
-      if (rows[i].doc.nickClash == 1) {
-        res.send({ id:rows[i].doc._id, nick:rows[i].doc.nick, password:rows[i].doc.password, assignmentFlags:rows[i].doc.assignmentFlags, nickClash:1 }, 200)
-        return
+    var users = rows.map(function(r) { return r.doc })
+
+    var user = null
+    if (users.length == 1) {
+      user = users[0]
+    } else {
+      var usersWithoutNickClash = users.filter(function(ur) { return ur.nickClash == 1 }) // max length 1
+      if (usersWithoutNickClash.length) {
+        user = usersWithoutNickClash[0]
+      } else {
+        return res.send(409)
       }
     }
 
-    res.send(404)
+    return res.send({ id:user._id, nick:user.nick, password:user.password, assignmentFlags:user.assignmentFlags, nickClash:user.nickClash }, 200)
   })
 }
 
