@@ -136,7 +136,8 @@ function nextVersion(doc, user, action, actionData) {
 
     if (!doc.versions) doc.versions = []
     var lastVersion = doc.currentVersion || {}
-    doc.versions.push({ rev:doc._rev, user:lastVersion.user, date:lastVersion.date, action:lastVersion.action })
+    lastVersion._rev = doc._rev
+    doc.versions.push(lastVersion)
 
     doc.currentVersion = {
       user: user
