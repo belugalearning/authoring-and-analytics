@@ -129,22 +129,34 @@ function firstVersion(user, action, actionData) {
 }
 
 function nextVersion(doc, user, action, actionData) {
-    var b64 = new Buffer(JSON.stringify(doc)).toString('base64')
+  if (!doc._attachments) {
+    doc._attachments = {}
+  }
 
-    if (!doc._attachments) doc._attachments = {}
-    doc._attachments[doc._rev] = { "content_type":"application\/json", "data":new Buffer(JSON.stringify(doc)).toString('base64') }
+  doc._attachments[doc._rev] = {
+    "content_type": "application\/json",
+    "data": new Buffer(JSON.stringify(doc)).toString('base64')
+  }
 
-    if (!doc.versions) doc.versions = []
-    var lastVersion = doc.currentVersion || {}
-    lastVersion._rev = doc._rev
-    doc.versions.push(lastVersion)
+  if (!doc.versions) {
+    doc.versions = []
+  }
 
-    doc.currentVersion = {
-      user: user
-      , date: new Date
-      , action: action
-      , actionData: actionData
-    }
+  var v = {}
+  v.rev = doc._rev
+  if (doc.currentVersion) {
+    Object.keys(doc.currentVersion).forEach(function(key) {
+      v[key] = doc.currentVersion[key]
+    })  
+  }
+  doc.versions.push(v)
+
+  doc.currentVersion = { 
+    user: user
+    , date: new Date
+    , action: action
+    , actionData: actionData
+  }
 }
 
 function replaceUUIDWithGraffleId() {
