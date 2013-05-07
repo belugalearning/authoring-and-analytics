@@ -111,7 +111,7 @@ function syncUsers(clientDeviceUsers, callback) {
       }
 
       newUsersProcessed = true
-      callback()
+      fn()
     })
   }
 
