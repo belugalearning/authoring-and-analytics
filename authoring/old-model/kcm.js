@@ -129,13 +129,16 @@ function firstVersion(user, action, actionData) {
 }
 
 function nextVersion(doc, user, action, actionData) {
+  // before any changes to doc!
+  var b64 = new Buffer(JSON.stringify(doc)).toString('base64')
+
   if (!doc._attachments) {
     doc._attachments = {}
   }
 
   doc._attachments[doc._rev] = {
     "content_type": "application\/json",
-    "data": new Buffer(JSON.stringify(doc)).toString('base64')
+    "data": b64
   }
 
   if (!doc.versions) {
