@@ -130,18 +130,6 @@ function syncUsers(clientDeviceUsers, callback) {
       var completions = {}
 
       if (clientAssignments) {
-        // first remove properties from client that no longer exist on server
-        // (this step should be unnecessary but feeling too cautious to take it out!)
-        Object.keys(clientAssignments).forEach(function(pupilId) {
-          if (!serverAssignments[pupilId]) return delete clientAssignments[pupilId]
-          Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
-            if (!serverAssignments[pupilId][pinId]) return delete clientAssignments[pupilId][pinId]
-            Object.keys(clientAssignments[pupilId][pinId]).forEach(function(flagType) {
-              if (!serverAssignments[pupilId][pinId][flagType]) delete clientAssignments[pupilId][pinId][flagType]
-            })
-          })
-        })
-
         // get client pin completions since last sync
         Object.keys(clientAssignments).forEach(function(pupilId) {
           Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
