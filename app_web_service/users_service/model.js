@@ -7,7 +7,7 @@ var couchServerURI
   , designDoc
   , databaseURI
   , sapDbURI
-  , verboseLogging = false
+  , verboseLogging = true
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1')
@@ -117,7 +117,7 @@ function syncUsers(clientDeviceUsers, callback) {
 
   var processExistingUsers = function(existingUrs, fn) {
     if (verboseLogging) {
-      console.log('\nAppWebServices -> UsersService -> model -> processExistingUsers: existingUrs = %s', JSON.stringify(existingUrs,null,2))
+      console.log('\nAppWebServices -> UsersService -> model -> processExistingUsers: existingUrs = %s', JSON.stringify(existingUrs.filter(function(ur) { return ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085'}),null,2))
     }
     // ur.{assignmentFlags}.{pupil}.{pin}.{pin_type / LAST_COMPLETED} = {date}
 
@@ -125,6 +125,7 @@ function syncUsers(clientDeviceUsers, callback) {
     var updatedPupils = {} // pupilId: appUserId
 
     existingUrs.forEach(function(ur, urIx) {
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('\n\n\nur: %s DIGGIE -------', ur.server._id)
       var serverAssignments = ur.server.assignmentFlags || {} // ur.server.assignmentFlags should always exist but just in case...
       var clientAssignments = ur.client.assignmentFlags
       var completions = {}
@@ -142,24 +143,32 @@ function syncUsers(clientDeviceUsers, callback) {
           })
         })
 
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('clientAssignments: %s', JSON.stringify(clientAssignments,null,2).replace(/\n/g, '\n\t'))
         // get client pin completions since last sync
         Object.keys(clientAssignments).forEach(function(pupilId) {
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('pupil:', pupilId)
           Object.keys(clientAssignments[pupilId]).forEach(function(pinId) {
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('clientAssignments["%s"]["%s"]["LAST_COMPLETED"]  = %s      typeof: %s', pupilId, pinId, clientAssignments[pupilId][pinId]['LAST_COMPLETED'], typeof clientAssignments[pupilId][pinId]['LAST_COMPLETED'])
             if (typeof clientAssignments[pupilId][pinId]['LAST_COMPLETED'] == 'number') {
               completions[pinId] = clientAssignments[pupilId][pinId]['LAST_COMPLETED']
             }
           })
         })
       }
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('ur: %s, completions: %s', ur.server._id, JSON.stringify(completions))
 
       // update serverAssignments by removing pins completed later than date assigned to pupil
       Object.keys(completions).forEach(function(pinId) {
         var completedAt = completions[pinId]
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('ur: %s, pin: %s, completedAt: %s', ur.server._id, pinId, completedAt)
         Object.keys(serverAssignments).forEach(function(pupilId) {
           var pinFlags = serverAssignments[pupilId][pinId]
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('pinFlags: %s', pinFlags)
           if (!pinFlags) return
           Object.keys(pinFlags).forEach(function(flagType) {
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085' && flagType != 'LAST_COMPLETED') console.log('completedAt(%s) > pinFlags[%s](%s) ? %s', completedAt, flagType, pinFlags[flagType], completedAt > flagType)
             if (flagType != 'LAST_COMPLETED' && completedAt > pinFlags[flagType]) {
+if (ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') console.log('delete pinFlags[%s]', flagType)
               delete pinFlags[flagType]
               if (!~updatedAppUsers.indexOf(ur.server)) updatedAppUsers.push(ur.server)
               updatedPupils[pupilId] = ur.server.assignmentFlags[pupilId]
@@ -177,11 +186,10 @@ function syncUsers(clientDeviceUsers, callback) {
       // and have assignment flags sent back down to client
       clientUpdates.push(ur.client)
 
-      if (verboseLogging) {
+      if (verboseLogging && ur.server._id == '1560FB7A-C6C2-45F3-9834-258845F5C085') {
         console.log('AppWebServices -> UsersService -> model -> processExistingUsers: processedUr = %s', JSON.stringify(ur,null,2))
       }
     })
-
 
     var updatedPupilIds = Object.keys(updatedPupils)
 

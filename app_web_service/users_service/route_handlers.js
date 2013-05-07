@@ -9,7 +9,7 @@ var util = require('util')
 
 var model
   , config
-  , verboseLogging = false
+  , verboseLogging = true
 
 module.exports = function(model_, config_) {
   model = model_
