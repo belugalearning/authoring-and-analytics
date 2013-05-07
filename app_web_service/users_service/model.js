@@ -261,7 +261,7 @@ function syncUsers(clientDeviceUsers, callback) {
           if (verboseLogging) {
             console.log('\nAppWebServices -> UsersService -> model -> onProcessUserGroup -> serverUpdatesRes = %s', JSON.stringify({ e:e, sc:r ? r.statusCode : '', b:b },null,2))
           }
-          checkResponseError(e, r, b, 201, uri)
+          checkResponseError(e, r, b, 201, serverUpdatesReq.uri)
         })
       }
     }
