@@ -7,6 +7,7 @@ var couchServerURI
   , designDoc
   , databaseURI
   , sapDbURI
+  , verboseLogging = false
 
 module.exports = function(config) {
   couchServerURI = config.couchServerURI.replace(/^(.+[^/])\/*$/, '$1')
@@ -32,11 +33,8 @@ function syncUsers(clientDeviceUsers, callback) {
     , serverUpdates = []
     , hasSentResponse = false
 
-  var niceConciseDate = function niceConciseDate() {
-    return new Date()
-    .toJSON()
-    .replace(/T/, '-')
-    .replace(/\.[0-9]{3}Z$/, '')
+  if (verboseLogging) {
+    console.log('\nAppWebServices -> UsersService -> model -> syncUsers: urIds = %s', urIds)
   }
 
   var sendError = function sendError(e, sc) {
@@ -65,6 +63,10 @@ function syncUsers(clientDeviceUsers, callback) {
     // as such all new users will need updating on client
     // and being new users, they'll need adding to the server db too
 
+    if (verboseLogging) {
+      console.log('\nAppWebServices -> UsersService -> model -> processNewUsers:\n\tnewUsers is array = %s\n\tnewUsers = %s', Array.isArray(newUsers), Array.isArray(newUsers) ? JSON.stringify(newUsers,null,2) : newUsers)
+    }
+
     if (!newUsers.length) {
       newUsersProcessed = true
       return fn()
@@ -72,9 +74,17 @@ function syncUsers(clientDeviceUsers, callback) {
 
     var nickClashesURI = util.format('%s/_design/%s/_view/users-by-nick?keys=%s', databaseURI, designDoc, encodeURIComponent(JSON.stringify(_.pluck(newUsers, 'nick'))))
     request(nickClashesURI, function(e,r,b) {
+      if (verboseLogging) {
+        console.log('AppWebServices -> UsersService -> model -> processNewUsers: nick-clash-response\n\te: %s\n\tsc: %s\n\tb: %s', e, r ? r.statusCode : '', b)
+      }
+
       if (checkResponseError(e, r, b, 200, nickClashesURI)) return
 
       var takenNicks = JSON.parse(b).rows.map(function(r) {  return r.key })
+
+      if (verboseLogging) {
+        console.log('AppWebServices -> UsersService -> model -> processNewUsers: takenNicks = %s', JSON.stringify(takenNicks,null,2))
+      }
 
       newUsers.forEach(function(ur) {
         if (~takenNicks.indexOf(ur.nick)) {
@@ -96,12 +106,19 @@ function syncUsers(clientDeviceUsers, callback) {
         }
       }))
 
+      if (verboseLogging) {
+        console.log('AppWebServices -> UsersService -> model -> processNewUsers: serverUpdates = %s', JSON.stringify(serverUpdates,null,2))
+      }
+
       newUsersProcessed = true
       callback()
     })
   }
 
   var processExistingUsers = function(existingUrs, fn) {
+    if (verboseLogging) {
+      console.log('\nAppWebServices -> UsersService -> model -> processExistingUsers: existingUrs = %s', JSON.stringify(existingUrs,null,2))
+    }
     // ur.{assignmentFlags}.{pupil}.{pin}.{pin_type / LAST_COMPLETED} = {date}
 
     var updatedAppUsers = []
@@ -159,10 +176,15 @@ function syncUsers(clientDeviceUsers, callback) {
 
       // and have assignment flags sent back down to client
       clientUpdates.push(ur.client)
+
+      if (verboseLogging) {
+        console.log('AppWebServices -> UsersService -> model -> processExistingUsers: processedUr = %s', JSON.stringify(ur,null,2))
+      }
     })
 
 
     var updatedPupilIds = Object.keys(updatedPupils)
+
     if (updatedPupilIds.length) {
       var reqOpts = {
         uri: sapDbURI + '/_all_docs?include_docs=true',
@@ -194,12 +216,19 @@ function syncUsers(clientDeviceUsers, callback) {
           body: JSON.stringify({ docs: pupils })
         }
 
-         request(updatePupilsReq, function(e,r,b) {
-           var sc = r && r.statusCode
-           if (sc != 201) {
-             return console.log('error updating pupils: %s', JSON.stringify(updatePupilsReq,null,2).replace(/\n/g, '\n\t'))
-           }
-         })
+        if (verboseLogging) {
+          console.log('\nAppWebServices -> UsersService -> model -> updatePupilsReq = %s', JSON.stringify(updatePupilsReq,null,2))
+        }
+
+        request(updatePupilsReq, function(e,r,b) {
+          var sc = r && r.statusCode
+          if (verboseLogging) {
+            console.log('\nAppWebServices -> UsersService -> model -> updatePupilsRes = %s', JSON.stringify({ e:e, sc:sc, b:b },null,2))
+          }
+          if (sc != 201) {
+            return console.log('error updating pupils: %s', JSON.stringify(updatePupilsReq,null,2).replace(/\n/g, '\n\t'))
+          }
+        })
       })
     }
 
@@ -210,18 +239,28 @@ function syncUsers(clientDeviceUsers, callback) {
 
   var onProcessUserGroup = function onProcessUserGroup() {
     if (!hasSentResponse && newUsersProcessed && existingUsersProcessed) {
+      if (verboseLogging) {
+        console.log('\nAppWebServices -> UsersService -> model -> onProcessUserGroup -> SEND CLIENT UPDATES')
+      }
       callback(null, 200, clientUpdates)
       hasSentResponse = true
 
       if (serverUpdates.length) {
-        var uri = util.format('%s/_bulk_docs', databaseURI)
-        request({
-          uri: uri
+        var serverUpdatesReq = {
+          uri: util.format('%s/_bulk_docs', databaseURI)
           , method: 'POST'
           , headers: { 'content-type':'application/json', accepts:'application/json' }
           , body: JSON.stringify({ docs: serverUpdates })
-        }, function(e,r,b) {
-          console.log('\nonProcessUserGroup:', r.statusCode, JSON.stringify(JSON.parse(b, null, 2)))
+        }
+
+        if (verboseLogging) {
+          console.log('AppWebServices -> UsersService -> model -> onProcessUserGroup -> serverUpdatesReq = %s', JSON.stringify(serverUpdatesReq,null,2))
+        }
+
+        request(serverUpdatesReq, function(e,r,b) {
+          if (verboseLogging) {
+            console.log('\nAppWebServices -> UsersService -> model -> onProcessUserGroup -> serverUpdatesRes = %s', JSON.stringify({ e:e, sc:r ? r.statusCode : '', b:b },null,2))
+          }
           checkResponseError(e, r, b, 201, uri)
         })
       }
@@ -312,4 +351,11 @@ function queryView(view) {
     }
   }
   request.get(uri, callback)
+}
+
+function niceConciseDate() {
+  return new Date()
+  .toJSON()
+  .replace(/T/, '-')
+  .replace(/\.[0-9]{3}Z$/, '')
 }

@@ -9,6 +9,7 @@ var util = require('util')
 
 var model
   , config
+  , verboseLogging = false
 
 module.exports = function(model_, config_) {
   model = model_
@@ -17,6 +18,10 @@ module.exports = function(model_, config_) {
 }
 
 exports.syncUsers = function syncUsers(req, res) {
+  if (verboseLogging) {
+    console.log('\nAppWebServices -> UsersService -> routeHandlers -> syncUsers')
+  }
+
   var users
   if (req.body && req.body.users) {
     users = JSON.parse(req.body.users)
@@ -28,6 +33,10 @@ exports.syncUsers = function syncUsers(req, res) {
   }
 
   model.syncUsers(users, function(e, statusCode, updates) {
+    if (verboseLogging) {
+      console.log('----- End Sync Users: %s', JSON.stringify({ e:e, sc:statusCode, updates:updates }, null, 2))
+      console.log('DEBUG STACK AT END SYNC USERS: %s', new Error().stack)
+    }
     res.send(e || updates, statusCode || 500)
   })
 }
