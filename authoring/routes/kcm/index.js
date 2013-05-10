@@ -270,7 +270,7 @@ module.exports = function(config, legacyKCMController, kcm) {
     }
     , updateUser: function(req, res) {
       if (req.body.user._id !== req.session.user._id) {
-        req.send(401)
+        res.send(401)
         return
       }
       kcmController.updateUser(req.body.user, function(e, statusCode, rev) {
@@ -578,12 +578,12 @@ module.exports = function(config, legacyKCMController, kcm) {
           , tool = problem && problem.toolId && kcm.getDocClone(problem.toolId, 'tool')
 
         if (!problemId) {
-          req.send('requires problemId', 412)
+          res.send('requires problemId', 412)
           return
         }
 
         if (!problem) {
-          req.send(util.format('problem with id="%s" not found', problemId), 404)
+          res.send(util.format('problem with id="%s" not found', problemId), 404)
           return
         }
 
