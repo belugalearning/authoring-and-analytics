@@ -6,6 +6,7 @@ var fs = require('fs')
   , stream = require('stream')
   , zipstream = require('zipstream')
   , plist = require('plist')
+  , encode = require('../../encode-decode').encode
   , kcmController
 ;
 
@@ -443,7 +444,7 @@ module.exports = function(config, legacyKCMController, kcm) {
           , pls = plistStreams[i] = new PListStream('pdef_'+i)
 
         pls.write(
-          plist.build(pdef).toString())
+          plist.build(encode(pdef)).toString())
         pls.end()
       })
 
@@ -601,7 +602,7 @@ module.exports = function(config, legacyKCMController, kcm) {
         if (pdef) {
           if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
           res.header('Content-Type', 'application/xml')
-          res.send(plist.build(pdef).toString())
+          res.send(plist.build(encode(pdef)).toString())
         } else {
           kcmController.getPDef(problemId, function(e,r,b) {
             var sc = r && r.statusCode

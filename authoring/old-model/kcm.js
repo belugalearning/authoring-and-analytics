@@ -6,6 +6,7 @@ var fs = require('fs')
   , exec = require('child_process').exec
   , sqlite3 = require('sqlite3').verbose()
   , plist = require('plist')
+  , encode = require('../encode-decode').encode
 
 var kcmDatabaseName
   , kcm // new model - gradually transition to retrieving docs from here & updating/deleting via its controllers
@@ -849,7 +850,7 @@ function appEditPDef(userLoginName, pId, pRev, pdef, callback) {
   nextVersion(problem, user._id, 'appEditPDef')
 
   var info = getProblemInfoFromPList(
-    plist.build(pdef).toString())
+    plist.build(encode(pdef)).toString())
 
   if (info.error) {
     callback(info.error.match(/^[^\n]*/)[0], 400)

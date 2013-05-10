@@ -12,8 +12,8 @@
     "underscore": "1.3.x",
     "ws": "0.4.x",
     "zipstream": "0.2.x",
-    "plist": "https://github.com/aslant/node-plist/tarball/1081298baff007d505d5c51a1d6b11449366702d",
-    "async": "~0.2.7"
+    "async": "~0.2.7",
+    "plist": "~0.4.3"
   },
   "devDependencies": {},
   "optionalDependencies": {},
