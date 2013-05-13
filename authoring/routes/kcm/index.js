@@ -599,20 +599,9 @@ module.exports = function(config, legacyKCMController, kcm) {
         if (!problemId) return res.send('requires problemId', 400)
 
         var pdef = kcm.getDocClone(problemId, 'problem').pdef
-        if (pdef) {
-          if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
-          res.header('Content-Type', 'application/xml')
-          res.send(plist.build(encode(pdef)).toString())
-        } else {
-          kcmController.getPDef(problemId, function(e,r,b) {
-            var sc = r && r.statusCode
-            if (sc != 200) return res.send(sc || 500)
-
-            if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
-            res.header('Content-Type', 'application/xml')
-            res.send(b)
-          })
-        }
+        if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
+        res.header('Content-Type', 'application/xml')
+        res.send(plist.build(encode(pdef)).toString())
       }
       , replacePListPage: function(req, res) {
         res.render('upload-plist', { title:'Upload the replacement problem definition PList', problemId:req.params.problemId });
