@@ -7,6 +7,7 @@ var fs = require('fs')
   , sqlite3 = require('sqlite3').verbose()
   , plist = require('plist')
   , encode = require('../encode-decode').encode
+  , decode = require('../encode-decode').decode
 
 var kcmDatabaseName
   , kcm // new model - gradually transition to retrieving docs from here & updating/deleting via its controllers
@@ -723,7 +724,7 @@ function insertProblem(plistPath, plId, plRev, cnId, cnRev, callback) {
       , headers: { 'Content-Type': 'application/json' }
       , body: JSON.stringify({
         type: 'problem'
-        , pdef: plist.parseStringSync(plistString)
+        , pdef: decode(plist.parseStringSync(plistString))
         , pipeline: plId
         , conceptNode: cnId
         , problemDescription: info.problemDescription
@@ -762,7 +763,7 @@ function updatePDef(user, problemId, plistPath, callback) {
     problem.internalDescription = info.internalDescription;
     problem.toolId = info.toolId;
     problem.dateModified = (new Date()).toJSON();
-    problem.pdef = plist.parseStringSync(plistString)
+    problem.pdef = decode(plist.parseStringSync(plistString))
 
     nextVersion(problem, user, 'updatePDef')
 
@@ -1494,6 +1495,7 @@ function uploadPipelineFolder(user, o, callback) {
   for (var i=0; i<o.pdefs.length; i++) {
     pl.problems[i] = generateUUID()
 
+    // base 64 decoded
     decodedPDef = new Buffer(o.pdefs[i], 'base64').toString()
     info = getProblemInfoFromPList(decodedPDef)
 
@@ -1512,7 +1514,7 @@ function uploadPipelineFolder(user, o, callback) {
       , toolId: info.toolId
       , dateCreated: now
       , dateModified: now
-      , pdef: plist.parseStringSync(decodedPDef)
+      , pdef: decode(plist.parseStringSync(decodedPDef))
     })
   }
 

@@ -601,6 +601,7 @@ module.exports = function(config, legacyKCMController, kcm) {
         var pdef = kcm.getDocClone(problemId, 'problem').pdef
         if (sendAsAttachment) res.header('Content-Disposition', 'attachment; filename=pdef-' + problemId + '.plist')
         res.header('Content-Type', 'application/xml')
+        // pdef strings html-decoded in json on database - encode them for xml
         res.send(plist.build(encode(pdef)).toString())
       }
       , replacePListPage: function(req, res) {
