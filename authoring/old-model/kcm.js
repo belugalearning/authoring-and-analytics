@@ -1924,7 +1924,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
   var writeLog = true
     , path = '/tmp/' + generateUUID()
     , contentPath = path + '/canned-content'
-    , pdefsPath = contentPath + '/pdefs'
     , contentDBPath = contentPath + '/content.db'
     , allUsersDBPath = path + '/all-users.db'
     , userStateTemplateDBPath = path + '/user-state-template.db'
@@ -1933,7 +1932,6 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
 
   fs.mkdirSync(path)
   fs.mkdirSync(contentPath)
-  fs.mkdirSync(pdefsPath)
 
   var origCallback = callback
   callback = function() {
