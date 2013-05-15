@@ -37,12 +37,12 @@ module.exports = function(config, legacyKCMController, kcm) {
         }
     }
     , getAppCannedDatabases: function(req, res) {
-      kcmController.getAppCannedDatabases(plutilCommand, req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+      kcmController.getAppCannedDatabases(req.session.user._id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
         if (200 != statusCode) {
-          res.send(e || 'error retrieving canned application content', statusCode || 500)
+          res.send(e || 'error retrieving canned application databases', statusCode || 500)
           return
         }
-        exec('zip canned-dbs.zip -r *', { cwd:path }, function(e, stdout, stderr) {
+        exec('zip canned-dbs.zip -r canned-dbs/*', { cwd:path }, function(e, stdout, stderr) {
           if (e) res.send(util.format('error zipping databases: "%s"', e), 500)
           else res.download(path+'/canned-dbs.zip')
         })
@@ -51,20 +51,21 @@ module.exports = function(config, legacyKCMController, kcm) {
     , appImportContent: function(req, res) {
       for (var id in kcm.docStores.users) {
         if (kcm.docStores.users[id].loginName == req.params.loginName) {
-          kcmController.getAppCannedDatabases(plutilCommand, id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
+          kcmController.getAppCannedDatabases(id, req.app.config.authoring.pipelineWorkflowStatuses, function(e, statusCode, path) {
             if (200 != statusCode) {
               res.send(e, statusCode || 500)
             } else {
-              exec('zip ../canned-content.zip -r *', { cwd:path + '/canned-content' }, function(e, stdout, stderr) {
+              var cwd = path + '/canned-dbs/canned-content'
+              exec('zip canned-content.zip -r *', { cwd:cwd }, function(e, stdout, stderr) {
                 if (e) res.send(util.format('error zipping content: "%s"', e), 500)
-                else res.download(path + '/canned-content.zip')
+                else res.download(cwd + '/canned-content.zip')
               })
             }
           })
           return
         }
       }
-      res.send(util.format('user with loginName="%s" does not exist', req.params.loginName), 412)
+      res.send(util.format('user with loginName="%s" does not exist', req.params.loginName), 400)
     }
     , appEditPDef: function(req, res) {
       kcmController.appEditPDef(req.body.userLoginName, req.body._id, req.body._rev, req.body.pdef, function(e, statusCode, b) {

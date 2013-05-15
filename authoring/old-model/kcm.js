@@ -1,10 +1,11 @@
 var fs = require('fs')
+  , os = require('os')
+  , path = require('path')
   , _ = require('underscore')
   , request = require('request')
   , util = require('util')
   , libxmljs = require('libxmljs')
   , exec = require('child_process').exec
-  , sqlite3 = require('sqlite3').verbose()
   , plist = require('plist')
   , encode = require('../encode-decode').encode
   , decode = require('../encode-decode').decode
@@ -1917,246 +1918,133 @@ function reorderPipelineProblems(user, pipelineId, pipelineRev, problemId, oldIn
 }
 
 // Export KCM
-function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, callback) {
+function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
   // download includes:
   //  1) all-users.db
   //  2) canned-content/ (i.e. KCM)
   //  3) user-state-template.db
+  
+  var writeLog = true 
+    , user = kcm.docStores.users[userId]
+    , exportSettings = user.exportSettings
+    , nodeExclusionTags = exportSettings.nodeExclusionTags
+    , conceptNodeRequiredTags = exportSettings.conceptNodeRequiredTags
+    , exportAllNodes  = exportSettings.exportAllNodes === true // export all OTHER nodes
+    , nodeInclusionTags = exportSettings.nodeInclusionTags
+    , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
+    , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
+    , pipelineNames = exportSettings.pipelineNames
+    , includedPipelineWorkflowStatuses
 
-  var writeLog = true
-    , path = '/tmp/' + generateUUID()
-    , contentPath = path + '/canned-content'
-    , contentDBPath = contentPath + '/content.db'
-    , allUsersDBPath = path + '/all-users.db'
-    , userStateTemplateDBPath = path + '/user-state-template.db'
-    , exportLogWriteStream
-    , content
+  var outPath = path.join((os.tmpdir ? os.tmpdir() : os.tmpDir()), generateUUID())
 
-  fs.mkdirSync(path)
-  fs.mkdirSync(contentPath)
+  exec(util.format('mkdir -p %s', path.join(outPath, 'canned-dbs/canned-content')), function(e) {
+    if (e) return callback('error creating temp directories: ' + e, 500)
 
-  var origCallback = callback
-  callback = function() {
-    if (exportLogWriteStream) exportLogWriteStream.end()
-    origCallback.apply(null, [].slice.call(arguments))
-  }
+    fs.writeFileSync(outPath + '/all-users.sql', getAllUsersDbStatements().join('\n'), 'utf8')
+    fs.writeFileSync(outPath + '/user-state-template.sql', getAllUsersDbStatements().join('\n'), 'utf8')
+    fs.writeFileSync(outPath + '/content.sql', getContentDbStatements(getContentJSON()).join('\n'), 'utf8')
 
-  var gotoNext = function(next) {
-    if (typeof next === 'function') {
-      next.apply(null, [].slice.call(arguments, 1))
-    } else {
-      callback(null, 200, path)
-    }
-  }
+    var commands = [
+      'sqlite3 canned-dbs/all-users.db < all-users.sql',
+      'sqlite3 canned-dbs/user-state-template.db < user-state-template.sql',
+      'sqlite3 canned-dbs/canned-content/content.db < content.sql'
+    ]
 
-  // 1) all-users.db
-  var createAllUsers = function() {
-    var args = arguments
-      , db = new sqlite3.Database(allUsersDBPath)
-
-    db.serialize(function() {
-      db.run("CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, last_server_process_batch_date REAL, nick_clash INTEGER)")
-      db.run("CREATE TABLE NodePlays (episode_id TEXT PRIMARY KEY ASC, batch_id TEXT, user_id TEXT, node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, score INTEGER)")
-      db.run("CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT)")
-      db.run("CREATE TABLE FeatureKeys (batch_id TEXT, user_id TEXT, key TEXT, date REAL)")
-
-      db.close(function() {
-        gotoNext.apply(null, args)
-      })
+    exec(commands.join(' && '), { cwd: outPath }, function(e) {
+      if (e) return callback('error writing databases: ' + e, 500)
+      callback(null, 200, outPath)
     })
+  })
+
+  function getAllUsersDbStatements() {
+    return [
+      "CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, last_server_process_batch_date REAL, nick_clash INTEGER);",
+      "CREATE TABLE NodePlays (episode_id TEXT PRIMARY KEY ASC, batch_id TEXT, user_id TEXT, node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, score INTEGER);",
+      "CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT);",
+      "CREATE TABLE FeatureKeys (batch_id TEXT, user_id TEXT, key TEXT, date REAL);"
+    ]
+  }
+
+  function getUserStateTemplateDbStatements() {
+    return [
+      "CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, last_played REAL, last_score INTEGER, total_accumulated_score INTEGER, high_score INTEGER, first_completed REAL, last_completed REAL, \
+          artifact_1_last_achieved REAL, artifact_1_curve TEXT, artifact_2_last_achieved REAL, artifact_2_curve TEXT, artifact_3_last_achieved REAL, artifact_3_curve TEXT, \
+          artifact_4_last_achieved REAL, artifact_4_curve TEXT, artifact_5_last_achieved REAL, artifact_5_curve TEXT);",
+      "CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT);",
+      "CREATE TABLE FeatureKeys (key TEXT PRIMARY KEY ASC, encounters TEXT);"
+    ].concat(
+      content.conceptNodes.map(function(cn) {
+      return util.format("INSERT INTO Nodes(id, time_played, total_accumulated_score, high_score) VALUES ('%s',0,0,0);", cn.id)
+    })
+    )
   }
   
-  // 2) KCM
-  var createContent = function() {
-    var args = arguments
-      , user = kcm.docStores.users[userId]
-      , exportSettings = user.exportSettings
-      , nodeExclusionTags = exportSettings.nodeExclusionTags
-      , conceptNodeRequiredTags = exportSettings.conceptNodeRequiredTags
-      , exportAllNodes  = exportSettings.exportAllNodes === true // export all OTHER nodes
-      , nodeInclusionTags = exportSettings.nodeInclusionTags
-      , nodeTagsToBitCols = exportSettings.nodeTagsToBitCols
-      , nodeTagPrefixesToTextCols = exportSettings.nodeTagPrefixesToTextCols
-      , pipelineNames = exportSettings.pipelineNames
-      , includedPipelineWorkflowStatuses
-      , exportLogWriteStream
+  function getContentDbStatements(content) {
+    var statements = []
 
-    var getAppContentJSON = function() {
-      var masteryPairs = kcm.cloneDocByTypeName('relation', 'Mastery').members
+    // create ConceptNodes
+    var tagBitColDecs = nodeTagsToBitCols.map(function(tag) {
+      return util.format(', %s INTEGER', tag)
+    }).join('')
 
-      // which nodes & pipelines to include
-      var incNodes = {}
-        , incPipelines = []
+    var tagTextColDecs = nodeTagPrefixesToTextCols.map(function(tagPrefix) {
+      return util.format(', %s TEXT', tagPrefix)
+    }).join('')
 
-      _.each(kcm.docStores.nodes, function(n) {
-        if (!~n.tags.indexOf('mastery')) return
-        if (_.intersection(exportSettings.nodeExclusionTags, n.tags).length) return
+    statements.push(util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, workflowStatus INTEGER, x INTEGER, y INTEGER%s%s);", tagBitColDecs, tagTextColDecs))
 
-        var conceptNodes = _.map(
-          _.filter(masteryPairs, function(p) { return p[1] == n._id })
-          , function(p) { return kcm.docStores.nodes[p[0]] })
+    // insert in to ConceptNodes
+    var tagCols = nodeTagsToBitCols.concat(nodeTagPrefixesToTextCols)
+    var insertCNStatements = content.conceptNodes.map(function(n) {
+      var tags = tagCols.map(function(tag) { return n[tag] })
+      var cols =
+        [ n.id, n.rev, JSON.stringify(n.pipelines), n.workflowStatus, n.x, n.y ]
+        .concat(tags)
+        .map(formatCellData)
+      return util.format('INSERT INTO ConceptNodes VALUES (%s);', cols.join(','))
+    })
+    statements = statements.concat(insertCNStatements)
 
-        conceptNodes = JSON.parse(JSON.stringify(
-          conceptNodes.filter(function(cn) {
-            if (_.intersection(exportSettings.nodeExclusionTags, cn.tags).length) return false
-            return !_.difference(exportSettings.conceptNodeRequiredTags, cn.tags).length
-          })
-        ))
+    // create Pipelines
+    statements.push("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, workflowStatus INTEGER, problems TEXT);")
 
-        conceptNodes.forEach(function(cn) {
-          var cnPipelines = cn.pipelines.map(function(plId) { return kcm.docStores.pipelines[plId] })
-          cnPipelines = cnPipelines.filter(function(pl) {
-            return pl.problems.length && ~includedPipelineWorkflowStatuses.indexOf(pl.workflowStatus) && ~exportSettings.pipelineNames.indexOf(pl.name)
-          })
+    // insert into Pipelines
+    var insertPlStatements = content.pipelines.map(function(pl) {
+      var plData = [pl.id, pl.rev, pl.name, pl.workflowStatus, JSON.stringify(pl.problems)]
+      return util.format('INSERT INTO Pipelines VALUES (%s);', plData.map(formatCellData).join(','))
+    })
+    statements = statements.concat(insertPlStatements)
 
-          cn.pipelines = _.pluck(cnPipelines, '_id')
+    // create Problems
+    statements.push("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT, pdef TEXT, last_saved_pdef TEXT, change_stack TEXT, stack_current_index INTEGER, stack_last_save_index INTEGER);")
 
-          if (cnPipelines.length) {
-            cn.hasPipelineInExport = true 
-            incPipelines = incPipelines.concat(cnPipelines)
-          }
-        })
+    // insert Problems
+    var insertProbsStatements = content.problems.map(function(p) {
+      var pdefString = JSON.stringify(p.pdef)
+      var cols = [ p.id, p.rev, pdefString, pdefString, '[]', 0, 0 ]
+      return util.format('INSERT INTO Problems VALUES (%s);', cols.map(formatCellData).join(','))
+    })
+    statements = statements.concat(insertProbsStatements)
 
-        conceptNodes = conceptNodes.filter(function(cn) {
-          return cn.hasPipelineInExport || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, cn.tags).length
-        })
+    // create BinaryRelations
+    statements.push("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT);")
 
-        if (conceptNodes.length || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, n.tags).length) {
-          incNodes[n._id] = n
+    // insert BinaryRleations
+    var insBinaryRelStatements = content.binaryRelations.map(function(br) {
+      var cols = [ br.id, br.rev, br.name, JSON.stringify(br.members) ]
+      return util.format("INSERT INTO BinaryRelations VALUES (%s);", cols.map(formatCellData).join(','))
+    })
+    statements = statements.concat(insBinaryRelStatements)
 
-          conceptNodes.forEach(function(cn) {
-            incNodes[cn._id] = cn
-          })
-        }
-      })
+    return statements
+  }
 
-      // pipelines & problems
-      var pipelines = {}
-        , problems = {}
+  function getContentJSON() {
+    var masteryPairs = kcm.cloneDocByTypeName('relation', 'Mastery').members
+    var incNodes = {}
+      , incPipelines = []
 
-      incPipelines.forEach(function(pl) {
-        pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:pl.workflowStatus, problems:pl.problems }
-
-        pl.problems.forEach(function(prId) {
-          var problem = kcm.docStores.problems[prId]
-          problems[prId] = {
-            id: problem._id
-            , rev: problem._rev
-            , pdef: problem.pdef
-          }
-        })
-      })
-
-      // nodes
-      var nodes = {}
-      var tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
-      _.each(incNodes, function(n, id) {
-        nodes[id] = { id:n._id, rev:n._rev, pipelines:n.pipelines, x:n.x, y:n.y, workflowStatus:0 }
-        
-        if (n.pipelines.length) {
-          nodes[id].workflowStatus = Math.min.apply(Math, _.map(nodes[id].pipelines, function(plId) { return pipelines[plId].workflowStatus }))
-        }
-
-        nodeTagsToBitCols.forEach(function(tag) {
-          nodes[id][tag] = ~n.tags.indexOf(tag) ? 1 : 0
-        })
-
-        nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
-          var re = tagTextRegExps[i]
-            , matchingTags = _.filter(n.tags, function(tag) { return tag.match(re) != null })
-          nodes[id][tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
-        })
-      })
-
-      // binary relations
-      var binaryRelations = []
-      _.each(kcm.docStores.relations, function(r) {
-        if (!~['binary','chained-binary'].indexOf(r.relationType)) return
-
-        var pairs = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
-
-        binaryRelations.push({
-          id: r._id
-          , rev: r._rev
-          , name: r.name
-          , members: pairs.filter(function(p) { return nodes[p[0]] && nodes[p[1]] })
-        })
-      })
-
-      return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
-    }
-
-    function createSQLiteDB(content, cb) {
-      var db = new sqlite3.Database(contentDBPath)
-      db.serialize(function() {
-        var tagBitColDecs = _.map(nodeTagsToBitCols, function(tag) { return util.format(', %s INTEGER', tag) }).join('')
-        var tagTextColDecs = _.map(nodeTagPrefixesToTextCols, function(tagPrefix) { return util.format(', %s TEXT', tagPrefix) }).join('')
-        exportLogWriteStream.write('\n================================================\nCREATE TABLE ConceptNodes\n')
-        var cnTableCreateScript = util.format("CREATE TABLE ConceptNodes (id TEXT PRIMARY KEY ASC, rev TEXT, pipelines TEXT, workflowStatus INTEGER, x INTEGER, y INTEGER%s%s)", tagBitColDecs, tagTextColDecs)
-        db.run(cnTableCreateScript)
-
-        exportLogWriteStream.write('\n================================================\nINSERT INTO ConceptNodes\n')
-        var cnIns = db.prepare(util.format("INSERT INTO ConceptNodes VALUES (?,?,?,?,?,?%s)", new Array(nodeTagsToBitCols.length + nodeTagPrefixesToTextCols.length + 1).join(',?')))
-        content.conceptNodes.forEach(function(n) {
-          exportLogWriteStream.write('['+n.id+']')
-          var tags = _.map(nodeTagsToBitCols.concat(nodeTagPrefixesToTextCols), function(tag) { return n[tag] })
-          , cols = [n.id, n.rev, JSON.stringify(n.pipelines), n.workflowStatus, n.x, n.y].concat(tags)
-
-          cnIns.run.apply(cnIns, cols)
-        })
-        cnIns.finalize()
-
-        exportLogWriteStream.write('\n================================================\nCREATE TABLE Pipelines\n')
-        db.run("CREATE TABLE Pipelines (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, workflowStatus INTEGER, problems TEXT)")
-        exportLogWriteStream.write('\n================================================\nINSERT INTO Pipelines\n')
-        var plIns = db.prepare("INSERT INTO Pipelines VALUES (?,?,?,?,?)")
-        content.pipelines.forEach(function(pl) {
-          exportLogWriteStream.write('['+pl.id+']')
-          plIns.run(pl.id, pl.rev, pl.name, pl.workflowStatus, JSON.stringify(pl.problems))
-        })
-        plIns.finalize()
-
-        exportLogWriteStream.write('\n================================================\nCREATE TABLE Problems\n')
-        db.run("CREATE TABLE Problems (id TEXT PRIMARY KEY ASC, rev TEXT, pdef TEXT, last_saved_pdef TEXT, change_stack TEXT, stack_current_index INTEGER, stack_last_save_index INTEGER)")
-        exportLogWriteStream.write('\n================================================\nINSERT INTO Problems\n')
-        var probsIns = db.prepare("INSERT INTO Problems VALUES (?,?,?, ?,?,?, ?)")
-        content.problems.forEach(function(p) {
-          var pdefString = JSON.stringify(p.pdef)
-          exportLogWriteStream.write('['+p.id+']')
-          probsIns.run(p.id, p.rev, pdefString, pdefString, '[]', 0, 0)
-        })
-        probsIns.finalize()
-
-        exportLogWriteStream.write('\n================================================\nCREATE TABLE BinaryRelations\n')
-        db.run("CREATE TABLE BinaryRelations (id TEXT PRIMARY KEY ASC, rev TEXT, name TEXT, members TEXT)")
-        exportLogWriteStream.write('\n================================================\nINSERT INTO BinaryRelations\n')
-        var brIns = db.prepare("INSERT INTO BinaryRelations VALUES (?,?,?,?)")
-        content.binaryRelations.forEach(function(br) {
-          exportLogWriteStream.write('['+br.id+']')
-          brIns.run(br.id, br.rev, br.name, JSON.stringify(br.members))
-        })
-        brIns.finalize()
-
-        if (writeLog) {
-          db.all("SELECT * FROM ConceptNodes", function(err, rows) {
-            exportLogWriteStream.write('\n================================================\nSELECT * FROM ConceptNodes:\n' + JSON.stringify(rows,null,4) + '\n================================================\n')
-          })
-          db.all("SELECT * FROM Pipelines", function(err, rows) {
-            exportLogWriteStream.write('\n================================================\nSELECT * FROM Pipelines:\n' + JSON.stringify(rows,null,4) + '\n================================================\n')
-          })
-          db.all("SELECT * FROM Problems", function(err, rows) {
-            exportLogWriteStream.write('\n================================================\nSELECT * FROM Problems:\n' + JSON.stringify(rows,null,4) + '\n================================================\n')
-          })
-          db.all("SELECT * FROM BinaryRelations", function(err, rows) {
-            exportLogWriteStream.write('\n================================================\nSELECT * FROM BinaryRelations:\n' + JSON.stringify(rows,null,4) + '\n================================================\n')
-          })
-        }
-
-        db.close(function() {
-          cb(null,201)
-        })
-      })  
-    }
 
     var allWfStatusLevels = _.pluck(pipelineWorkflowStatuses, 'value')
     switch (exportSettings.pipelineWorkflowStatusOperator) {
@@ -2174,50 +2062,121 @@ function getAppCannedDatabases(plutilCommand, userId, pipelineWorkflowStatuses, 
       return
     }
 
-    if (writeLog) exportLogWriteStream = fs.createWriteStream(contentPath + '/export-log.txt') 
-    if (writeLog) exportLogWriteStream.write('================================================\nExport Settings Couch Document:\n' + JSON.stringify(exportSettings,null,4) + '\n================================================\n')
+    _.each(kcm.docStores.nodes, function(n) {
+      if (!~n.tags.indexOf('mastery')) return
+      if (_.intersection(exportSettings.nodeExclusionTags, n.tags).length) return
 
-    content = getAppContentJSON()
-    if (writeLog) exportLogWriteStream.write('\n================================================\nKCM Content shaped for use as source of SQLite database:\n' + JSON.stringify(content,null,4) + '\n================================================\n')
+      var conceptNodes = _.map(
+        _.filter(masteryPairs, function(p) { return p[1] == n._id })
+        , function(p) { return kcm.docStores.nodes[p[0]] })
 
-    createSQLiteDB(content, function(e, statusCode) {
-      if (201 != statusCode) {
-        callback(e || 'error creating content database', statusCode || 500)
-      } else {
-        gotoNext.apply(null, args)
+      conceptNodes = JSON.parse(JSON.stringify(
+        conceptNodes.filter(function(cn) {
+          if (_.intersection(exportSettings.nodeExclusionTags, cn.tags).length) return false
+          return !_.difference(exportSettings.conceptNodeRequiredTags, cn.tags).length
+        })
+      ))
+
+      conceptNodes.forEach(function(cn) {
+        var cnPipelines = cn.pipelines.map(function(plId) { return kcm.docStores.pipelines[plId] })
+        cnPipelines = cnPipelines.filter(function(pl) {
+          return pl.problems.length && ~includedPipelineWorkflowStatuses.indexOf(pl.workflowStatus) && ~exportSettings.pipelineNames.indexOf(pl.name)
+        })
+
+        cn.pipelines = _.pluck(cnPipelines, '_id')
+
+        if (cnPipelines.length) {
+          cn.hasPipelineInExport = true 
+          incPipelines = incPipelines.concat(cnPipelines)
+        }
+      })
+
+      conceptNodes = conceptNodes.filter(function(cn) {
+        return cn.hasPipelineInExport || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, cn.tags).length
+      })
+
+      if (conceptNodes.length || exportSettings.exportAllNodes || _.intersection(exportSettings.nodeInclusionTags, n.tags).length) {
+        incNodes[n._id] = n
+
+        conceptNodes.forEach(function(cn) {
+          incNodes[cn._id] = cn
+        })
       }
     })
-  }
-  
-  // 3) user-state-template.db
-  var createUserStateTemplate = function() {
-    var args = arguments
-      , db = new sqlite3.Database(userStateTemplateDBPath)
 
-    db.serialize(function() {
-      db.run("CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, last_played REAL, last_score INTEGER, total_accumulated_score INTEGER, high_score INTEGER, first_completed REAL, last_completed REAL, \
-             artifact_1_last_achieved REAL, artifact_1_curve TEXT, artifact_2_last_achieved REAL, artifact_2_curve TEXT, artifact_3_last_achieved REAL, artifact_3_curve TEXT, \
-             artifact_4_last_achieved REAL, artifact_4_curve TEXT, artifact_5_last_achieved REAL, artifact_5_curve TEXT)")
+    // pipelines & problems
+    var pipelines = {}
+      , problems = {}
 
-      var cnIns = db.prepare("INSERT INTO Nodes(id, time_played, total_accumulated_score, high_score) VALUES (?,?,?,?)")
-      content.conceptNodes.forEach(function(n) {
-        cnIns.run.apply(cnIns, [n.id, 0, 0, 0])
-      })
-      cnIns.finalize()
+    incPipelines.forEach(function(pl) {
+      pipelines[pl._id] = { id:pl._id, rev:pl._rev, name:pl.name, workflowStatus:pl.workflowStatus, problems:pl.problems }
 
-      db.run("CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT)")
-      db.run("CREATE TABLE FeatureKeys (key TEXT PRIMARY KEY ASC, encounters TEXT)")
-
-      db.close(function() {
-        gotoNext.apply(null, args)
+      pl.problems.forEach(function(prId) {
+        var problem = kcm.docStores.problems[prId]
+        problems[prId] = {
+          id: problem._id
+          , rev: problem._rev
+          , pdef: problem.pdef
+        }
       })
     })
+
+    // nodes
+    var nodes = {}
+    var tagTextRegExps = _.map(nodeTagPrefixesToTextCols, function(prefix) { return new RegExp(util.format('^%s:\\s*(.+)', prefix)) })
+    _.each(incNodes, function(n, id) {
+      nodes[id] = { id:n._id, rev:n._rev, pipelines:n.pipelines, x:n.x, y:n.y, workflowStatus:0 }
+      
+      if (n.pipelines.length) {
+        nodes[id].workflowStatus = Math.min.apply(Math, _.map(nodes[id].pipelines, function(plId) { return pipelines[plId].workflowStatus }))
+      }
+
+      nodeTagsToBitCols.forEach(function(tag) {
+        nodes[id][tag] = ~n.tags.indexOf(tag) ? 1 : 0
+      })
+
+      nodeTagPrefixesToTextCols.forEach(function(tagPrefix, i) {
+        var re = tagTextRegExps[i]
+          , matchingTags = _.filter(n.tags, function(tag) { return tag.match(re) != null })
+        nodes[id][tagPrefix] = JSON.stringify(_.map(matchingTags, function(t) { return t.substring(1 + tagPrefix.length) }))
+      })
+    })
+
+    // binary relations
+    var binaryRelations = []
+    _.each(kcm.docStores.relations, function(r) {
+      if (!~['binary','chained-binary'].indexOf(r.relationType)) return
+
+      var pairs = r.relationType == 'binary' ? r.members : kcm.chainedBinaryRelationMembers(r)
+
+      binaryRelations.push({
+        id: r._id
+        , rev: r._rev
+        , name: r.name
+        , members: pairs.filter(function(p) { return nodes[p[0]] && nodes[p[1]] })
+      })
+    })
+
+    return { conceptNodes:_.values(nodes), pipelines:_.values(pipelines), binaryRelations:binaryRelations, problems:_.values(problems) }
   }
 
-  createAllUsers(createContent, createUserStateTemplate)
+  function formatCellData(data) {
+    switch (typeof data) {
+      case 'number':
+      case 'boolean':
+        return Number(data)
+      case 'string':
+        return "'" + data.replace(/'/g, "''") + "'"
+      default:
+        return data
+    }
+  }
 }
 
+
+
 // TODO: The following functions should be shared across model modules
+// and use nextVersion
 function getDoc(id, callback) {
   request({
     uri: databaseURI + id
