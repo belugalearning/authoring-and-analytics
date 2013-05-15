@@ -1959,20 +1959,24 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
 
   function getAllUsersDbStatements() {
     return [
+      "BEGIN TRANSACTION;",
       "CREATE TABLE users (id TEXT PRIMARY KEY ASC, nick TEXT, password TEXT, flag_remove INTEGER, last_server_process_batch_date REAL, nick_clash INTEGER);",
       "CREATE TABLE NodePlays (episode_id TEXT PRIMARY KEY ASC, batch_id TEXT, user_id TEXT, node_id TEXT, start_date REAL, last_event_date REAL, ended_pauses_time REAL, curr_pause_start_date REAL, score INTEGER);",
       "CREATE TABLE ActivityFeed (batch_id TEXT, user_id, TEXT, event_type TEXT, date REAL, data TEXT);",
-      "CREATE TABLE FeatureKeys (batch_id TEXT, user_id TEXT, key TEXT, date REAL);"
+      "CREATE TABLE FeatureKeys (batch_id TEXT, user_id TEXT, key TEXT, date REAL);",
+      "END TRANSACTION;"
     ]
   }
 
   function getUserStateTemplateDbStatements() {
     return [
+      "BEGIN TRANSACTION;",
       "CREATE TABLE Nodes (id TEXT PRIMARY KEY ASC, time_played REAL, last_played REAL, last_score INTEGER, total_accumulated_score INTEGER, high_score INTEGER, first_completed REAL, last_completed REAL, \
           artifact_1_last_achieved REAL, artifact_1_curve TEXT, artifact_2_last_achieved REAL, artifact_2_curve TEXT, artifact_3_last_achieved REAL, artifact_3_curve TEXT, \
           artifact_4_last_achieved REAL, artifact_4_curve TEXT, artifact_5_last_achieved REAL, artifact_5_curve TEXT);",
       "CREATE TABLE ActivityFeed (event_type TEXT, date REAL, data TEXT);",
-      "CREATE TABLE FeatureKeys (key TEXT PRIMARY KEY ASC, encounters TEXT);"
+      "CREATE TABLE FeatureKeys (key TEXT PRIMARY KEY ASC, encounters TEXT);",
+      "END TRANSACTION;"
     ].concat(
       content.conceptNodes.map(function(cn) {
       return util.format("INSERT INTO Nodes(id, time_played, total_accumulated_score, high_score) VALUES ('%s',0,0,0);", cn.id)
@@ -1981,7 +1985,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
   }
   
   function getContentDbStatements(content) {
-    var statements = []
+    var statements = [ 'BEGIN TRANSACTION;' ]
 
     // create ConceptNodes
     var tagBitColDecs = nodeTagsToBitCols.map(function(tag) {
@@ -2037,7 +2041,7 @@ function getAppCannedDatabases(userId, pipelineWorkflowStatuses, callback) {
     })
     statements = statements.concat(insBinaryRelStatements)
 
-    return statements
+    return statements.concat('END TRANSACTION;')
   }
 
   function getContentJSON() {
