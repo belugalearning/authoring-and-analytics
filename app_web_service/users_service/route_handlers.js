@@ -26,16 +26,24 @@ exports.syncUsers = function syncUsers(req, res) {
   if (req.body && req.body.users) {
     users = JSON.parse(req.body.users)
   }
+
   if (!Array.isArray(users)) {
     console.log('%s\tsyncUsers Bad Args: req.body.users array expected.\treq.body: %j, users: %j', niceConciseDate(), req.body, users)
     res.send(500)
     return
   }
 
+  // pre 1.2 version of app has bug that makes it crash on processing data sent in success response so send error if possibility app version is pre 1.2 (assignmentFlags object not present on user)
+  var sendErrorResponseToOldAppVersion = !users.length || typeof users[0].assignmentFlags != 'object'
+
   model.syncUsers(users, function(e, statusCode, updates) {
     if (verboseLogging) {
       console.log('----- End Sync Users: %s', JSON.stringify({ e:e, sc:statusCode, updates:updates }, null, 2))
       console.log('DEBUG STACK AT END SYNC USERS: %s', new Error().stack)
+    }
+    if (!e && sendErrorResponseToOldAppVersion) {
+      e = 'Bug in pre-v1.2 version of app causes crash processing data in success response -> send error'
+      statusCode = 500
     }
     res.send(e || updates, statusCode || 500)
   })
