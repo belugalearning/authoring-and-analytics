@@ -126,7 +126,7 @@ exports.changeNick = function changeNick(req, res) {
     }
 
     model.userMatchingNick(newNick, function(e,r,b) {
-      if (checkResponseError(e, r, b, 200, nickClashURI)) return
+      if (checkResponseError(e, r, b, 200, '[user-matching-nick]')) return
 
       if (JSON.parse(b).rows.length) {
         if (!sentResponse) res.send(409)
