@@ -251,6 +251,11 @@ exports.getState = function getState(req,res) {
       return
     }
 
+    // local testing with ssh tunnel
+    if (config.localise) {
+      urDbURI = urDbURI.replace(/^http:\/\/.*:\d*/, 'http://127.0.0.1:5984')
+    }
+
     var pathToViews = util.format('%s/_design/user-related-views/_view', urDbURI)
 
     // get latest batch procesed. Any batches processed from now will be ignored for remainder of this iteration of getState()

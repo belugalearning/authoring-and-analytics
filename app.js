@@ -7,7 +7,8 @@ console.log('\nBLWebApp Launched at', new Date())
 var config = JSON.parse(fs.readFileSync(__dirname + '/config.json'))
 
 if (!!~process.argv.indexOf('--localise-couchdb-uris')) {
-  config.couchServerURI = config.couchServerURI.replace(/^http:\/\/.*:/, 'http://127.0.0.1:')
+  config.couchServerURI = config.couchServerURI.replace(/^http:\/\/[^:/]*:5984/, 'http://127.0.0.1:5984')
+  config.localise = true
 }
 
 var appWebService = require('./app_web_service')(config)
