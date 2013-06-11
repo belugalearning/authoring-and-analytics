@@ -461,8 +461,11 @@ exports.getState = function getState(req,res) {
           ws.writable = true
 
           ws.write = function(buf) {
-            if (buf.length + numBytes > out.length) {
-              var newOut = new Buffer(2 * out.length)
+            var reqLen = buf.length + numBytes
+            if (reqLen > out.length) {
+              var newLen = out.length
+              while (newLen < reqLen) newLen *= 2
+              var newOut = new Buffer(newLen)
               out.copy(newOut)
               out = newOut
             }
