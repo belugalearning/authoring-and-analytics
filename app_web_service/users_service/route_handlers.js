@@ -11,6 +11,22 @@ var model
   , config
   , verboseLogging = false
 
+// temporarily hard-code the news items
+var newsItems = [
+  {
+    id: '1544EC0F-84E8-C02F-A65F-D1EDE1E99DAA',
+    date: 1371050892,
+    html: fs.readFileSync(__dirname + '/news-items/insight.html', 'utf8'),
+    first_read: null
+  },
+  {
+    id: 'A26FE940-8183-79AF-2A4D-3D3D37C52E27',
+    date: 137105000,
+    html: fs.readFileSync(__dirname + '/news-items/v1.2.0.1.html', 'utf8'),
+    first_read: null
+  }
+]
+
 module.exports = function(model_, config_) {
   model = model_
   config = config_
@@ -289,8 +305,9 @@ exports.getState = function getState(req,res) {
         var dbPath = util.format('/tmp/ur-state-%s.db', guid())
 
         var dbTablesData = {
-          nodes: null
-          , featureKeys: null
+          nodes: null,
+          featureKeys: null,
+          news: newsItems
         }
 
         var getNodesTableData = function(successfn) {
@@ -426,15 +443,24 @@ exports.getState = function getState(req,res) {
             [ 'key TEXT PRIMARY KEY ASC'
             , 'encounters TEXT' ]
 
+          var newsCols = 
+            [ 'id TEXT PRIMARY KEY ASC'
+            , 'date REAL'
+            , 'html TEXT'
+            , 'first_read REAL' ]
+
           var nodeColNames = nodeCols.map(function(col) { return col.match(/^\S+/)[0] })
           var fkColNames = fkCols.map(function(col) { return col.match(/^\S+/)[0] })
+          var newsColNames = newsCols.map(function(col) { return col.match(/^\S+/)[0] })
 
           db.serialize(function() {
             db.run(util.format('CREATE TABLE Nodes (%s)', nodeCols.join(',')))
             db.run(util.format('CREATE TABLE FeatureKeys (%s)', fkCols.join(',')))
+            db.run(util.format('CREATE TABLE News (%s)', newsCols.join(',')))
 
             var nodeIns = db.prepare(util.format('INSERT INTO Nodes       (%s) VALUES (?%s)', nodeColNames.join(','), Array(nodeColNames.length).join(',?')))
             var fkIns =   db.prepare(util.format('INSERT INTO FeatureKeys (%s) VALUES (?%s)', fkColNames.join(','),   Array(fkColNames.length).join(',?')))
+            var newsIns =   db.prepare(util.format('INSERT INTO News (%s) VALUES (?%s)', newsColNames.join(','),   Array(newsColNames.length).join(',?')))
 
             Object.keys(dbTablesData.nodes).forEach(function(nId) {
               var n = dbTablesData.nodes[nId]
@@ -444,6 +470,11 @@ exports.getState = function getState(req,res) {
             Object.keys(dbTablesData.featureKeys).forEach(function(key) {
               var fk = dbTablesData.featureKeys[key]
               fkIns.run.apply(fkIns, fkColNames.map(function(col) { return fk[col] }))
+            })
+
+            Object.keys(dbTablesData.news).forEach(function(key) {
+              var item = dbTablesData.news[key]
+              newsIns.run.apply(newsIns, newsColNames.map(function(col) { return item[col] }))
             })
 
             db.close(successfn)
