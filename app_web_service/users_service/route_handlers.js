@@ -14,6 +14,12 @@ var model
 // temporarily hard-code the news items
 var newsItems = [
   {
+    id: 'B0643478-63C8-6B0B-2526-5C00568B43E7',
+    date: 1371553200,
+    html: fs.readFileSync(__dirname + '/news-items/v1.3.0.3.html', 'utf8'),
+    first_read: null
+  },
+  {
     id: '1544EC0F-84E8-C02F-A65F-D1EDE1E99DAA',
     date: 1371050892,
     html: fs.readFileSync(__dirname + '/news-items/insight.html', 'utf8'),
@@ -26,6 +32,8 @@ var newsItems = [
     first_read: null
   }
 ]
+
+console.log(newsItems[0])
 
 module.exports = function(model_, config_) {
   model = model_
