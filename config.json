@@ -30,8 +30,8 @@
   , "appScoring": {
       "artifact1": 0
     , "artifact2": 250000
-    , "artifact3": 500000
-    , "artifact4": 750000
+    , "artifact3": 999999
+    , "artifact4": 999999
     , "artifact5": 999999
   }
 }
